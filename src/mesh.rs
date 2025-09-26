@@ -15,26 +15,30 @@ pub trait VertexFormat {
 }
 
 #[derive(Clone, Copy)]
+#[repr(C, packed)]
 pub struct BlockVertex {
-    pub position: IVec3,
-    pub normal: Vec3,
-    pub uv: Vec2,
+    pub position: u32,
+    pub normal: u32,
+    pub uv: u32,
     pub block_type: u32,
-    pub foliage: Vec3,
+    pub foliage: u32,
 }
 
 #[derive(Clone, Copy)]
+#[repr(C, packed)]
 pub struct UIVertex {
     pub position: Vec3,
     pub uv: Vec2,
 }
 
 #[derive(Clone, Copy)]
+#[repr(C, packed)]
 pub struct OutlineVertex {
     pub position: Vec3,
 }
 
 #[derive(Clone, Copy)]
+#[repr(C, packed)]
 pub struct CloudPlaneVertex {
     pub position: Vec2,
     pub uv: Vec2,
@@ -45,24 +49,22 @@ impl VertexFormat for BlockVertex {
         unsafe {
             gl::VertexAttribIPointer(
                 0,
-                3,
-                gl::INT,
+                1,
+                gl::UNSIGNED_INT,
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, position) as *const _,
             );
-            gl::VertexAttribPointer(
+            gl::VertexAttribIPointer(
                 1,
-                3,
-                gl::FLOAT,
-                gl::FALSE,
+                1,
+                gl::UNSIGNED_INT,
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, normal) as *const _,
             );
-            gl::VertexAttribPointer(
+            gl::VertexAttribIPointer(
                 2,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
+                1,
+                gl::UNSIGNED_INT,
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, uv) as *const _,
             );
@@ -73,11 +75,10 @@ impl VertexFormat for BlockVertex {
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, block_type) as *const _,
             );
-            gl::VertexAttribPointer(
+            gl::VertexAttribIPointer(
                 4,
-                3,
-                gl::FLOAT,
-                gl::FALSE,
+                1,
+                gl::UNSIGNED_INT,
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, foliage) as *const _,
             );

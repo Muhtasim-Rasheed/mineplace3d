@@ -37,7 +37,7 @@ const WINDOW_HEIGHT: u32 = 900;
 
 const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE - 1;
 
-const PLACABLE_BLOCKS: [Block; 21] = [
+const PLACABLE_BLOCKS: [Block; 22] = [
     Block::Grass,
     Block::Dirt,
     Block::Planks,
@@ -58,6 +58,7 @@ const PLACABLE_BLOCKS: [Block; 21] = [
     Block::StoneStairsW,
     Block::Glass,
     Block::Brick,
+    Block::Snow,
     Block::Glungus,
 ];
 
@@ -155,13 +156,13 @@ fn main() {
     );
 
     let mut view;
-    let projection = Mat4::perspective_rh(
+    let projection = Mat4::perspective_rh_gl(
         90f32.to_radians(),
         WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
         0.1,
         200.0,
     );
-    let cloud_projection = Mat4::perspective_rh(
+    let cloud_projection = Mat4::perspective_rh_gl(
         90f32.to_radians(),
         WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
         0.1,
@@ -379,7 +380,7 @@ Current Block: {}"#,
             } else {
                 "-Z / N"
             },
-            world.meshes.iter().map(|m| m.vertex_count()).sum::<usize>(),
+            world.meshes.iter().map(|(_, m)| m.vertex_count()).sum::<usize>(),
             translations
                 .get({
                     let block = PLACABLE_BLOCKS[player.current_block];
@@ -463,8 +464,8 @@ Current Block: {}"#,
             shader_program.set_uniform("textures_per_row", 12);
             shader_program.set_uniform("texture_row_count", 12);
             shader_program.set_uniform("time", time);
-            // mesh.draw();
-            for mesh in &world.meshes {
+            for (pos, mesh) in &world.meshes {
+                shader_program.set_uniform("chunk_pos", pos);
                 mesh.draw();
             }
 

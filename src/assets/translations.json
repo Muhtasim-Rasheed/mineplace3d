@@ -21,6 +21,7 @@
   "block.0007.0006": "Cobblestone West Stairs",
   "block.0008": "Glass",
   "block.0009": "Bricks",
-  "block.000A": "Bedrock",
-  "block.000B": "Glungus"
+	"block.000A": "Snow",
+  "block.000B": "Glungus",
+  "block.000C": "Bedrock"
 }

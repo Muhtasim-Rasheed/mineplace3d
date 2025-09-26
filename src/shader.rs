@@ -168,6 +168,16 @@ impl<const N: usize> UniformValue for [Vec3; N] {
     }
 }
 
+impl UniformValue for IVec3 {
+    fn set_uniform(&self, program_id: u32, name: &str) {
+        let c_str = std::ffi::CString::new(name).unwrap();
+        unsafe {
+            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
+            gl::Uniform3i(location, self.x, self.y, self.z);
+        }
+    }
+}
+
 impl<T: UniformValue> UniformValue for &T {
     fn set_uniform(&self, program_id: u32, name: &str) {
         (*self).set_uniform(program_id, name);

@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 7;
+pub const RENDER_DISTANCE: i32 = 11;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -29,44 +29,46 @@ const PARTIAL_STAIRS_E: u32 = 0x00050000;
 const PARTIAL_STAIRS_W: u32 = 0x00060000;
 const BLOCK_MASK: u32 = 0x0000FFFF;
 
+#[inline]
 fn mask_partial(bits: u32) -> u32 {
     (bits >> 16) & 0x000F
 }
 
+#[inline]
 fn collision_aabb(min_a: Vec3, max_a: Vec3, min_b: Vec3, max_b: Vec3) -> bool {
     (min_a.x <= max_b.x && max_a.x >= min_b.x)
         && (min_a.y <= max_b.y && max_a.y >= min_b.y)
         && (min_a.z <= max_b.z && max_a.z >= min_b.z)
 }
 
-fn extract_frustum_planes(vp: Mat4) -> [Vec4; 6] {
-    // Get matrix as columns
-    let c = vp.to_cols_array_2d();
+#[inline]
+fn extract_frustum_planes(pv: Mat4) -> [Vec4; 6] {
+    let m = pv.to_cols_array_2d();
 
-    // Reconstruct rows from column-major storage
-    let row0 = Vec4::new(c[0][0], c[1][0], c[2][0], c[3][0]);
-    let row1 = Vec4::new(c[0][1], c[1][1], c[2][1], c[3][1]);
-    let row2 = Vec4::new(c[0][2], c[1][2], c[2][2], c[3][2]);
-    let row3 = Vec4::new(c[0][3], c[1][3], c[2][3], c[3][3]);
+    let row0 = Vec4::new(m[0][0], m[1][0], m[2][0], m[3][0]);
+    let row1 = Vec4::new(m[0][1], m[1][1], m[2][1], m[3][1]);
+    let row2 = Vec4::new(m[0][2], m[1][2], m[2][2], m[3][2]);
+    let row3 = Vec4::new(m[0][3], m[1][3], m[2][3], m[3][3]);
 
     let mut planes = [
-        row3 + row0, // Left
-        row3 - row0, // Right
-        row3 + row1, // Bottom
-        row3 - row1, // Top
-        row3 + row2, // Near
-        row3 - row2, // Far
+        row3 + row0, // left
+        row3 - row0, // right
+        row3 + row1, // bottom
+        row3 - row1, // top
+        row3 + row2, // near
+        row3 - row2, // far
     ];
 
-    // Normalize the planes (xyz part to unit length)
-    for p in &mut planes {
-        let n = Vec3::new(p.x, p.y, p.z);
-        *p /= n.length();
+    // normalize planes
+    for plane in planes.iter_mut() {
+        let n = plane.truncate().length();
+        *plane /= n;
     }
 
     planes
 }
 
+#[inline]
 fn aabb_in_frustum(min: Vec3, max: Vec3, planes: &[Vec4; 6]) -> bool {
     for plane in planes.iter() {
         let p = vec3(
@@ -81,9 +83,28 @@ fn aabb_in_frustum(min: Vec3, max: Vec3, planes: &[Vec4; 6]) -> bool {
     true
 }
 
+#[inline]
+fn pack_uv(uv: Vec2) -> u32 {
+    let u = (uv.x * 65535.0).round() as u32;
+    let v = (uv.y * 65535.0).round() as u32;
+    (u << 16) | v
+}
+
+#[inline]
+fn pack_chunk_local_pos(pos: UVec3) -> u32 {
+    (pos.x << 10) | (pos.y << 5) | pos.z
+}
+
+#[inline]
+fn pack_color(color: Vec3) -> u32 {
+    let r = (color.x * 255.0).round() as u32;
+    let g = (color.y * 255.0).round() as u32;
+    let b = (color.z * 255.0).round() as u32;
+    (r << 16) | (g << 8) | b
+}
+
 #[derive(Copy, Clone)]
 struct Face {
-    normal: Vec3,
     vertices: [Vec3; 4],
     uvs: [Vec2; 4],
 }
@@ -106,7 +127,6 @@ impl Face {
             )
         });
         Self {
-            normal: template.normal.as_vec3(),
             vertices,
             uvs,
         }
@@ -251,8 +271,9 @@ pub enum Block {
     StoneStairsW     = PARTIAL_STAIRS_W    | 0x0007,
     Glass            = FULL_BLOCK          | 0x0008,
     Brick            = FULL_BLOCK          | 0x0009,
-    Bedrock          = FULL_BLOCK          | 0x000A,
+    Snow             = FULL_BLOCK          | 0x000A,
     Glungus          = FULL_BLOCK          | 0x000B,
+    Bedrock          = FULL_BLOCK          | 0x000C,
 }
 
 impl Block {
@@ -480,7 +501,7 @@ pub struct NeighbourChunks<'a> {
 
 pub struct Chunk {
     is_dirty: bool,
-    cached_mesh: Option<(Vec<BlockVertex>, Vec<u32>)>,
+    cached_mesh: Option<Arc<(Vec<BlockVertex>, Vec<u32>)>>,
     blocks: Vec<Block>,
     foliage_color: Vec<Vec3>,
 }
@@ -525,20 +546,28 @@ impl Chunk {
                 let real_z = z as i32 + cz * CHUNK_SIZE as i32;
                 let t = (biome_noise.get([real_x as f64 * 0.01, real_z as f64 * 0.01]) + 1.0) / 2.0;
 
-                let plains_noise_val = noise.get([real_x as f64 * 0.03, real_z as f64 * 0.03]);
-                let plains_height = plains_noise_val * 40.0;
+                // let plains_noise_val = noise.get([real_x as f64 * 0.03, real_z as f64 * 0.03]);
+                let plains_noise_val = fractal_noise(
+                    noise,
+                    real_x as f64 * 0.03,
+                    real_z as f64 * 0.03,
+                    3,
+                    0.5,
+                    2.0,
+                );
+                let plains_height = plains_noise_val * 30.0;
                 let plains_cave_thresh = -1.0;
                 let plains_foliage_color = vec3(0.5, 1.0, 0.5);
 
                 let mtn_noise_val = fractal_noise(
                     noise,
-                    real_x as f64 * 0.02,
-                    real_z as f64 * 0.02,
+                    real_x as f64 * 0.005,
+                    real_z as f64 * 0.005,
                     5,
                     0.5,
                     2.0,
                 );
-                let mtn_height = (mtn_noise_val * 10.0).powi(4);
+                let mtn_height = (mtn_noise_val * 10.0).powf(4.45).max(plains_height);
                 let mtn_cave_thresh = 0.3;
                 let mtn_foliage_color = vec3(0.1, 0.7, 0.5);
 
@@ -556,6 +585,16 @@ impl Chunk {
                         real_z as f64 * 0.095,
                     ]) < cave_thresh;
 
+                    let snow_replace_grass_chance = if height <= 96 {
+                        0.0
+                    } else if height >= 108 {
+                        1.0
+                    } else {
+                        (height - 96) as f64 / (108 - 96) as f64
+                    };
+
+                    let random_f64 = rng.random::<f64>();
+
                     let block;
                     if real_y < -32 {
                         block = Block::Air;
@@ -567,6 +606,8 @@ impl Chunk {
                         block = Block::Stone;
                     } else if real_y < height - 1 {
                         block = Block::Dirt;
+                    } else if random_f64 < snow_replace_grass_chance && real_y < height {
+                        block = Block::Snow;
                     } else if real_y < height {
                         block = Block::Grass;
                     } else {
@@ -712,14 +753,16 @@ impl Chunk {
 
     pub fn generate_chunk_mesh(
         &self,
-        chunk_pos: IVec3,
         neighbour_chunks: &NeighbourChunks,
         model_defs: &ModelDefs,
     ) -> (Vec<BlockVertex>, Vec<u32>) {
         // Fast path: cached
         if !self.is_dirty {
-            if let Some((ref verts, ref idxs)) = self.cached_mesh {
-                return (verts.clone(), idxs.clone());
+            // if let Some((ref verts, ref idxs)) = self.cached_mesh {
+            //     return (verts.clone(), idxs.clone());
+            // }
+            if let Some(cached) = &self.cached_mesh {
+                return (cached.0.clone(), cached.1.clone());
             }
         }
 
@@ -728,8 +771,6 @@ impl Chunk {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         let mut index_offset: u32 = 0;
-
-        let chunk_offset = chunk_pos * CHUNK_SIZE as i32; // IVec3, used per-vertex
 
         // Make local aliases for speed
         let blocks = &self.blocks;
@@ -745,7 +786,7 @@ impl Chunk {
             z: isize,
             blocks: &[Block],
             neighbour_chunks: &NeighbourChunks,
-        ) -> Block {
+        ) -> BlockType {
             // in-chunk
             if (0..CHUNK_SIZE as isize).contains(&x)
                 && (0..CHUNK_SIZE as isize).contains(&y)
@@ -754,52 +795,52 @@ impl Chunk {
                 let xi = x as usize;
                 let yi = y as usize;
                 let zi = z as usize;
-                return blocks[xi * STRIDE_X + yi * CHUNK_SIZE + zi];
+                return blocks[xi * STRIDE_X + yi * CHUNK_SIZE + zi].block_type();
             }
 
             if x < 0 {
                 if let Some(w) = neighbour_chunks.w {
-                    return *w.get_block(CHUNK_SIZE - 1, y as usize, z as usize);
+                    return (*w.get_block(CHUNK_SIZE - 1, y as usize, z as usize)).block_type();
                 } else {
-                    return Block::Air;
+                    return BlockType::Air;
                 }
             }
             if x >= CHUNK_SIZE as isize {
                 if let Some(e) = neighbour_chunks.e {
-                    return *e.get_block(0, y as usize, z as usize);
+                    return (*e.get_block(0, y as usize, z as usize)).block_type();
                 } else {
-                    return Block::Air;
+                    return BlockType::Air;
                 }
             }
             if y < 0 {
                 if let Some(d) = neighbour_chunks.d {
-                    return *d.get_block(x as usize, CHUNK_SIZE - 1, z as usize);
+                    return (*d.get_block(x as usize, CHUNK_SIZE - 1, z as usize)).block_type();
                 } else {
-                    return Block::Air;
+                    return BlockType::Air;
                 }
             }
             if y >= CHUNK_SIZE as isize {
                 if let Some(u) = neighbour_chunks.u {
-                    return *u.get_block(x as usize, 0, z as usize);
+                    return (*u.get_block(x as usize, 0, z as usize)).block_type();
                 } else {
-                    return Block::Air;
+                    return BlockType::Air;
                 }
             }
             if z < 0 {
                 if let Some(n) = neighbour_chunks.n {
-                    return *n.get_block(x as usize, y as usize, CHUNK_SIZE - 1);
+                    return (*n.get_block(x as usize, y as usize, CHUNK_SIZE - 1)).block_type();
                 } else {
-                    return Block::Air;
+                    return BlockType::Air;
                 }
             }
             if z >= CHUNK_SIZE as isize {
                 if let Some(s) = neighbour_chunks.s {
-                    return *s.get_block(x as usize, y as usize, 0);
+                    return (*s.get_block(x as usize, y as usize, 0)).block_type();
                 } else {
-                    return Block::Air;
+                    return BlockType::Air;
                 }
             }
-            Block::Air
+            BlockType::Air // should not happen
         }
 
         for x in 0..CHUNK_SIZE {
@@ -821,7 +862,7 @@ impl Chunk {
                             let nz = z as isize + face_template.normal.z as isize;
 
                             let neighbour = neighbour_block_at(nx, ny, nz, blocks, neighbour_chunks);
-                            if should_occlude(block.block_type(), neighbour.block_type()) {
+                            if should_occlude(block.block_type(), neighbour) {
                                 continue;
                             }
                             let face = Face::use_template(
@@ -832,18 +873,17 @@ impl Chunk {
                             );
 
                             // Push 4 vertices
-                            for i in 0..4 {
-                                // local_pos as IVec3, cast once
-                                let vert_offset = face.vertices[i].as_ivec3()
-                                    + ivec3(x as i32, y as i32, z as i32);
-                                let world_pos = vert_offset + chunk_offset;
+                            for j in 0..4 {
+                                // local_pos as UVec3, cast once
+                                let vert_offset = face.vertices[j].as_uvec3()
+                                    + uvec3(x as u32, y as u32, z as u32);
 
                                 vertices.push(BlockVertex {
-                                    position: world_pos,
-                                    normal: face.normal,
-                                    uv: face.uvs[i],
+                                    position: pack_chunk_local_pos(vert_offset),
+                                    normal: i as u32,
+                                    uv: pack_uv(face.uvs[j]),
                                     block_type: (block as u32) & 0xFFFF,
-                                    foliage: foliage[x * CHUNK_SIZE + z],
+                                    foliage: pack_color(foliage[x * CHUNK_SIZE + z]),
                                 });
                             }
 
@@ -1105,7 +1145,7 @@ pub struct World {
     chunks: HashMap<IVec3, Chunk>,
     changes: HashMap<(IVec3, IVec3), Block>,
     entities: Vec<Rc<RefCell<dyn Entity>>>,
-    pub meshes: Vec<Mesh<BlockVertex>>,
+    pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
     noise: OpenSimplex,
     cave_noise: OpenSimplex,
     biome_noise: OpenSimplex,
@@ -1142,7 +1182,7 @@ impl World {
             chunks,
             changes: HashMap::new(),
             entities: vec![Rc::new(RefCell::new(player))],
-            meshes: Vec::new(),
+            meshes: HashMap::new(),
             noise,
             cave_noise,
             biome_noise,
@@ -1318,7 +1358,7 @@ impl World {
                     let block = self.get_block(x, y, z);
                     let solid = {
                         let local_x = player_pos.x - x as f32;
-                        let local_y = player_pos.y - y as f32 - player_height;
+                        let local_y = player_pos.y - y as f32;
                         let local_z = player_pos.z - z as f32;
                         block.is_solid_at(
                             &model_defs,
@@ -1372,6 +1412,12 @@ impl World {
     }
 
     pub fn generate_meshes(&mut self, vp: Mat4) {
+        struct ChunkMeshData {
+            pos: IVec3,
+            verts: Vec<BlockVertex>,
+            idxs: Vec<u32>,
+        }
+
         let frustum = extract_frustum_planes(vp);
         let results: Vec<_> = self
             .chunks
@@ -1385,24 +1431,30 @@ impl World {
                     u: self.chunks.get(&(chunk_pos + ivec3(0, 1, 0))),
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
-                let chunk_pos = *chunk_pos;
-                (chunk_pos, chunk.generate_chunk_mesh(chunk_pos, &neighbour_chunks, &self.model_defs))
+                let pos = *chunk_pos;
+                let (verts, idxs) =
+                    chunk.generate_chunk_mesh(&neighbour_chunks, &self.model_defs);
+                ChunkMeshData { pos, verts, idxs }
             })
             .collect();
-        let results: Vec<_> = results
+        let results: HashMap<_, _> = results
             .into_iter()
-            .filter_map(|(pos, (verts, idxs))| {
+            .filter_map(|data| {
+                let pos = data.pos;
+                let verts = data.verts;
+                let idxs = data.idxs;
                 let chunk = self.get_chunk(pos.x, pos.y, pos.z);
+                let mesh_arc = Arc::new((verts, idxs));
                 if chunk.is_dirty {
-                    chunk.cached_mesh = Some((verts.clone(), idxs.clone()));
+                    chunk.cached_mesh = Some(mesh_arc.clone());
                 }
                 chunk.is_dirty = false;
                 let min = pos.as_vec3() * CHUNK_SIZE as f32;
                 let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-                if verts.is_empty() || idxs.is_empty() || !aabb_in_frustum(min, max, &frustum) {
+                if mesh_arc.0.is_empty() || mesh_arc.1.is_empty() || !aabb_in_frustum(min, max, &frustum) {
                     None
                 } else {
-                    Some(Mesh::new(&verts, &idxs, DrawMode::Triangles))
+                    Some((pos, Mesh::new(&mesh_arc.0, &mesh_arc.1, DrawMode::Triangles)))
                 }
             })
             .collect();
