@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 11;
+pub const RENDER_DISTANCE: i32 = 12;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -83,30 +83,10 @@ fn aabb_in_frustum(min: Vec3, max: Vec3, planes: &[Vec4; 6]) -> bool {
     true
 }
 
-#[inline]
-fn pack_uv(uv: Vec2) -> u32 {
-    let u = (uv.x * 65535.0).round() as u32;
-    let v = (uv.y * 65535.0).round() as u32;
-    (u << 16) | v
-}
-
-#[inline]
-fn pack_chunk_local_pos(pos: UVec3) -> u32 {
-    (pos.x << 10) | (pos.y << 5) | pos.z
-}
-
-#[inline]
-fn pack_color(color: Vec3) -> u32 {
-    let r = (color.x * 255.0).round() as u32;
-    let g = (color.y * 255.0).round() as u32;
-    let b = (color.z * 255.0).round() as u32;
-    (r << 16) | (g << 8) | b
-}
-
 #[derive(Copy, Clone)]
 struct Face {
     vertices: [Vec3; 4],
-    uvs: [Vec2; 4],
+    uvs: [UVec2; 4],
 }
 
 #[derive(Copy, Clone)]
@@ -116,7 +96,7 @@ struct FaceTemplate {
 }
 
 impl Face {
-    fn use_template(template: FaceTemplate, from: Vec3, to: Vec3, uvs: [Vec2; 4]) -> Self {
+    fn use_template(template: FaceTemplate, from: Vec3, to: Vec3, uvs: [UVec2; 4]) -> Self {
         let min = from;
         let max = to;
         let vertices = template.vertices.map(|v| {
@@ -126,10 +106,7 @@ impl Face {
                 if v.z == 0 { min.z } else { max.z },
             )
         });
-        Self {
-            vertices,
-            uvs,
-        }
+        Self { vertices, uvs }
     }
 }
 
@@ -339,19 +316,23 @@ impl Block {
                 let quad = [
                     UIVertex {
                         position: (from + v0.xy() * size).extend(v0.z),
-                        uv: face.uvs[0],
+                        uv: vec2(face.uvs[0].x as f32 / 192.0, face.uvs[0].y as f32 / 192.0)
+                            + self.uv_offset(),
                     },
                     UIVertex {
                         position: (from + v1.xy() * size).extend(v1.z),
-                        uv: face.uvs[1],
+                        uv: vec2(face.uvs[1].x as f32 / 192.0, face.uvs[1].y as f32 / 192.0)
+                            + self.uv_offset(),
                     },
                     UIVertex {
                         position: (from + v2.xy() * size).extend(v2.z),
-                        uv: face.uvs[2],
+                        uv: vec2(face.uvs[2].x as f32 / 192.0, face.uvs[2].y as f32 / 192.0)
+                            + self.uv_offset(),
                     },
                     UIVertex {
                         position: (from + v3.xy() * size).extend(v3.z),
-                        uv: face.uvs[3],
+                        uv: vec2(face.uvs[3].x as f32 / 192.0, face.uvs[3].y as f32 / 192.0)
+                            + self.uv_offset(),
                     },
                 ];
 
@@ -384,21 +365,19 @@ impl Block {
         vec2(tile_x as f32 * uv_unit, tile_y as f32 * uv_row_unit)
     }
 
-    pub fn uvs(&self, model_defs: &ModelDefs) -> Vec<[[Vec2; 4]; 6]> {
-        let offset = self.uv_offset();
-
+    pub fn uvs(&self, model_defs: &ModelDefs) -> Vec<[[UVec2; 4]; 6]> {
         let partial_bits = mask_partial(*self as u32);
 
-        fn face_uv(min: Vec2, max: Vec2) -> [Vec2; 4] {
+        fn face_uv(min: UVec2, max: UVec2) -> [UVec2; 4] {
             [
-                vec2(max.x, max.y),
-                vec2(min.x, max.y),
-                vec2(min.x, min.y),
-                vec2(max.x, min.y),
+                uvec2(max.x, max.y),
+                uvec2(min.x, max.y),
+                uvec2(min.x, min.y),
+                uvec2(max.x, min.y),
             ]
         }
 
-        fn faces_uvs(minmax: &[[Vec2; 2]; 6]) -> [[Vec2; 4]; 6] {
+        fn faces_uvs(minmax: &[[UVec2; 2]; 6]) -> [[UVec2; 4]; 6] {
             minmax.map(|[min, max]| face_uv(min, max))
         }
 
@@ -409,7 +388,7 @@ impl Block {
                     .unwrap()
                     .uvs
                     .iter()
-                    .map(|face_uvs| faces_uvs(face_uvs).map(|uv| uv.map(|v| v + offset)))
+                    .map(|face_uvs| faces_uvs(face_uvs))
                     .collect::<Vec<_>>();
             };
         }
@@ -546,7 +525,6 @@ impl Chunk {
                 let real_z = z as i32 + cz * CHUNK_SIZE as i32;
                 let t = (biome_noise.get([real_x as f64 * 0.01, real_z as f64 * 0.01]) + 1.0) / 2.0;
 
-                // let plains_noise_val = noise.get([real_x as f64 * 0.03, real_z as f64 * 0.03]);
                 let plains_noise_val = fractal_noise(
                     noise,
                     real_x as f64 * 0.03,
@@ -561,13 +539,13 @@ impl Chunk {
 
                 let mtn_noise_val = fractal_noise(
                     noise,
-                    real_x as f64 * 0.005,
-                    real_z as f64 * 0.005,
+                    real_x as f64 * 0.015,
+                    real_z as f64 * 0.015,
                     5,
                     0.5,
                     2.0,
                 );
-                let mtn_height = (mtn_noise_val * 10.0).powf(4.45).max(plains_height);
+                let mtn_height = (mtn_noise_val * 10.0).powi(4).max(plains_height + 15.0);
                 let mtn_cave_thresh = 0.3;
                 let mtn_foliage_color = vec3(0.1, 0.7, 0.5);
 
@@ -861,16 +839,12 @@ impl Chunk {
                             let ny = y as isize + face_template.normal.y as isize;
                             let nz = z as isize + face_template.normal.z as isize;
 
-                            let neighbour = neighbour_block_at(nx, ny, nz, blocks, neighbour_chunks);
+                            let neighbour =
+                                neighbour_block_at(nx, ny, nz, blocks, neighbour_chunks);
                             if should_occlude(block.block_type(), neighbour) {
                                 continue;
                             }
-                            let face = Face::use_template(
-                                *face_template,
-                                cube[0],
-                                cube[1],
-                                uvs[i],
-                            );
+                            let face = Face::use_template(*face_template, cube[0], cube[1], uvs[i]);
 
                             // Push 4 vertices
                             for j in 0..4 {
@@ -878,13 +852,13 @@ impl Chunk {
                                 let vert_offset = face.vertices[j].as_uvec3()
                                     + uvec3(x as u32, y as u32, z as u32);
 
-                                vertices.push(BlockVertex {
-                                    position: pack_chunk_local_pos(vert_offset),
-                                    normal: i as u32,
-                                    uv: pack_uv(face.uvs[j]),
-                                    block_type: (block as u32) & 0xFFFF,
-                                    foliage: pack_color(foliage[x * CHUNK_SIZE + z]),
-                                });
+                                vertices.push(BlockVertex::new(
+                                    vert_offset,
+                                    i as u8,
+                                    face.uvs[j],
+                                    ((block as u32) & 0xFFFF) as u16,
+                                    foliage[x * CHUNK_SIZE + z],
+                                ));
                             }
 
                             indices.push(index_offset);
@@ -1006,19 +980,19 @@ impl Entity for Player {
                 }
                 glfw::WindowEvent::Key(key, _, action, _) => match action {
                     glfw::Action::Press => {
-                        self.keys_down.insert(key.clone());
+                        self.keys_down.insert(*key);
                     }
                     glfw::Action::Release => {
-                        self.keys_down.remove(&key);
+                        self.keys_down.remove(key);
                     }
                     _ => {}
                 },
                 glfw::WindowEvent::MouseButton(button, action, _) => match action {
                     glfw::Action::Press => {
-                        self.mouse_down.insert(button.clone());
+                        self.mouse_down.insert(*button);
                     }
                     glfw::Action::Release => {
-                        self.mouse_down.remove(&button);
+                        self.mouse_down.remove(button);
                     }
                     _ => {}
                 },
@@ -1033,12 +1007,7 @@ impl Entity for Player {
                 _ => {}
             }
         }
-        self.selected_block = cast_ray(
-            world,
-            self.camera_pos(),
-            self.forward,
-            5.0,
-        );
+        self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
         let player_accel = 0.9;
         let jump_accel = 0.8 * 10.0;
@@ -1153,7 +1122,7 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(seed: u32, atlas_size: Vec2) -> Self {
+    pub fn new(seed: u32) -> Self {
         let noise = OpenSimplex::new(seed);
         let cave_noise = OpenSimplex::new(seed.wrapping_add(u32::MAX / 3));
         const TWO_THIRDS_U32: u32 = (u32::MAX as f32 * (2.0 / 3.0)) as u32;
@@ -1169,7 +1138,7 @@ impl World {
             }
         }
 
-        let model_defs = match ModelDefs::new(MODEL_DEF_JSON, atlas_size) {
+        let model_defs = match ModelDefs::new(MODEL_DEF_JSON) {
             Ok(defs) => defs,
             Err(e) => {
                 panic!("Failed to load model definitions: {}", e);
@@ -1186,7 +1155,7 @@ impl World {
             noise,
             cave_noise,
             biome_noise,
-            model_defs: model_defs,
+            model_defs,
         }
     }
 
@@ -1325,7 +1294,8 @@ impl World {
                     if dx.abs() + dy.abs() + dz.abs() != 1 {
                         continue;
                     }
-                    self.get_chunk(dx + chunk_x, dy + chunk_y, dz + chunk_z).is_dirty = true;
+                    self.get_chunk(dx + chunk_x, dy + chunk_y, dz + chunk_z)
+                        .is_dirty = true;
                 }
             }
         }
@@ -1432,8 +1402,7 @@ impl World {
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
                 let pos = *chunk_pos;
-                let (verts, idxs) =
-                    chunk.generate_chunk_mesh(&neighbour_chunks, &self.model_defs);
+                let (verts, idxs) = chunk.generate_chunk_mesh(&neighbour_chunks, &self.model_defs);
                 ChunkMeshData { pos, verts, idxs }
             })
             .collect();
@@ -1451,10 +1420,16 @@ impl World {
                 chunk.is_dirty = false;
                 let min = pos.as_vec3() * CHUNK_SIZE as f32;
                 let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-                if mesh_arc.0.is_empty() || mesh_arc.1.is_empty() || !aabb_in_frustum(min, max, &frustum) {
+                if mesh_arc.0.is_empty()
+                    || mesh_arc.1.is_empty()
+                    || !aabb_in_frustum(min, max, &frustum)
+                {
                     None
                 } else {
-                    Some((pos, Mesh::new(&mesh_arc.0, &mesh_arc.1, DrawMode::Triangles)))
+                    Some((
+                        pos,
+                        Mesh::new(&mesh_arc.0, &mesh_arc.1, DrawMode::Triangles),
+                    ))
                 }
             })
             .collect();

@@ -14,14 +14,54 @@ pub trait VertexFormat {
     fn setup_attribs();
 }
 
+#[inline]
+fn pack_uv(uv: UVec2) -> u64 {
+    ((uv.x << 5) | uv.y) as u64
+}
+
+#[inline]
+fn pack_chunk_local_pos(pos: UVec3) -> u64 {
+    ((pos.x << 10) | (pos.y << 5) | pos.z) as u64
+}
+
+#[inline]
+fn pack_color_rgb677(color: Vec3) -> u64 {
+    let r = (color.x * 63.0).round() as u64; // 6 bits
+    let g = (color.y * 127.0).round() as u64; // 7 bits
+    let b = (color.z * 127.0).round() as u64; // 7 bits
+    (r << 14) | (g << 7) | b
+}
+
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct BlockVertex {
-    pub position: u32,
-    pub normal: u32,
-    pub uv: u32,
-    pub block_type: u32,
-    pub foliage: u32,
+    pub hi: u32,
+    pub lo: u32,
+}
+
+impl BlockVertex {
+    pub fn new(
+        position: UVec3,
+        normal: u8,
+        uv: UVec2,
+        block_type: u16,
+        foliage: Vec3,
+    ) -> Self {
+        let uv = pack_uv(uv);
+        let pos = pack_chunk_local_pos(position);
+        let foliage = pack_color_rgb677(foliage);
+        let normal = normal as u64;
+        let block_type = block_type as u64;
+        let serialized = pos
+            | (normal << 15)
+            | (uv << 18)
+            | (block_type << 28)
+            | (foliage << 44);
+        BlockVertex {
+            hi: (serialized >> 32) as u32,
+            lo: (serialized & 0xFFFFFFFF) as u32,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -52,42 +92,18 @@ impl VertexFormat for BlockVertex {
                 1,
                 gl::UNSIGNED_INT,
                 std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, position) as *const _,
+                offset_of!(Self, hi) as *const _,
             );
             gl::VertexAttribIPointer(
                 1,
                 1,
                 gl::UNSIGNED_INT,
                 std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, normal) as *const _,
-            );
-            gl::VertexAttribIPointer(
-                2,
-                1,
-                gl::UNSIGNED_INT,
-                std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, uv) as *const _,
-            );
-            gl::VertexAttribIPointer(
-                3,
-                1,
-                gl::UNSIGNED_INT,
-                std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, block_type) as *const _,
-            );
-            gl::VertexAttribIPointer(
-                4,
-                1,
-                gl::UNSIGNED_INT,
-                std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, foliage) as *const _,
+                offset_of!(Self, lo) as *const _,
             );
 
             gl::EnableVertexAttribArray(0);
             gl::EnableVertexAttribArray(1);
-            gl::EnableVertexAttribArray(2);
-            gl::EnableVertexAttribArray(3);
-            gl::EnableVertexAttribArray(4);
         }
     }
 }
@@ -192,7 +208,7 @@ impl<T: VertexFormat> Mesh<T> {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (vertices.len() * std::mem::size_of::<T>()) as isize,
+                std::mem::size_of_val(vertices) as isize,
                 vertices.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
@@ -201,7 +217,7 @@ impl<T: VertexFormat> Mesh<T> {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                (indices.len() * std::mem::size_of::<u32>()) as isize,
+                std::mem::size_of_val(indices) as isize,
                 indices.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{Vec2, Vec3};
+use glam::{UVec2, Vec3};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KeyPart {
@@ -59,13 +59,13 @@ impl Translations {
 struct RawModelDef {
     includes: Vec<String>,
     cubes: Vec<[[f32; 3]; 2]>,
-    uvs: Vec<[[[f32; 2]; 2]; 6]>,
+    uvs: Vec<[[[u32; 2]; 2]; 6]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ModelDef {
     pub cubes: Vec<[Vec3; 2]>,
-    pub uvs: Vec<[[Vec2; 2]; 6]>,
+    pub uvs: Vec<[[UVec2; 2]; 6]>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ pub struct ModelDefs {
 }
 
 impl ModelDefs {
-    pub fn new(s: &str, atlas_size: Vec2) -> Result<Self, String> {
+    pub fn new(s: &str) -> Result<Self, String> {
         let raw: indexmap::IndexMap<String, RawModelDef> =
             serde_json::from_str(s).map_err(|e| e.to_string())?;
         let mut map: HashMap<String, ModelDef> = HashMap::new();
@@ -88,14 +88,11 @@ impl ModelDefs {
                 .uvs
                 .into_iter()
                 .map(|uv_set| {
-                    let mut transformed = [[Vec2::ZERO; 2]; 6];
+                    let mut vecs = [[UVec2::ZERO; 2]; 6];
                     for (i, uv) in uv_set.iter().enumerate() {
-                        transformed[i] = [
-                            Vec2::from(uv[0]) / atlas_size,
-                            Vec2::from(uv[1]) / atlas_size,
-                        ];
+                        vecs[i] = [UVec2::from(uv[0]), UVec2::from(uv[1])];
                     }
-                    transformed
+                    vecs
                 })
                 .collect();
             for include in raw_def.includes {

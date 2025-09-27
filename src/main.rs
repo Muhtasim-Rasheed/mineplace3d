@@ -150,10 +150,7 @@ fn main() {
     let atlas_image = image::load_from_memory(include_bytes!("assets/atlas.png"))
         .expect("Failed to load texture");
 
-    let mut world = World::new(
-        rand::random::<u32>(),
-        vec2(atlas_image.width() as f32, atlas_image.height() as f32),
-    );
+    let mut world = World::new(rand::random::<u32>());
 
     let mut view;
     let projection = Mat4::perspective_rh_gl(
@@ -297,7 +294,7 @@ fn main() {
     for i in 0..16 {
         let x = rand::random::<f32>() * 2.0 - 1.0;
         let y = rand::random::<f32>() * 2.0 - 1.0;
-        ssao_noise_data[i * 4 + 0] = ((x * 0.5 + 0.5) * 255.0) as u8;
+        ssao_noise_data[i * 4] = ((x * 0.5 + 0.5) * 255.0) as u8;
         ssao_noise_data[i * 4 + 1] = ((y * 0.5 + 0.5) * 255.0) as u8;
         ssao_noise_data[i * 4 + 2] = 0;
         ssao_noise_data[i * 4 + 3] = 0;
@@ -380,7 +377,9 @@ Current Block: {}"#,
             } else {
                 "-Z / N"
             },
-            world.meshes.iter().map(|(_, m)| m.vertex_count()).sum::<usize>(),
+            world
+                .meshes.values().map(|m| m.vertex_count())
+                .sum::<usize>(),
             translations
                 .get({
                     let block = PLACABLE_BLOCKS[player.current_block];
@@ -389,7 +388,11 @@ Current Block: {}"#,
                 .unwrap_or(&"Unknown".to_string())
         );
         debug_mesh = font.build(&text, 50.0, 50.0, 24.0);
-        view = Mat4::look_at_rh(player.camera_pos(), player.camera_pos() + player.forward, player.up);
+        view = Mat4::look_at_rh(
+            player.camera_pos(),
+            player.camera_pos() + player.forward,
+            player.up,
+        );
 
         request_chunks_around_player(
             player.position,
