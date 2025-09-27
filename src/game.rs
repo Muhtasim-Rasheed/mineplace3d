@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 12;
+pub const RENDER_DISTANCE: i32 = 10;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -571,6 +571,14 @@ impl Chunk {
                         (height - 96) as f64 / (108 - 96) as f64
                     };
 
+                    let ore_thresh = 0.3;
+                    let ore_val = cave_noise.get([
+                        real_x as f64 * 0.2 + 100.0,
+                        real_y as f64 * 0.2 + 100.0,
+                        real_z as f64 * 0.2 + 100.0,
+                    ]);
+                    let is_ore = ore_val > ore_thresh;
+
                     let random_f64 = rng.random::<f64>();
 
                     let block;
@@ -581,7 +589,11 @@ impl Chunk {
                     } else if is_cave {
                         block = Block::Air;
                     } else if real_y < height - 3 {
-                        block = Block::Stone;
+                        if is_ore {
+                            block = Block::Glungus;
+                        } else {
+                            block = Block::Stone;
+                        }
                     } else if real_y < height - 1 {
                         block = Block::Dirt;
                     } else if random_f64 < snow_replace_grass_chance && real_y < height {
@@ -1063,7 +1075,7 @@ impl Entity for Player {
                     == Block::Bedrock)
                 {
                     let block_pos = hit.block_pos;
-                    world.set_block(block_pos.x, block_pos.y, block_pos.z, Block::Air);
+                    world.break_block(block_pos);
                     self.break_place_cooldown = 12;
                 }
             }
@@ -1296,6 +1308,29 @@ impl World {
                     }
                     self.get_chunk(dx + chunk_x, dy + chunk_y, dz + chunk_z)
                         .is_dirty = true;
+                }
+            }
+        }
+    }
+
+    pub fn break_block(&mut self, pos: IVec3) {
+        let block = self.get_block(pos.x, pos.y, pos.z);
+        if block == Block::Air || block == Block::Bedrock {
+            return;
+        }
+
+        self.set_block(pos.x, pos.y, pos.z, Block::Air);
+
+        if block == Block::Glungus {
+            for dx in -2i32..=2 {
+                for dy in -2i32..=2 {
+                    for dz in -2i32..=2 {
+                        if vec3(dx as f32, dy as f32, dz as f32).length_squared() > 4.0 {
+                            continue;
+                        }
+                        let neighbor_pos = pos + ivec3(dx, dy, dz);
+                        self.break_block(neighbor_pos);
+                    }
                 }
             }
         }
