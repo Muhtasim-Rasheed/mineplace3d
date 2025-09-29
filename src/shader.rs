@@ -139,6 +139,16 @@ impl UniformValue for Mat4 {
     }
 }
 
+impl UniformValue for bool {
+    fn set_uniform(&self, program_id: u32, name: &str) {
+        let c_str = std::ffi::CString::new(name).unwrap();
+        unsafe {
+            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
+            gl::Uniform1i(location, if *self { gl::TRUE } else { gl::FALSE } as i32);
+        }
+    }
+}
+
 impl<const N: usize> UniformValue for [Vec3; N] {
     fn set_uniform(&self, program_id: u32, name: &str) {
         #[repr(C, packed)]

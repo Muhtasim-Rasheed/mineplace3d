@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use glam::{UVec2, Vec3};
 
+use crate::{shader::ShaderProgram, texture::Texture};
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KeyPart {
     Numeric(u32),
@@ -113,5 +115,87 @@ impl ModelDefs {
 
     pub fn get(&self, name: &str) -> Option<&ModelDef> {
         self.map.get(name)
+    }
+}
+
+// #[derive(Default)]
+// pub struct ResourceManager {
+//     translations: Option<Translations>,
+//     model_defs: Option<ModelDefs>,
+//     textures: HashMap<String, Texture>,
+//     shader_programs: HashMap<String, ShaderProgram>,
+// }
+
+// impl ResourceManager {
+//     pub fn new() -> Self {
+//         ResourceManager::default()
+//     }
+
+//     pub fn with_translations(mut self, s: &str) -> Result<Self, String> {
+//         self.translations = Some(Translations::new(s)?);
+//         Ok(self)
+//     }
+
+//     pub fn with_model_defs(mut self, s: &str) -> Result<Self, String> {
+//         self.model_defs = Some(ModelDefs::new(s)?);
+//         Ok(self)
+//     }
+
+//     pub fn add_texture(mut self, name: &str, texture: Texture) -> Self {
+//         self.textures.insert(name.to_string(), texture);
+//         self
+//     }
+
+//     pub fn add_shader_program(mut self, name: &str, program: ShaderProgram) -> Self {
+//         self.shader_programs.insert(name.to_string(), program);
+//         self
+//     }
+
+//     pub fn get_texture(&self, name: &str) -> Option<&Texture> {
+//         self.textures.get(name)
+//     }
+
+//     pub fn get_shader_program(&self, name: &str) -> Option<&ShaderProgram> {
+//         self.shader_programs.get(name)
+//     }
+// }
+
+pub trait Resource: 'static + Send + Sync {
+    fn as_any(&self) -> &dyn std::any::Any;
+}
+
+macro_rules! impl_resource {
+    ($t:ty) => {
+        impl Resource for $t {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+        }
+    };
+}
+
+impl_resource!(Translations);
+impl_resource!(ModelDefs);
+impl_resource!(Texture);
+impl_resource!(ShaderProgram);
+
+pub struct ResourceManager {
+    resources: HashMap<String, Box<dyn Resource>>,
+}
+
+impl ResourceManager {
+    pub fn new() -> Self {
+        ResourceManager {
+            resources: HashMap::new(),
+        }
+    }
+
+    pub fn add<R: Resource>(mut self, name: &str, resource: R) -> Self {
+        self.resources.insert(name.to_string(), Box::new(resource));
+        self
+    }
+
+    pub fn get<R: Resource>(&self, name: &str) -> Option<&R> {
+        self.resources.get(name)?.as_any().downcast_ref::<R>()
     }
 }

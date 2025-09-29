@@ -84,6 +84,13 @@ pub struct CloudPlaneVertex {
     pub uv: Vec2,
 }
 
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub struct BillboardVertex {
+    pub corner: Vec2,
+    pub uv: Vec2,
+}
+
 impl VertexFormat for BlockVertex {
     fn setup_attribs() {
         unsafe {
@@ -161,6 +168,32 @@ impl VertexFormat for CloudPlaneVertex {
                 gl::FALSE,
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, position) as *const _,
+            );
+            gl::VertexAttribPointer(
+                1,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                std::mem::size_of::<Self>() as i32,
+                offset_of!(Self, uv) as *const _,
+            );
+
+            gl::EnableVertexAttribArray(0);
+            gl::EnableVertexAttribArray(1);
+        }
+    }
+}
+
+impl VertexFormat for BillboardVertex {
+    fn setup_attribs() {
+        unsafe {
+            gl::VertexAttribPointer(
+                0,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                std::mem::size_of::<Self>() as i32,
+                offset_of!(Self, corner) as *const _,
             );
             gl::VertexAttribPointer(
                 1,

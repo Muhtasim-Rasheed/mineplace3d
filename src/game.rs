@@ -11,14 +11,11 @@ use std::{
 };
 
 use crate::{
-    MODEL_DEF_JSON, PLACABLE_BLOCKS,
-    asset::{Key, KeyPart, ModelDefs},
-    mesh::{BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex},
-    texture::Texture,
+    asset::{Key, KeyPart, ModelDefs, ResourceManager}, mesh::{BillboardVertex, BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex}, shader::ShaderProgram, texture::Texture, PLACABLE_BLOCKS, WINDOW_HEIGHT, WINDOW_WIDTH
 };
 
 pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 10;
+pub const RENDER_DISTANCE: i32 = 8;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -891,7 +888,7 @@ impl Chunk {
     }
 }
 
-pub trait Entity {
+pub trait Entity: 'static {
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     fn identity(&self) -> &'static str {
@@ -904,6 +901,8 @@ pub trait Entity {
     fn height(&self) -> f32;
     fn eye_height(&self) -> f32;
     fn update(&mut self, world: &mut World, events: &[glfw::WindowEvent], dt: f64);
+    fn draw(&self, _world: &World, _resource_manager: &ResourceManager) {
+    }
 }
 
 #[derive(Clone)]
@@ -921,6 +920,8 @@ pub struct Player {
     pub break_place_cooldown: u32,
     pub selected_block: Option<RayHit>,
     pub current_block: usize,
+    pub projection: Mat4,
+    pub cloud_projection: Mat4,
 }
 
 impl Player {
@@ -939,6 +940,18 @@ impl Player {
             break_place_cooldown: 0,
             selected_block: None,
             current_block: 0,
+            projection: Mat4::perspective_rh_gl(
+                90f32.to_radians(),
+                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                0.1,
+                200.0,
+            ),
+            cloud_projection: Mat4::perspective_rh_gl(
+                90f32.to_radians(),
+                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                0.1,
+                400.0,
+            ),
         }
     }
 
@@ -1122,6 +1135,150 @@ impl Entity for Player {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(u32)]
+pub enum BillboardType {
+    Explosion = 0,
+}
+
+impl BillboardType {
+    pub fn uvs(&self) -> [Vec2; 2] {
+        let tile_index = *self as u32;
+        let tile_x = tile_index % 12;
+        let tile_y = tile_index / 12;
+
+        let uv_unit = 1.0 / 12.0;
+        let uv_row_unit = 1.0 / 12.0;
+
+        [
+            vec2(tile_x as f32 * uv_unit, tile_y as f32 * uv_row_unit),
+            vec2((tile_x + 1) as f32 * uv_unit, (tile_y + 1) as f32 * uv_row_unit),
+        ]
+    }
+
+    pub fn spherical_billboard(&self) -> bool {
+        match self {
+            BillboardType::Explosion => true,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Billboard {
+    pub position: Vec3,
+    pub size: f32,
+    pub life: u32,
+    pub kind: BillboardType,
+    start_size: f32,
+    shader_key: String,
+    atlas_key: String,
+}
+
+impl Billboard {
+    pub fn new(position: Vec3, size: f32, life: u32, kind: BillboardType, shader_key: &str, atlas_key: &str) -> Self {
+        Billboard {
+            position,
+            size,
+            life,
+            kind,
+            start_size: size,
+            shader_key: shader_key.to_string(),
+            atlas_key: atlas_key.to_string(),
+        }
+    }
+}
+
+impl Entity for Billboard {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn position(&self) -> Vec3 {
+        self.position
+    }
+
+    fn velocity(&self) -> Vec3 {
+        Vec3::ZERO
+    }
+
+    fn apply_velocity(&mut self, _delta: Vec3) {
+        // Billboards do not move
+    }
+
+    fn width(&self) -> f32 {
+        self.size
+    }
+
+    fn height(&self) -> f32 {
+        self.size
+    }
+
+    fn eye_height(&self) -> f32 {
+        self.size / 2.0
+    }
+
+    fn update(&mut self, _world: &mut World, _events: &[glfw::WindowEvent], _dt: f64) {
+        if self.life > 0 {
+            self.life -= 1;
+        }
+        // update the size based on remaining life
+        if self.life > 0 {
+            self.size = self.start_size * (self.life as f32 / 30.0);
+        }
+    }
+
+    fn draw(&self, world: &World, resource_manager: &ResourceManager) {
+        if self.life == 0 {
+            return;
+        }
+        let shader = resource_manager.get::<ShaderProgram>(&self.shader_key).unwrap();
+        let atlas = resource_manager.get::<Texture>(&self.atlas_key).unwrap();
+        let uvs = self.kind.uvs();
+
+        let view = Mat4::look_at_rh(
+            world.get_player().camera_pos(),
+            world.get_player().camera_pos() + world.get_player().forward,
+            world.get_player().up,
+        );
+        let projection = world.get_player().projection;
+
+        let vertices = vec![
+            BillboardVertex {
+                corner: vec2(-1.0, -1.0),
+                uv: vec2(uvs[0].x, uvs[1].y),
+            },
+            BillboardVertex {
+                corner: vec2(1.0, -1.0),
+                uv: vec2(uvs[1].x, uvs[1].y),
+            },
+            BillboardVertex {
+                corner: vec2(1.0, 1.0),
+                uv: vec2(uvs[1].x, uvs[0].y),
+            },
+            BillboardVertex {
+                corner: vec2(-1.0, 1.0),
+                uv: vec2(uvs[0].x, uvs[0].y),
+            },
+        ];
+        let indices = [0, 1, 2, 0, 2, 3];
+        let mesh = Mesh::new(&vertices, &indices, DrawMode::Triangles);
+
+        shader.use_program();
+        shader.set_uniform("view", view);
+        shader.set_uniform("projection", projection);
+        shader.set_uniform("center", self.position);
+        shader.set_uniform("size", self.size);
+        shader.set_uniform("spherical", self.kind.spherical_billboard());
+        atlas.bind_to_unit(0);
+        shader.set_uniform("texture_sampler", 0);
+        mesh.draw();
+    }
+}
+
 pub struct World {
     chunks: HashMap<IVec3, Chunk>,
     changes: HashMap<(IVec3, IVec3), Block>,
@@ -1130,11 +1287,11 @@ pub struct World {
     noise: OpenSimplex,
     cave_noise: OpenSimplex,
     biome_noise: OpenSimplex,
-    model_defs: ModelDefs,
+    pub resource_mgr: ResourceManager,
 }
 
 impl World {
-    pub fn new(seed: u32) -> Self {
+    pub fn new(seed: u32, resource_mgr: ResourceManager) -> Self {
         let noise = OpenSimplex::new(seed);
         let cave_noise = OpenSimplex::new(seed.wrapping_add(u32::MAX / 3));
         const TWO_THIRDS_U32: u32 = (u32::MAX as f32 * (2.0 / 3.0)) as u32;
@@ -1150,13 +1307,6 @@ impl World {
             }
         }
 
-        let model_defs = match ModelDefs::new(MODEL_DEF_JSON) {
-            Ok(defs) => defs,
-            Err(e) => {
-                panic!("Failed to load model definitions: {}", e);
-            }
-        };
-
         let player = Player::new(vec3(0.0, 10.0, 0.0));
 
         World {
@@ -1167,7 +1317,7 @@ impl World {
             noise,
             cave_noise,
             biome_noise,
-            model_defs,
+            resource_mgr,
         }
     }
 
@@ -1261,6 +1411,10 @@ impl World {
         self.chunks.insert(ivec3(x, y, z), chunk);
     }
 
+    pub fn add_entity(&mut self, entity: impl Entity) {
+        self.entities.push(Rc::new(RefCell::new(entity)));
+    }
+
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
         self.chunks.entry(ivec3(x, y, z)).or_insert_with(|| {
             let res = Chunk::new(x, y, z, &self.noise, &self.cave_noise, &self.biome_noise);
@@ -1333,11 +1487,18 @@ impl World {
                     }
                 }
             }
+            let size = rand::random_range(1.0..2.0);
+            self.add_entity(
+                Billboard::new(
+                    pos.as_vec3() + vec3(0.5, 0.5, 0.5),
+                    size,
+                    size as u32 * 25,
+                    BillboardType::Explosion,
+                    "billboard_shader",
+                    "billboard_atlas",
+                ),
+            );
         }
-    }
-
-    pub fn model_defs(&self) -> &ModelDefs {
-        &self.model_defs
     }
 
     pub fn is_player_colliding(
@@ -1355,7 +1516,8 @@ impl World {
         let y_max = (player_pos.y + player_height).floor() as i32;
         let z_max = (player_pos.z + half_w).floor() as i32;
 
-        let model_defs = self.model_defs.clone();
+        // let model_defs = self.model_defs.clone();
+        let model_defs = self.resource_mgr.get::<ModelDefs>("model_defs").unwrap().clone();
 
         for x in x_min..=x_max {
             for y in y_min..=y_max {
@@ -1416,6 +1578,12 @@ impl World {
         collided
     }
 
+    pub fn draw_entities(&self) {
+        for entity in &self.entities {
+            entity.borrow().draw(self, &self.resource_mgr);
+        }
+    }
+
     pub fn generate_meshes(&mut self, vp: Mat4) {
         struct ChunkMeshData {
             pos: IVec3,
@@ -1437,7 +1605,7 @@ impl World {
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
                 let pos = *chunk_pos;
-                let (verts, idxs) = chunk.generate_chunk_mesh(&neighbour_chunks, &self.model_defs);
+                let (verts, idxs) = chunk.generate_chunk_mesh(&neighbour_chunks, &self.resource_mgr.get::<ModelDefs>("model_defs").unwrap());
                 ChunkMeshData { pos, verts, idxs }
             })
             .collect();
