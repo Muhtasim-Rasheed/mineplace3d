@@ -900,6 +900,9 @@ pub trait Entity: 'static {
     fn width(&self) -> f32;
     fn height(&self) -> f32;
     fn eye_height(&self) -> f32;
+    fn requests_removal(&self) -> bool {
+        false
+    }
     fn update(&mut self, world: &mut World, events: &[glfw::WindowEvent], dt: f64);
     fn draw(&self, _world: &World, _resource_manager: &ResourceManager) {
     }
@@ -1161,6 +1164,12 @@ impl BillboardType {
             BillboardType::Explosion => true,
         }
     }
+
+    pub fn knockback_mult(&self) -> f32 {
+        match self {
+            BillboardType::Explosion => 2.0,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -1221,13 +1230,38 @@ impl Entity for Billboard {
         self.size / 2.0
     }
 
-    fn update(&mut self, _world: &mut World, _events: &[glfw::WindowEvent], _dt: f64) {
+    fn requests_removal(&self) -> bool {
+        self.life == 0
+    }
+
+    fn update(&mut self, world: &mut World, _events: &[glfw::WindowEvent], _dt: f64) {
         if self.life > 0 {
             self.life -= 1;
         }
-        // update the size based on remaining life
         if self.life > 0 {
             self.size = self.start_size * (self.life as f32 / 30.0);
+        }
+
+        let effect_radius = 3.0;
+
+        unsafe {
+            for i in 0..world.entities.len() {
+                // SAFETY: We know it's safe to take &mut here because:
+                //  - We never alias self with another entity
+                //  - Only one entity is borrowed at a time
+                //  - The world update loop ensures no other borrows overlap
+                let entity = world.entities[i].as_ptr().as_mut().unwrap();
+                let entity = &mut *entity;
+                if entity.identity() == self.identity() {
+                    continue;
+                }
+                let to_entity = entity.position() - self.position;
+                let distance = to_entity.length_squared();
+                if distance < effect_radius * effect_radius && distance > 0.0 {
+                    let force = to_entity.normalize() * (effect_radius - distance.sqrt()) * self.kind.knockback_mult();
+                    entity.apply_velocity(force);
+                }
+            }
         }
     }
 
@@ -1367,6 +1401,7 @@ impl World {
                 .distance_squared(player_pos / CHUNK_SIZE as f32);
             distance_squared <= RENDER_DISTANCE as f32 * RENDER_DISTANCE as f32
         });
+        self.entities.retain(|e| !e.borrow().requests_removal());
         for entity in self.entities.clone() {
             entity.borrow_mut().update(self, events, dt);
         }
