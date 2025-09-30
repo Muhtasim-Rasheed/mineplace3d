@@ -40,23 +40,13 @@ pub struct BlockVertex {
 }
 
 impl BlockVertex {
-    pub fn new(
-        position: UVec3,
-        normal: u8,
-        uv: UVec2,
-        block_type: u16,
-        foliage: Vec3,
-    ) -> Self {
+    pub fn new(position: UVec3, normal: u8, uv: UVec2, block_type: u16, foliage: Vec3) -> Self {
         let uv = pack_uv(uv);
         let pos = pack_chunk_local_pos(position);
         let foliage = pack_color_rgb677(foliage);
         let normal = normal as u64;
         let block_type = block_type as u64;
-        let serialized = pos
-            | (normal << 15)
-            | (uv << 18)
-            | (block_type << 28)
-            | (foliage << 44);
+        let serialized = pos | (normal << 15) | (uv << 18) | (block_type << 28) | (foliage << 44);
         BlockVertex {
             hi: (serialized >> 32) as u32,
             lo: (serialized & 0xFFFFFFFF) as u32,

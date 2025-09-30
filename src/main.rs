@@ -214,8 +214,11 @@ fn main() {
 
     let billboard_atlas_image = billboard_atlas_image.to_rgba8();
     let (billboard_atlas_width, billboard_atlas_height) = billboard_atlas_image.dimensions();
-    let billboard_atlas_texture =
-        Texture::new(billboard_atlas_width, billboard_atlas_height, &billboard_atlas_image);
+    let billboard_atlas_texture = Texture::new(
+        billboard_atlas_width,
+        billboard_atlas_height,
+        &billboard_atlas_image,
+    );
 
     window.make_current();
     window.set_key_polling(true);
@@ -274,17 +277,16 @@ fn main() {
     }
     framebuffer::Framebuffer::unbind();
     let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 64];
-    for i in 0..64 {
+    for (i, sample) in ssao_samples.iter_mut().enumerate() {
         let scale = i as f32 / 64.0;
-        let mut sample = vec3(
+        let mut sample_ = vec3(
             rand::random::<f32>() * 2.0 - 1.0,
             rand::random::<f32>() * 2.0 - 1.0,
             rand::random::<f32>(),
         );
-        sample = sample.normalize() * rand::random::<f32>();
+        sample_ = sample_.normalize() * rand::random::<f32>();
         let lerp = 0.1 + 0.9 * scale * scale;
-        sample *= lerp;
-        ssao_samples[i] = sample;
+        *sample = sample_ * lerp;
     }
     let mut ssao_noise_data = [0u8; 4 * 16];
     for i in 0..16 {
@@ -307,8 +309,8 @@ fn main() {
     let translations =
         asset::Translations::new(TRANSLATIONS_JSON).expect("Failed to load translations");
 
-    let model_defs = asset::ModelDefs::new(MODEL_DEF_JSON)
-        .expect("Failed to load model definitions");
+    let model_defs =
+        asset::ModelDefs::new(MODEL_DEF_JSON).expect("Failed to load model definitions");
 
     let resource_mgr = ResourceManager::new()
         .add("atlas", atlas_texture)
@@ -396,7 +398,9 @@ Current Block: {}"#,
                 "-Z / N"
             },
             world
-                .meshes.values().map(|m| m.vertex_count())
+                .meshes
+                .values()
+                .map(|m| m.vertex_count())
                 .sum::<usize>(),
             world
                 .resource_mgr
@@ -454,7 +458,10 @@ Current Block: {}"#,
                     position + size,
                     Mat4::from_rotation_x(30f32.to_radians())
                         * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
-                    world.resource_mgr.get::<asset::ModelDefs>("model_defs").unwrap(),
+                    world
+                        .resource_mgr
+                        .get::<asset::ModelDefs>("model_defs")
+                        .unwrap(),
                 )
             })
             .collect::<Vec<_>>();
@@ -473,6 +480,30 @@ Current Block: {}"#,
             })
             .collect::<Vec<_>>();
 
+        let shader = world
+            .resource_mgr
+            .get::<ShaderProgram>("block_shader")
+            .unwrap();
+        let outline_shader = world
+            .resource_mgr
+            .get::<ShaderProgram>("outline_shader")
+            .unwrap();
+        let cloud_shader = world
+            .resource_mgr
+            .get::<ShaderProgram>("cloud_shader")
+            .unwrap();
+        let ssao_shader = world
+            .resource_mgr
+            .get::<ShaderProgram>("ssao_shader")
+            .unwrap();
+        let postprocessing_shader = world
+            .resource_mgr
+            .get::<ShaderProgram>("postprocessing_shader")
+            .unwrap();
+        let ui_shader = world
+            .resource_mgr
+            .get::<ShaderProgram>("ui_shader")
+            .unwrap();
         unsafe {
             framebuffer.bind();
 
@@ -480,41 +511,49 @@ Current Block: {}"#,
             gl::ClearColor(0.6, 0.6, 0.9, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().use_program();
+            shader.use_program();
             // atlas_texture.bind_to_unit(0);
-            world.resource_mgr.get::<Texture>("atlas").unwrap().bind_to_unit(0);
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("view", view);
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("projection", player.projection);
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("texture_sampler", 0);
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("textures_per_row", 12);
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("texture_row_count", 12);
-            world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("time", time);
+            world
+                .resource_mgr
+                .get::<Texture>("atlas")
+                .unwrap()
+                .bind_to_unit(0);
+            shader.set_uniform("view", view);
+            shader.set_uniform("projection", player.projection);
+            shader.set_uniform("texture_sampler", 0);
+            shader.set_uniform("textures_per_row", 12);
+            shader.set_uniform("texture_row_count", 12);
+            shader.set_uniform("time", time);
             for (pos, mesh) in &world.meshes {
-                world.resource_mgr.get::<ShaderProgram>("block_shader").unwrap().set_uniform("chunk_pos", pos);
+                shader.set_uniform("chunk_pos", pos);
                 mesh.draw();
             }
 
             if let Some(ref hit) = player.selected_block {
-                world.resource_mgr.get::<ShaderProgram>("outline_shader").unwrap().use_program();
-                world.resource_mgr.get::<ShaderProgram>("outline_shader").unwrap().set_uniform(
+                outline_shader.use_program();
+                outline_shader.set_uniform(
                     "model",
                     Mat4::from_translation(hit.block_pos.as_vec3())
                         * Mat4::from_scale(vec3(1.005, 1.005, 1.005)),
                 );
-                world.resource_mgr.get::<ShaderProgram>("outline_shader").unwrap().set_uniform("view", view);
-                world.resource_mgr.get::<ShaderProgram>("outline_shader").unwrap().set_uniform("projection", player.projection);
-                world.resource_mgr.get::<ShaderProgram>("outline_shader").unwrap().set_uniform("color", vec3(1.0, 1.0, 1.0));
+                outline_shader.set_uniform("view", view);
+                outline_shader.set_uniform("projection", player.projection);
+                outline_shader.set_uniform("color", vec3(1.0, 1.0, 1.0));
                 outline_mesh.draw();
             }
 
             gl::Disable(gl::CULL_FACE);
             gl::DepthMask(gl::FALSE);
-            world.resource_mgr.get::<ShaderProgram>("cloud_shader").unwrap().use_program();
-            world.resource_mgr.get::<ShaderProgram>("cloud_shader").unwrap().set_uniform("view", view);
-            world.resource_mgr.get::<ShaderProgram>("cloud_shader").unwrap().set_uniform("projection", player.cloud_projection);
-            world.resource_mgr.get::<ShaderProgram>("cloud_shader").unwrap().set_uniform("time", time);
-            world.resource_mgr.get::<Texture>("cloud").unwrap().bind_to_unit(0);
-            world.resource_mgr.get::<ShaderProgram>("cloud_shader").unwrap().set_uniform("cloud_texture", 0);
+            cloud_shader.use_program();
+            cloud_shader.set_uniform("view", view);
+            cloud_shader.set_uniform("projection", player.cloud_projection);
+            cloud_shader.set_uniform("time", time);
+            world
+                .resource_mgr
+                .get::<Texture>("cloud")
+                .unwrap()
+                .bind_to_unit(0);
+            cloud_shader.set_uniform("cloud_texture", 0);
             cloud_plane.draw();
             gl::Enable(gl::CULL_FACE);
             gl::DepthMask(gl::TRUE);
@@ -528,14 +567,14 @@ Current Block: {}"#,
             gl::Disable(gl::DEPTH_TEST);
             gl::ClearBufferfv(gl::COLOR, 0, [1.0].as_ptr());
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            world.resource_mgr.get::<ShaderProgram>("ssao_shader").unwrap().use_program();
+            ssao_shader.use_program();
             framebuffer.depth_texture().unwrap().bind_to_unit(0);
-            world.resource_mgr.get::<ShaderProgram>("ssao_shader").unwrap().set_uniform("depth_texture", 0);
+            ssao_shader.set_uniform("depth_texture", 0);
             ssao_noise_texture.bind_to_unit(1);
-            world.resource_mgr.get::<ShaderProgram>("ssao_shader").unwrap().set_uniform("noise_texture", 1);
-            world.resource_mgr.get::<ShaderProgram>("ssao_shader").unwrap().set_uniform("samples", ssao_samples);
-            world.resource_mgr.get::<ShaderProgram>("ssao_shader").unwrap().set_uniform("projection", player.projection);
-            world.resource_mgr.get::<ShaderProgram>("ssao_shader").unwrap().set_uniform(
+            ssao_shader.set_uniform("noise_texture", 1);
+            ssao_shader.set_uniform("samples", ssao_samples);
+            ssao_shader.set_uniform("projection", player.projection);
+            ssao_shader.set_uniform(
                 "screen_size",
                 vec2(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
             );
@@ -545,26 +584,32 @@ Current Block: {}"#,
 
             gl::Disable(gl::DEPTH_TEST);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            world.resource_mgr.get::<ShaderProgram>("postprocessing_shader").unwrap().use_program();
+            postprocessing_shader.use_program();
             framebuffer.texture().bind_to_unit(0);
-            world.resource_mgr.get::<ShaderProgram>("postprocessing_shader").unwrap().set_uniform("texture_sampler", 0);
+            postprocessing_shader.set_uniform("texture_sampler", 0);
             ssao_framebuffer.texture().bind_to_unit(1);
-            world.resource_mgr.get::<ShaderProgram>("postprocessing_shader").unwrap().set_uniform("ssao_texture", 1);
+            postprocessing_shader.set_uniform("ssao_texture", 1);
             mesh::quad_mesh().draw();
 
-            world.resource_mgr.get::<ShaderProgram>("ui_shader").unwrap().use_program();
-            // font_texture.bind_to_unit(0);
-            world.resource_mgr.get::<Texture>("font").unwrap().bind_to_unit(0);
-            world.resource_mgr.get::<ShaderProgram>("ui_shader").unwrap().set_uniform("projection", ui_projection);
-            world.resource_mgr.get::<ShaderProgram>("ui_shader").unwrap().set_uniform("ui_color", vec4(1.0, 1.0, 1.0, 1.0));
+            ui_shader.use_program();
+            world
+                .resource_mgr
+                .get::<Texture>("font")
+                .unwrap()
+                .bind_to_unit(0);
+            ui_shader.set_uniform("projection", ui_projection);
+            ui_shader.set_uniform("ui_color", vec4(1.0, 1.0, 1.0, 1.0));
             debug_mesh.draw();
             if grab {
                 cursor.draw();
             }
-            // atlas_texture.bind_to_unit(0);
-            world.resource_mgr.get::<Texture>("atlas").unwrap().bind_to_unit(0);
+            world
+                .resource_mgr
+                .get::<Texture>("atlas")
+                .unwrap()
+                .bind_to_unit(0);
             for (block_mesh, color) in block_meshes.iter().zip(block_mesh_multiply_colors.iter()) {
-                world.resource_mgr.get::<ShaderProgram>("ui_shader").unwrap().set_uniform("ui_color", color);
+                ui_shader.set_uniform("ui_color", color);
                 block_mesh.draw();
             }
         }

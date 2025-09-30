@@ -11,7 +11,11 @@ use std::{
 };
 
 use crate::{
-    asset::{Key, KeyPart, ModelDefs, ResourceManager}, mesh::{BillboardVertex, BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex}, shader::ShaderProgram, texture::Texture, PLACABLE_BLOCKS, WINDOW_HEIGHT, WINDOW_WIDTH
+    PLACABLE_BLOCKS, WINDOW_HEIGHT, WINDOW_WIDTH,
+    asset::{Key, KeyPart, ModelDefs, ResourceManager},
+    mesh::{BillboardVertex, BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex},
+    shader::ShaderProgram,
+    texture::Texture,
 };
 
 pub const CHUNK_SIZE: usize = 16;
@@ -625,7 +629,8 @@ impl Chunk {
         }
 
         fn place_block(
-            blocks: &mut Vec<Block>,
+            // blocks: &mut Vec<Block>,
+            blocks: &mut [Block],
             outside_blocks: &mut HashMap<(IVec3, IVec3), Block>,
             chunk_pos: IVec3,
             target_chunk: IVec3,
@@ -762,7 +767,6 @@ impl Chunk {
         // Make local aliases for speed
         let blocks = &self.blocks;
         let foliage = &self.foliage_color;
-        let model_defs = model_defs; // local alias - cheap
 
         // Helper: read block at world-local coords (x,y,z) where coords are isize
         // Returns Block::Air for out-of-range or missing neighbour chunk
@@ -888,11 +892,48 @@ impl Chunk {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct EntityId {
+    id: u32,
+    entity_name: String,
+}
+
+impl EntityId {
+    fn new<E: Entity>() -> EntityId {
+        EntityId {
+            id: rand::random(),
+            entity_name: std::any::type_name::<E>().rsplit("::").next().unwrap().to_string(),
+        }
+    }
+}
+
+impl std::str::FromStr for EntityId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split_once("-").ok_or("EntityId: parsing error")?;
+        let id = parts.0.parse::<u32>().map_err(|e| format!("EntityId: {}", e))?;
+        Ok(EntityId {
+            id,
+            entity_name: parts.1.to_string(),
+        })
+    }
+}
+
+impl std::fmt::Display for EntityId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.id, self.entity_name)
+    }
+}
+
 pub trait Entity: 'static {
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
-    fn identity(&self) -> &'static str {
+    fn name(&self) -> &'static str {
         std::any::type_name::<Self>().rsplit("::").next().unwrap()
+    }
+    fn id(&self) -> EntityId where Self: Sized {
+        EntityId::new::<Self>()
     }
     fn position(&self) -> Vec3;
     fn velocity(&self) -> Vec3;
@@ -903,9 +944,8 @@ pub trait Entity: 'static {
     fn requests_removal(&self) -> bool {
         false
     }
-    fn update(&mut self, world: &mut World, events: &[glfw::WindowEvent], dt: f64);
-    fn draw(&self, _world: &World, _resource_manager: &ResourceManager) {
-    }
+    fn update(&mut self, id: EntityId, world: &mut World, events: &[glfw::WindowEvent], dt: f64);
+    fn draw(&self, _world: &World, _resource_manager: &ResourceManager) {}
 }
 
 #[derive(Clone)]
@@ -996,7 +1036,7 @@ impl Entity for Player {
         1.7
     }
 
-    fn update(&mut self, world: &mut World, events: &[glfw::WindowEvent], dt: f64) {
+    fn update(&mut self, _id: EntityId, world: &mut World, events: &[glfw::WindowEvent], dt: f64) {
         for event in events {
             match event {
                 glfw::WindowEvent::Key(glfw::Key::Left, _, glfw::Action::Press, _) => {
@@ -1066,7 +1106,7 @@ impl Entity for Player {
         if self.break_place_cooldown > 0 {
             self.break_place_cooldown -= 1;
         }
-        if self.mouse_down.contains(&MouseButton::Button2) && self.break_place_cooldown <= 0 {
+        if self.mouse_down.contains(&MouseButton::Button2) && self.break_place_cooldown == 0 {
             if let Some(ref hit) = self.selected_block {
                 let block_pos = hit.block_pos;
                 let hit_normal = hit.face_normal;
@@ -1085,7 +1125,7 @@ impl Entity for Player {
                 self.break_place_cooldown = 12;
             }
         }
-        if self.mouse_down.contains(&MouseButton::Button1) && self.break_place_cooldown <= 0 {
+        if self.mouse_down.contains(&MouseButton::Button1) && self.break_place_cooldown == 0 {
             if let Some(ref hit) = self.selected_block {
                 if !(world.get_block(hit.block_pos.x, hit.block_pos.y, hit.block_pos.z)
                     == Block::Bedrock)
@@ -1155,7 +1195,10 @@ impl BillboardType {
 
         [
             vec2(tile_x as f32 * uv_unit, tile_y as f32 * uv_row_unit),
-            vec2((tile_x + 1) as f32 * uv_unit, (tile_y + 1) as f32 * uv_row_unit),
+            vec2(
+                (tile_x + 1) as f32 * uv_unit,
+                (tile_y + 1) as f32 * uv_row_unit,
+            ),
         ]
     }
 
@@ -1184,7 +1227,14 @@ pub struct Billboard {
 }
 
 impl Billboard {
-    pub fn new(position: Vec3, size: f32, life: u32, kind: BillboardType, shader_key: &str, atlas_key: &str) -> Self {
+    pub fn new(
+        position: Vec3,
+        size: f32,
+        life: u32,
+        kind: BillboardType,
+        shader_key: &str,
+        atlas_key: &str,
+    ) -> Self {
         Billboard {
             position,
             size,
@@ -1234,7 +1284,7 @@ impl Entity for Billboard {
         self.life == 0
     }
 
-    fn update(&mut self, world: &mut World, _events: &[glfw::WindowEvent], _dt: f64) {
+    fn update(&mut self, id: EntityId, world: &mut World, _events: &[glfw::WindowEvent], _dt: f64) {
         if self.life > 0 {
             self.life -= 1;
         }
@@ -1244,23 +1294,17 @@ impl Entity for Billboard {
 
         let effect_radius = 3.0;
 
-        unsafe {
-            for i in 0..world.entities.len() {
-                // SAFETY: We know it's safe to take &mut here because:
-                //  - We never alias self with another entity
-                //  - Only one entity is borrowed at a time
-                //  - The world update loop ensures no other borrows overlap
-                let entity = world.entities[i].as_ptr().as_mut().unwrap();
-                let entity = &mut *entity;
-                if entity.identity() == self.identity() {
-                    continue;
-                }
-                let to_entity = entity.position() - self.position;
-                let distance = to_entity.length_squared();
-                if distance < effect_radius * effect_radius && distance > 0.0 {
-                    let force = to_entity.normalize() * (effect_radius - distance.sqrt()) * self.kind.knockback_mult();
-                    entity.apply_velocity(force);
-                }
+        for (other_id, entity) in &world.entities {
+            if *other_id == id || entity.borrow().name() == self.name() {
+                continue;
+            }
+            let to_entity = entity.borrow().position() - self.position;
+            let distance = to_entity.length_squared();
+            if distance < effect_radius * effect_radius && distance > 0.0 {
+                let force = to_entity.normalize()
+                    * (effect_radius - distance.sqrt())
+                    * self.kind.knockback_mult();
+                entity.borrow_mut().apply_velocity(force);
             }
         }
     }
@@ -1269,7 +1313,9 @@ impl Entity for Billboard {
         if self.life == 0 {
             return;
         }
-        let shader = resource_manager.get::<ShaderProgram>(&self.shader_key).unwrap();
+        let shader = resource_manager
+            .get::<ShaderProgram>(&self.shader_key)
+            .unwrap();
         let atlas = resource_manager.get::<Texture>(&self.atlas_key).unwrap();
         let uvs = self.kind.uvs();
 
@@ -1316,7 +1362,7 @@ impl Entity for Billboard {
 pub struct World {
     chunks: HashMap<IVec3, Chunk>,
     changes: HashMap<(IVec3, IVec3), Block>,
-    entities: Vec<Rc<RefCell<dyn Entity>>>,
+    entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
     pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
     noise: OpenSimplex,
     cave_noise: OpenSimplex,
@@ -1343,20 +1389,23 @@ impl World {
 
         let player = Player::new(vec3(0.0, 10.0, 0.0));
 
-        World {
+        let mut world = World {
             chunks,
             changes: HashMap::new(),
-            entities: vec![Rc::new(RefCell::new(player))],
+            entities: HashMap::new(),
             meshes: HashMap::new(),
             noise,
             cave_noise,
             biome_noise,
             resource_mgr,
-        }
+        };
+        world.add_entity(player);
+
+        world
     }
 
     pub fn get_player(&self) -> Ref<Player> {
-        for entity in &self.entities {
+        for entity in self.entities.values() {
             if entity.borrow().as_any().is::<Player>() {
                 return Ref::map(entity.borrow(), |e| {
                     e.as_any().downcast_ref::<Player>().unwrap()
@@ -1367,7 +1416,7 @@ impl World {
     }
 
     pub fn get_player_mut(&mut self) -> RefMut<Player> {
-        for entity in &self.entities {
+        for entity in self.entities.values() {
             if entity.borrow().as_any().is::<Player>() {
                 return RefMut::map(entity.borrow_mut(), |e| {
                     e.as_any_mut().downcast_mut::<Player>().unwrap()
@@ -1401,9 +1450,9 @@ impl World {
                 .distance_squared(player_pos / CHUNK_SIZE as f32);
             distance_squared <= RENDER_DISTANCE as f32 * RENDER_DISTANCE as f32
         });
-        self.entities.retain(|e| !e.borrow().requests_removal());
-        for entity in self.entities.clone() {
-            entity.borrow_mut().update(self, events, dt);
+        self.entities.retain(|_, e| !e.borrow().requests_removal());
+        for (id, entity) in self.entities.clone() {
+            entity.borrow_mut().update(id, self, events, dt);
         }
     }
 
@@ -1447,7 +1496,7 @@ impl World {
     }
 
     pub fn add_entity(&mut self, entity: impl Entity) {
-        self.entities.push(Rc::new(RefCell::new(entity)));
+        self.entities.insert(entity.id(), Rc::new(RefCell::new(entity)));
     }
 
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
@@ -1523,16 +1572,14 @@ impl World {
                 }
             }
             let size = rand::random_range(1.0..2.0);
-            self.add_entity(
-                Billboard::new(
-                    pos.as_vec3() + vec3(0.5, 0.5, 0.5),
-                    size,
-                    size as u32 * 25,
-                    BillboardType::Explosion,
-                    "billboard_shader",
-                    "billboard_atlas",
-                ),
-            );
+            self.add_entity(Billboard::new(
+                pos.as_vec3() + vec3(0.5, 0.5, 0.5),
+                size,
+                size as u32 * 25,
+                BillboardType::Explosion,
+                "billboard_shader",
+                "billboard_atlas",
+            ));
         }
     }
 
@@ -1552,7 +1599,11 @@ impl World {
         let z_max = (player_pos.z + half_w).floor() as i32;
 
         // let model_defs = self.model_defs.clone();
-        let model_defs = self.resource_mgr.get::<ModelDefs>("model_defs").unwrap().clone();
+        let model_defs = self
+            .resource_mgr
+            .get::<ModelDefs>("model_defs")
+            .unwrap()
+            .clone();
 
         for x in x_min..=x_max {
             for y in y_min..=y_max {
@@ -1614,7 +1665,7 @@ impl World {
     }
 
     pub fn draw_entities(&self) {
-        for entity in &self.entities {
+        for entity in self.entities.values() {
             entity.borrow().draw(self, &self.resource_mgr);
         }
     }
@@ -1640,7 +1691,10 @@ impl World {
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
                 let pos = *chunk_pos;
-                let (verts, idxs) = chunk.generate_chunk_mesh(&neighbour_chunks, &self.resource_mgr.get::<ModelDefs>("model_defs").unwrap());
+                let (verts, idxs) = chunk.generate_chunk_mesh(
+                    &neighbour_chunks,
+                    self.resource_mgr.get::<ModelDefs>("model_defs").unwrap(),
+                );
                 ChunkMeshData { pos, verts, idxs }
             })
             .collect();
