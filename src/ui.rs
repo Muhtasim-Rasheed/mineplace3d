@@ -48,6 +48,31 @@ impl BitmapFont {
         Some(([u0, v0], [u1, v1]))
     }
 
+    pub fn text_metrics(&self, text: &str, font_size: f32) -> (f32, f32) {
+        let mut max_width = 0f32;
+        let mut current_width = 0.0;
+        let mut lines = 1;
+
+        for ch in text.chars() {
+            if ch == '\n' {
+                max_width = max_width.max(current_width);
+                current_width = 0.0;
+                lines += 1;
+                continue;
+            }
+
+            if self.get_glyph_uv(ch).is_some() {
+                let w = self.char_width as f32 * font_size / self.char_height as f32;
+                current_width += w;
+            }
+        }
+
+        max_width = max_width.max(current_width);
+        let total_height = lines as f32 * font_size;
+
+        (max_width, total_height)
+    }
+
     pub fn build(&self, text: &str, start_x: f32, start_y: f32, font_size: f32) -> Mesh<UIVertex> {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();

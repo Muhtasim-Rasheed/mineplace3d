@@ -81,6 +81,60 @@ fn shift_vec<T: Clone>(v: &[T], index: usize) -> Vec<T> {
         .collect()
 }
 
+fn key_to_char(key: Key) -> Option<char> {
+    match key {
+        Key::A => Some('a'),
+        Key::B => Some('b'),
+        Key::C => Some('c'),
+        Key::D => Some('d'),
+        Key::E => Some('e'),
+        Key::F => Some('f'),
+        Key::G => Some('g'),
+        Key::H => Some('h'),
+        Key::I => Some('i'),
+        Key::J => Some('j'),
+        Key::K => Some('k'),
+        Key::L => Some('l'),
+        Key::M => Some('m'),
+        Key::N => Some('n'),
+        Key::O => Some('o'),
+        Key::P => Some('p'),
+        Key::Q => Some('q'),
+        Key::R => Some('r'),
+        Key::S => Some('s'),
+        Key::T => Some('t'),
+        Key::U => Some('u'),
+        Key::V => Some('v'),
+        Key::W => Some('w'),
+        Key::X => Some('x'),
+        Key::Y => Some('y'),
+        Key::Z => Some('z'),
+        Key::Space => Some(' '),
+        Key::Apostrophe => Some('\''),
+        Key::Comma => Some(','),
+        Key::Minus => Some('-'),
+        Key::Period => Some('.'),
+        Key::Slash => Some('/'),
+        Key::Semicolon => Some(';'),
+        Key::Equal => Some('='),
+        Key::LeftBracket => Some('['),
+        Key::Backslash => Some('\\'),
+        Key::RightBracket => Some(']'),
+        Key::GraveAccent => Some('`'),
+        Key::Num0 => Some('0'),
+        Key::Num1 => Some('1'),
+        Key::Num2 => Some('2'),
+        Key::Num3 => Some('3'),
+        Key::Num4 => Some('4'),
+        Key::Num5 => Some('5'),
+        Key::Num6 => Some('6'),
+        Key::Num7 => Some('7'),
+        Key::Num8 => Some('8'),
+        Key::Num9 => Some('9'),
+        _ => None,
+    }
+}
+
 fn request_chunks_around_player(
     player_pos: Vec3,
     world: &mut World,
@@ -226,6 +280,8 @@ fn main() {
     window.set_scroll_polling(true);
 
     let mut debug_mesh;
+    let mut chat_mesh = font.build("", 50.0, WINDOW_HEIGHT as f32 - 150.0, 24.0);
+    let mut chat_hist_mesh;
     let cursor = font.build(
         "*",
         WINDOW_WIDTH as f32 / 2.0 - 10.0,
@@ -306,6 +362,10 @@ fn main() {
 
     let mut window_events = Vec::new();
 
+    let mut command: Option<String> = None;
+    let mut chat_hist: Vec<String> = Vec::new();
+    let mut chat_open = false;
+
     let translations =
         asset::Translations::new(TRANSLATIONS_JSON).expect("Failed to load translations");
 
@@ -338,10 +398,76 @@ fn main() {
         for event in &window_events {
             match event {
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                    grab = !grab;
+                    if !chat_open {
+                        grab = !grab;
+                    } else {
+                        chat_open = false;
+                        grab = true;
+                    }
                 }
                 glfw::WindowEvent::Key(key, _, Action::Press, _) => {
-                    keys_down.insert(*key);
+                    if !chat_open {
+                        keys_down.insert(*key);
+                    }
+                    if *key == Key::Slash && !chat_open {
+                        chat_open = true;
+                        command = Some("/".to_string());
+                        grab = false;
+                    } else if *key == Key::T && !chat_open {
+                        chat_open = true;
+                        command = Some("".to_string());
+                        grab = false;
+                    } else if *key == Key::Enter && chat_open {
+                        if let Some(cmd) = command.take() {
+                            if cmd.starts_with('/') {
+                                let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
+                                if parts.is_empty() {
+                                } else if parts[0] == "seed" {
+                                    chat_hist.push(format!("Current world seed: {}", world.seed()));
+                                } else if parts[0] == "tp" {
+                                    if parts.len() != 4 {
+                                        chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
+                                    } else {
+                                        let x = parts[1].parse::<f32>();
+                                        let y = parts[2].parse::<f32>();
+                                        let z = parts[3].parse::<f32>();
+                                        if x.is_err() || y.is_err() || z.is_err() {
+                                            chat_hist.push("Invalid coordinates.".to_string());
+                                        } else {
+                                            world.get_player_mut().position = vec3(
+                                                x.clone().unwrap(),
+                                                y.clone().unwrap(),
+                                                z.clone().unwrap(),
+                                            );
+                                            world.get_player_mut().velocity = vec3(0.0, 0.0, 0.0);
+                                            chat_hist.push(format!(
+                                                "Teleported to: {:.2} {:.2} {:.2}",
+                                                x.unwrap(),
+                                                y.unwrap(),
+                                                z.unwrap()
+                                            ));
+                                        }
+                                    }
+                                } else {
+                                    chat_hist.push(format!("Unknown command: {}", parts[0]));
+                                }
+                            }
+                        }
+                        chat_open = false;
+                        grab = true;
+                    } else if *key == Key::Backspace && chat_open {
+                        if let Some(ref mut cmd) = command {
+                            cmd.pop();
+                        }
+                    } else if chat_open {
+                        if let Some(ref mut cmd) = command {
+                            if let Some(c) = key_to_char(*key) {
+                                if !c.is_control() {
+                                    cmd.push(c);
+                                }
+                            }
+                        }
+                    }
                 }
                 glfw::WindowEvent::Key(key, _, Action::Release, _) => {
                     keys_down.remove(key);
@@ -410,9 +536,33 @@ Current Block: {}"#,
                     let block = PLACABLE_BLOCKS[player.current_block];
                     block.into()
                 })
-                .unwrap_or(&"Unknown".to_string())
+                .unwrap_or(&"Unknown".to_string()),
         );
         debug_mesh = font.build(&text, 50.0, 50.0, 24.0);
+        if let Some(ref cmd) = command {
+            chat_mesh = font.build(
+                &format!("{}", cmd),
+                50.0,
+                WINDOW_HEIGHT as f32 - 150.0 - 24.0,
+                24.0,
+            );
+        }
+        let chat_hist_text = chat_hist
+            .join("\n")
+            .lines()
+            .rev()
+            .take(10)
+            .collect::<Vec<&str>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<&str>>()
+            .join("\n");
+        chat_hist_mesh = font.build(
+            &chat_hist_text,
+            50.0,
+            WINDOW_HEIGHT as f32 - font.text_metrics(&chat_hist_text, 24.0).1 - 150.0 - 24.0,
+            24.0,
+        );
         view = Mat4::look_at_rh(
             player.camera_pos(),
             player.camera_pos() + player.forward,
@@ -603,6 +753,10 @@ Current Block: {}"#,
             if grab {
                 cursor.draw();
             }
+            if chat_open {
+                chat_mesh.draw();
+            }
+            chat_hist_mesh.draw();
             world
                 .resource_mgr
                 .get::<Texture>("atlas")

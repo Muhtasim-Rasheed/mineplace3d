@@ -902,7 +902,11 @@ impl EntityId {
     fn new<E: Entity>() -> EntityId {
         EntityId {
             id: rand::random(),
-            entity_name: std::any::type_name::<E>().rsplit("::").next().unwrap().to_string(),
+            entity_name: std::any::type_name::<E>()
+                .rsplit("::")
+                .next()
+                .unwrap()
+                .to_string(),
         }
     }
 }
@@ -912,7 +916,10 @@ impl std::str::FromStr for EntityId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = s.split_once("-").ok_or("EntityId: parsing error")?;
-        let id = parts.0.parse::<u32>().map_err(|e| format!("EntityId: {}", e))?;
+        let id = parts
+            .0
+            .parse::<u32>()
+            .map_err(|e| format!("EntityId: {}", e))?;
         Ok(EntityId {
             id,
             entity_name: parts.1.to_string(),
@@ -932,7 +939,10 @@ pub trait Entity: 'static {
     fn name(&self) -> &'static str {
         std::any::type_name::<Self>().rsplit("::").next().unwrap()
     }
-    fn id(&self) -> EntityId where Self: Sized {
+    fn id(&self) -> EntityId
+    where
+        Self: Sized,
+    {
         EntityId::new::<Self>()
     }
     fn position(&self) -> Vec3;
@@ -965,6 +975,7 @@ pub struct Player {
     pub current_block: usize,
     pub projection: Mat4,
     pub cloud_projection: Mat4,
+    chat_open: bool,
 }
 
 impl Player {
@@ -995,6 +1006,7 @@ impl Player {
                 0.1,
                 400.0,
             ),
+            chat_open: false,
         }
     }
 
@@ -1046,15 +1058,32 @@ impl Entity for Player {
                 glfw::WindowEvent::Key(glfw::Key::Right, _, glfw::Action::Press, _) => {
                     self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                 }
-                glfw::WindowEvent::Key(key, _, action, _) => match action {
-                    glfw::Action::Press => {
-                        self.keys_down.insert(*key);
+                glfw::WindowEvent::Key(key, _, action, _) => {
+                    if *key == glfw::Key::T && *action == glfw::Action::Press {
+                        self.chat_open = true;
                     }
-                    glfw::Action::Release => {
-                        self.keys_down.remove(key);
+                    if *key == glfw::Key::Slash && *action == glfw::Action::Press {
+                        self.chat_open = true;
                     }
-                    _ => {}
-                },
+                    if *key == glfw::Key::Enter && *action == glfw::Action::Press {
+                        self.chat_open = false;
+                    }
+                    if *key == glfw::Key::Escape && *action == glfw::Action::Press {
+                        self.chat_open = false;
+                    }
+
+                    if !self.chat_open {
+                        match action {
+                            glfw::Action::Press => {
+                                self.keys_down.insert(*key);
+                            }
+                            glfw::Action::Release => {
+                                self.keys_down.remove(key);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 glfw::WindowEvent::MouseButton(button, action, _) => match action {
                     glfw::Action::Press => {
                         self.mouse_down.insert(*button);
@@ -1496,7 +1525,8 @@ impl World {
     }
 
     pub fn add_entity(&mut self, entity: impl Entity) {
-        self.entities.insert(entity.id(), Rc::new(RefCell::new(entity)));
+        self.entities
+            .insert(entity.id(), Rc::new(RefCell::new(entity)));
     }
 
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
