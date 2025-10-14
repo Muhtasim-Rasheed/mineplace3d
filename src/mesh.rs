@@ -20,11 +20,6 @@ fn pack_uv(uv: UVec2) -> u64 {
 }
 
 #[inline]
-fn pack_chunk_local_pos(pos: UVec3) -> u64 {
-    ((pos.x << 10) | (pos.y << 5) | pos.z) as u64
-}
-
-#[inline]
 fn pack_color_rgb677(color: Vec3) -> u64 {
     let r = (color.x * 63.0).round() as u64; // 6 bits
     let g = (color.y * 127.0).round() as u64; // 7 bits
@@ -37,19 +32,21 @@ fn pack_color_rgb677(color: Vec3) -> u64 {
 pub struct BlockVertex {
     pub hi: u32,
     pub lo: u32,
+    pub position: Vec3,
 }
 
 impl BlockVertex {
-    pub fn new(position: UVec3, normal: u8, uv: UVec2, block_type: u16, foliage: Vec3) -> Self {
+    pub fn new(position: Vec3, normal: u8, uv: UVec2, block_type: u16, foliage: Vec3) -> Self {
         let uv = pack_uv(uv);
-        let pos = pack_chunk_local_pos(position);
         let foliage = pack_color_rgb677(foliage);
         let normal = normal as u64;
         let block_type = block_type as u64;
-        let serialized = pos | (normal << 15) | (uv << 18) | (block_type << 28) | (foliage << 44);
+        // space for lighting stuff or anything really that fits in 15 bits
+        let serialized = (normal << 15) | (uv << 18) | (block_type << 28) | (foliage << 44);
         BlockVertex {
             hi: (serialized >> 32) as u32,
             lo: (serialized & 0xFFFFFFFF) as u32,
+            position,
         }
     }
 }
@@ -98,9 +95,18 @@ impl VertexFormat for BlockVertex {
                 std::mem::size_of::<Self>() as i32,
                 offset_of!(Self, lo) as *const _,
             );
+            gl::VertexAttribPointer(
+                2,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                std::mem::size_of::<Self>() as i32,
+                offset_of!(Self, position) as *const _,
+            );
 
             gl::EnableVertexAttribArray(0);
             gl::EnableVertexAttribArray(1);
+            gl::EnableVertexAttribArray(2);
         }
     }
 }

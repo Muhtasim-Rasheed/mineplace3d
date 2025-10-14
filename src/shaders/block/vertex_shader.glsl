@@ -1,6 +1,7 @@
 #version 330 core
 layout(location = 0) in uint hi;
 layout(location = 1) in uint lo;
+layout(location = 2) in vec3 position;
 
 out vec3 frag_normal;
 out vec2 frag_uv;
@@ -24,9 +25,9 @@ const vec3 normals[6] = vec3[](
 );
 
 uint get_block_type(uint hi, uint lo) {
-    uint lower = (lo >> 28) & 0xFu;
-    uint upper = hi & 0xFFFu;
-    return (upper << 4) | lower;
+	uint lower = (lo >> 28) & 0xFu;
+	uint upper = hi & 0xFFFu;
+	return (upper << 4) | lower;
 }
 
 uint get_normal_idx(uint hi, uint lo) {
@@ -47,13 +48,14 @@ vec2 unpack_uv(uint hi, uint lo) {
 	return vec2(float(local_u), float(local_v)) / 192.0 + vec2(float(tile_x), float(tile_y)) * uv_unit;
 }
 
-ivec3 unpack_pos(uint hi, uint lo) {
-	uint pos = lo & 0x7FFFu;
+vec3 get_pos(vec3 position) {
+	// uint pos = lo & 0x7FFFu;
 
-	uint x = (pos >> 10) & 0x1Fu;
-	uint y = (pos >> 5) & 0x1Fu;
-	uint z = pos & 0x1Fu;
-	return ivec3(int(x), int(y), int(z)) + chunk_pos * 16;
+	// uint x = (pos >> 10) & 0x1Fu;
+	// uint y = (pos >> 5) & 0x1Fu;
+	// uint z = pos & 0x1Fu;
+	// return ivec3(int(x), int(y), int(z)) + chunk_pos * 16;
+	return position + vec3(chunk_pos * 16);
 }
 
 vec3 unpack_color(uint color) {
@@ -69,7 +71,7 @@ vec3 unpack_foliage(uint hi, uint lo) {
 }
 
 void main() {
-	vec3 world_pos = vec3(unpack_pos(hi, lo));
+	vec3 world_pos = get_pos(position);
 	uint block_type = get_block_type(hi, lo);
 	gl_Position = vec4(world_pos, 1.0);
 	if (block_type == 6u) {

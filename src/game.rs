@@ -861,9 +861,11 @@ impl Chunk {
 
                             // Push 4 vertices
                             for j in 0..4 {
-                                // local_pos as UVec3, cast once
-                                let vert_offset = face.vertices[j].as_uvec3()
-                                    + uvec3(x as u32, y as u32, z as u32);
+                                // // local_pos as UVec3, cast once
+                                // let vert_offset = face.vertices[j].as_uvec3()
+                                //     + uvec3(x as u32, y as u32, z as u32);
+                                let vert_offset = face.vertices[j]
+                                    + vec3(x as f32, y as f32, z as f32);
 
                                 vertices.push(BlockVertex::new(
                                     vert_offset,
