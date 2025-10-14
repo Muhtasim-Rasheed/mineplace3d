@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    PLACABLE_BLOCKS, WINDOW_HEIGHT, WINDOW_WIDTH,
+    PLACABLE_BLOCKS,
     asset::{Key, KeyPart, ModelDefs, ResourceManager},
     mesh::{BillboardVertex, BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex},
     shader::ShaderProgram,
@@ -583,9 +583,9 @@ impl Chunk {
                     let random_f64 = rng.random::<f64>();
 
                     let block;
-                    if real_y < -32 {
+                    if real_y < -64 {
                         block = Block::Air;
-                    } else if real_y < -30 {
+                    } else if real_y < -62 {
                         block = Block::Bedrock;
                     } else if is_cave {
                         block = Block::Air;
@@ -864,8 +864,8 @@ impl Chunk {
                                 // // local_pos as UVec3, cast once
                                 // let vert_offset = face.vertices[j].as_uvec3()
                                 //     + uvec3(x as u32, y as u32, z as u32);
-                                let vert_offset = face.vertices[j]
-                                    + vec3(x as f32, y as f32, z as f32);
+                                let vert_offset =
+                                    face.vertices[j] + vec3(x as f32, y as f32, z as f32);
 
                                 vertices.push(BlockVertex::new(
                                     vert_offset,
@@ -981,7 +981,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(position: Vec3) -> Self {
+    pub fn new(position: Vec3, window: &glfw::Window) -> Self {
         Player {
             old_position: position,
             position,
@@ -998,13 +998,15 @@ impl Player {
             current_block: 0,
             projection: Mat4::perspective_rh_gl(
                 90f32.to_radians(),
-                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                // WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                window.get_size().0 as f32 / window.get_size().1 as f32,
                 0.1,
                 200.0,
             ),
             cloud_projection: Mat4::perspective_rh_gl(
                 90f32.to_radians(),
-                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                // WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                window.get_size().0 as f32 / window.get_size().1 as f32,
                 0.1,
                 400.0,
             ),
@@ -1402,7 +1404,7 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(seed: u32, resource_mgr: ResourceManager) -> Self {
+    pub fn new(seed: u32, resource_mgr: ResourceManager, window: &glfw::Window) -> Self {
         let noise = OpenSimplex::new(seed);
         let cave_noise = OpenSimplex::new(seed.wrapping_add(u32::MAX / 3));
         const TWO_THIRDS_U32: u32 = (u32::MAX as f32 * (2.0 / 3.0)) as u32;
@@ -1418,7 +1420,7 @@ impl World {
             }
         }
 
-        let player = Player::new(vec3(0.0, 10.0, 0.0));
+        let player = Player::new(vec3(0.0, 10.0, 0.0), window);
 
         let mut world = World {
             chunks,

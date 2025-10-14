@@ -33,9 +33,6 @@ macro_rules! shader {
 const TRANSLATIONS_JSON: &str = include_str!("assets/translations.json");
 const MODEL_DEF_JSON: &str = include_str!("assets/models.json");
 
-const WINDOW_WIDTH: u32 = 1600;
-const WINDOW_HEIGHT: u32 = 900;
-
 const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE - 1;
 
 const PLACABLE_BLOCKS: [Block; 22] = [
@@ -183,12 +180,17 @@ fn main() {
     glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
     let (mut window, events) = glfw
-        .create_window(
-            WINDOW_WIDTH,
-            WINDOW_HEIGHT,
-            "mineplace3D",
-            glfw::WindowMode::Windowed,
-        )
+        .with_primary_monitor(|glfw, m| {
+            let m = m.unwrap();
+            let width = m.get_video_mode().unwrap().width;
+            let height = m.get_video_mode().unwrap().height;
+            glfw.create_window(
+                width,
+                height,
+                "mineplace3D",
+                glfw::WindowMode::FullScreen(m),
+            )
+        })
         .expect("Failed to create GLFW window.");
 
     gl::load_with(|symbol| window.get_proc_address(symbol));
@@ -280,19 +282,19 @@ fn main() {
     window.set_scroll_polling(true);
 
     let mut debug_mesh;
-    let mut chat_mesh = font.build("", 50.0, WINDOW_HEIGHT as f32 - 150.0, 24.0);
+    let mut chat_mesh = font.build("", 50.0, window.get_size().1 as f32 - 150.0, 24.0);
     let mut chat_hist_mesh;
     let cursor = font.build(
         "*",
-        WINDOW_WIDTH as f32 / 2.0 - 10.0,
-        WINDOW_HEIGHT as f32 / 2.0 - 10.0,
+        window.get_size().0 as u32 as f32 / 2.0 - 10.0,
+        window.get_size().1 as f32 / 2.0 - 10.0,
         36.0,
     );
     let outline_mesh = mesh::outline_mesh();
     let ui_projection = Mat4::orthographic_rh_gl(
         0.0,
-        WINDOW_WIDTH as f32,
-        WINDOW_HEIGHT as f32,
+        window.get_size().0 as u32 as f32,
+        window.get_size().1 as f32,
         0.0,
         -3.0,
         3.0,
@@ -311,25 +313,30 @@ fn main() {
     let mut time = 0.0;
 
     let framebuffer = framebuffer::Framebuffer::new(
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
+        window.get_size().0 as u32,
+        window.get_size().1 as u32,
         true,
         framebuffer::ColorFormat::UnsignedRGBA,
     );
     framebuffer.bind();
     unsafe {
-        gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
+        gl::Viewport(
+            0,
+            0,
+            window.get_size().0 as u32 as i32,
+            window.get_size().1 as i32,
+        );
     }
     framebuffer::Framebuffer::unbind();
     let ssao_framebuffer = framebuffer::Framebuffer::new(
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
+        window.get_size().0 as u32,
+        window.get_size().1 as u32,
         false,
         framebuffer::ColorFormat::FloatR,
     );
     ssao_framebuffer.bind();
     unsafe {
-        gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
+        gl::Viewport(0, 0, window.get_size().0 as i32, window.get_size().1 as i32);
     }
     framebuffer::Framebuffer::unbind();
     let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 64];
@@ -387,7 +394,7 @@ fn main() {
         .add("translations", translations)
         .add("model_defs", model_defs);
 
-    let mut world = World::new(seed, resource_mgr);
+    let mut world = World::new(seed, resource_mgr, &window);
 
     while !window.should_close() {
         glfw.poll_events();
@@ -543,7 +550,7 @@ Current Block: {}"#,
             chat_mesh = font.build(
                 &format!("{}", cmd),
                 50.0,
-                WINDOW_HEIGHT as f32 - 150.0 - 24.0,
+                window.get_size().1 as f32 - 150.0 - 24.0,
                 24.0,
             );
         }
@@ -560,7 +567,7 @@ Current Block: {}"#,
         chat_hist_mesh = font.build(
             &chat_hist_text,
             50.0,
-            WINDOW_HEIGHT as f32 - font.text_metrics(&chat_hist_text, 24.0).1 - 150.0 - 24.0,
+            window.get_size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).1 - 150.0 - 24.0,
             24.0,
         );
         view = Mat4::look_at_rh(
@@ -600,7 +607,7 @@ Current Block: {}"#,
             .map(|(i, block)| {
                 let size = vec2(60.0, -60.0);
                 let x = 100.0 + i as f32 * (size.x * 5.0 / 3.0);
-                let y = WINDOW_HEIGHT as f32 - 50.0;
+                let y = window.get_size().1 as f32 - 50.0;
                 let position = vec2(x, y);
 
                 block.ui_mesh(
@@ -726,7 +733,7 @@ Current Block: {}"#,
             ssao_shader.set_uniform("projection", player.projection);
             ssao_shader.set_uniform(
                 "screen_size",
-                vec2(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
+                vec2(window.get_size().0 as f32, window.get_size().1 as f32),
             );
             mesh::quad_mesh().draw();
 
