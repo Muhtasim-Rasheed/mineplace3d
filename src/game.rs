@@ -1119,7 +1119,7 @@ impl Entity for Player {
         self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
         let player_accel = if self.sneaking { 0.5 } else { 0.9 };
-        let jump_accel = 0.8 * 10.0;
+        let jump_accel = 8.0;
         let sprint_player_accel = player_accel * if self.sneaking { 1.0 } else { 1.5 };
         if self.keys_down.contains(&glfw::Key::W) {
             self.velocity += vec3(self.forward.x, 0.0, self.forward.z).normalize()
@@ -1177,7 +1177,7 @@ impl Entity for Player {
                 }
             }
         }
-        self.velocity.y -= 36.0 * dt as f32 - dt as f32 * 10.0 * self.velocity.y;
+        self.velocity.y -= 0.75 - 0.2 * self.velocity.y;
         self.position += self.velocity * dt as f32;
         if self.sneaking {
             self.velocity.x *= 0.5;
