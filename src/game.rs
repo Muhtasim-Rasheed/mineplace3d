@@ -583,9 +583,9 @@ impl Chunk {
                     let random_f64 = rng.random::<f64>();
 
                     let block;
-                    if real_y < -64 {
+                    if real_y < -32 {
                         block = Block::Air;
-                    } else if real_y < -62 {
+                    } else if real_y < -30 {
                         block = Block::Bedrock;
                     } else if is_cave {
                         block = Block::Air;
@@ -975,6 +975,7 @@ pub struct Player {
     pub break_place_cooldown: u32,
     pub selected_block: Option<RayHit>,
     pub current_block: usize,
+    pub sneaking: bool,
     pub projection: Mat4,
     pub cloud_projection: Mat4,
     chat_open: bool,
@@ -996,16 +997,15 @@ impl Player {
             break_place_cooldown: 0,
             selected_block: None,
             current_block: 0,
+            sneaking: false,
             projection: Mat4::perspective_rh_gl(
                 90f32.to_radians(),
-                // WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 window.get_size().0 as f32 / window.get_size().1 as f32,
                 0.1,
                 200.0,
             ),
             cloud_projection: Mat4::perspective_rh_gl(
                 90f32.to_radians(),
-                // WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 window.get_size().0 as f32 / window.get_size().1 as f32,
                 0.1,
                 400.0,
@@ -1049,7 +1049,11 @@ impl Entity for Player {
     }
 
     fn eye_height(&self) -> f32 {
-        1.7
+        if self.sneaking {
+            1.55
+        } else {
+            1.7
+        }
     }
 
     fn update(&mut self, _id: EntityId, world: &mut World, events: &[glfw::WindowEvent], dt: f64) {
@@ -1108,11 +1112,15 @@ impl Entity for Player {
                 _ => {}
             }
         }
+        
+        self.sneaking = self.keys_down.contains(&glfw::Key::LeftShift)
+            || self.keys_down.contains(&glfw::Key::RightShift);
+
         self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
-        let player_accel = 0.9;
+        let player_accel = if self.sneaking { 0.5 } else { 0.9 };
         let jump_accel = 0.8 * 10.0;
-        let sprint_player_accel = player_accel * 1.5;
+        let sprint_player_accel = player_accel * if self.sneaking { 1.0 } else { 1.5 };
         if self.keys_down.contains(&glfw::Key::W) {
             self.velocity += vec3(self.forward.x, 0.0, self.forward.z).normalize()
                 * if self.keys_down.contains(&glfw::Key::LeftControl)
@@ -1171,7 +1179,13 @@ impl Entity for Player {
         }
         self.velocity.y -= 36.0 * dt as f32 - dt as f32 * 10.0 * self.velocity.y;
         self.position += self.velocity * dt as f32;
-        self.velocity *= 0.85;
+        if self.sneaking {
+            self.velocity.x *= 0.5;
+            self.velocity.z *= 0.5;
+            self.velocity.y *= 0.85;
+        } else {
+            self.velocity *= 0.85;
+        }
 
         let (collide_x, collide_y, collide_z) = world.player_collision_mask(
             self.old_position,
