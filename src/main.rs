@@ -370,8 +370,13 @@ fn main() {
     let mut window_events = Vec::new();
 
     let mut command: Option<String> = None;
-    let mut chat_hist: Vec<String> = Vec::new();
+    let mut chat_hist: Vec<String> = vec![
+        "Welcome to Mineplace3D!".to_string(),
+        "Type /help for a list of commands.".to_string(),
+    ];
     let mut chat_open = false;
+
+    let mut vsync = true;
 
     let translations =
         asset::Translations::new(TRANSLATIONS_JSON).expect("Failed to load translations");
@@ -397,6 +402,12 @@ fn main() {
     let mut world = World::new(seed, resource_mgr, &window);
 
     while !window.should_close() {
+        if vsync {
+            glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
+        } else {
+            glfw.set_swap_interval(glfw::SwapInterval::None);
+        }
+
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             window_events.push(event);
@@ -429,6 +440,14 @@ fn main() {
                             if cmd.starts_with('/') {
                                 let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
                                 if parts.is_empty() {
+                                } else if parts[0] == "help" {
+                                    chat_hist.push("Available commands.".to_string());
+                                    chat_hist.push("/help - Show this message.".to_string());
+                                    chat_hist.push("/seed - Show the world seed.".to_string());
+                                    chat_hist.push(
+                                        "/tp <x> <y> <z> - Teleport to coordinates.".to_string(),
+                                    );
+                                    chat_hist.push("/vsync <on|off> - Toggle VSync.".to_string());
                                 } else if parts[0] == "seed" {
                                     chat_hist.push(format!("Current world seed: {}", world.seed()));
                                 } else if parts[0] == "tp" {
@@ -454,6 +473,18 @@ fn main() {
                                                 z.unwrap()
                                             ));
                                         }
+                                    }
+                                } else if parts[0] == "vsync" {
+                                    if parts.len() != 2 {
+                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
+                                    } else if parts[1] == "on" {
+                                        vsync = true;
+                                        chat_hist.push("VSync enabled.".to_string());
+                                    } else if parts[1] == "off" {
+                                        vsync = false;
+                                        chat_hist.push("VSync disabled.".to_string());
+                                    } else {
+                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
                                     }
                                 } else {
                                     chat_hist.push(format!("Unknown command: {}", parts[0]));

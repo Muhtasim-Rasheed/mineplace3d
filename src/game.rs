@@ -1049,11 +1049,7 @@ impl Entity for Player {
     }
 
     fn eye_height(&self) -> f32 {
-        if self.sneaking {
-            1.55
-        } else {
-            1.7
-        }
+        if self.sneaking { 1.55 } else { 1.7 }
     }
 
     fn update(&mut self, _id: EntityId, world: &mut World, events: &[glfw::WindowEvent], dt: f64) {
@@ -1112,7 +1108,7 @@ impl Entity for Player {
                 _ => {}
             }
         }
-        
+
         self.sneaking = self.keys_down.contains(&glfw::Key::LeftShift)
             || self.keys_down.contains(&glfw::Key::RightShift);
 
