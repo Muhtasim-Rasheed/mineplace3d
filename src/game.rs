@@ -479,6 +479,45 @@ pub struct NeighbourChunks<'a> {
     pub d: Option<&'a Chunk>,
 }
 
+impl<'a> NeighbourChunks<'a> {
+    fn all<F>(&self, mut f: F) -> bool
+    where
+        F: FnMut(&Chunk) -> bool,
+    {
+        if let Some(n) = self.n {
+            if !f(n) {
+                return false;
+            }
+        }
+        if let Some(s) = self.s {
+            if !f(s) {
+                return false;
+            }
+        }
+        if let Some(e) = self.e {
+            if !f(e) {
+                return false;
+            }
+        }
+        if let Some(w) = self.w {
+            if !f(w) {
+                return false;
+            }
+        }
+        if let Some(u) = self.u {
+            if !f(u) {
+                return false;
+            }
+        }
+        if let Some(d) = self.d {
+            if !f(d) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 pub struct Chunk {
     is_dirty: bool,
     cached_mesh: Option<Arc<(Vec<BlockVertex>, Vec<u32>)>>,
@@ -554,6 +593,14 @@ impl Chunk {
                 let cave_thresh = plains_cave_thresh * (1.0 - t) + mtn_cave_thresh * t;
                 let foliage_color_val =
                     plains_foliage_color * (1.0 - t as f32) + mtn_foliage_color * t as f32;
+                let snow_replace_grass_chance = if height <= 96 {
+                    0.0
+                } else if height >= 108 {
+                    1.0
+                } else {
+                    (height - 96) as f64 / (108 - 96) as f64
+                };
+                let random_f64 = rng.random::<f64>();
                 foliage_color[x * CHUNK_SIZE + z] = foliage_color_val;
                 for y in 0..CHUNK_SIZE {
                     let real_y = y as i32 + cy * CHUNK_SIZE as i32;
@@ -564,14 +611,6 @@ impl Chunk {
                         real_z as f64 * 0.095,
                     ]) < cave_thresh;
 
-                    let snow_replace_grass_chance = if height <= 96 {
-                        0.0
-                    } else if height >= 108 {
-                        1.0
-                    } else {
-                        (height - 96) as f64 / (108 - 96) as f64
-                    };
-
                     let ore_thresh = 0.3;
                     let ore_val = cave_noise.get([
                         real_x as f64 * 0.2 + 100.0,
@@ -579,8 +618,6 @@ impl Chunk {
                         real_z as f64 * 0.2 + 100.0,
                     ]);
                     let is_ore = ore_val > ore_thresh;
-
-                    let random_f64 = rng.random::<f64>();
 
                     let block;
                     if real_y < -32 {
@@ -741,6 +778,16 @@ impl Chunk {
     pub fn set_block(&mut self, x: usize, y: usize, z: usize, block: Block) {
         self.blocks[x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z] = block;
         self.is_dirty = true;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.blocks
+            .iter()
+            .all(|&b| b.block_type() == BlockType::Air)
+    }
+
+    fn is_full_opaque(&self) -> bool {
+        self.blocks.iter().all(|&b| b.block_type() == BlockType::FullOpaque)
     }
 
     pub fn generate_chunk_mesh(
@@ -1725,7 +1772,12 @@ impl World {
         let results: Vec<_> = self
             .chunks
             .par_iter()
-            .map(|(chunk_pos, chunk)| {
+            .filter_map(|(chunk_pos, chunk)| {
+                let min = chunk_pos.as_vec3() * CHUNK_SIZE as f32;
+                let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
+                if chunk.is_empty() || !aabb_in_frustum(min, max, &frustum) {
+                    return None;
+                }
                 let neighbour_chunks = NeighbourChunks {
                     n: self.chunks.get(&(chunk_pos + ivec3(0, 0, -1))),
                     s: self.chunks.get(&(chunk_pos + ivec3(0, 0, 1))),
@@ -1734,17 +1786,20 @@ impl World {
                     u: self.chunks.get(&(chunk_pos + ivec3(0, 1, 0))),
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
+                if neighbour_chunks.all(|c| c.is_full_opaque()) {
+                    return None;
+                }
                 let pos = *chunk_pos;
                 let (verts, idxs) = chunk.generate_chunk_mesh(
                     &neighbour_chunks,
                     self.resource_mgr.get::<ModelDefs>("model_defs").unwrap(),
                 );
-                ChunkMeshData { pos, verts, idxs }
+                Some(ChunkMeshData { pos, verts, idxs })
             })
             .collect();
         let results: HashMap<_, _> = results
             .into_iter()
-            .filter_map(|data| {
+            .map(|data| {
                 let pos = data.pos;
                 let verts = data.verts;
                 let idxs = data.idxs;
@@ -1754,19 +1809,10 @@ impl World {
                     chunk.cached_mesh = Some(mesh_arc.clone());
                 }
                 chunk.is_dirty = false;
-                let min = pos.as_vec3() * CHUNK_SIZE as f32;
-                let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-                if mesh_arc.0.is_empty()
-                    || mesh_arc.1.is_empty()
-                    || !aabb_in_frustum(min, max, &frustum)
-                {
-                    None
-                } else {
-                    Some((
-                        pos,
-                        Mesh::new(&mesh_arc.0, &mesh_arc.1, DrawMode::Triangles),
-                    ))
-                }
+                (
+                    pos,
+                    Mesh::new(&mesh_arc.0, &mesh_arc.1, DrawMode::Triangles),
+                )
             })
             .collect();
 
