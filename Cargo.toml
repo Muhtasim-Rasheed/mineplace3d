@@ -4,6 +4,7 @@ version = "0.2.2"
 edition = "2024"
 
 [dependencies]
+fxhash = "0.2.1"
 gl = "0.14.0"
 glam = "0.30.4"
 glfw = "0.59.0"

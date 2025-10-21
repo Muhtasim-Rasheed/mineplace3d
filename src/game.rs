@@ -1,3 +1,4 @@
+use fxhash::FxHashMap;
 use glam::*;
 use glfw::MouseButton;
 use noise::{NoiseFn, OpenSimplex, Seedable};
@@ -19,7 +20,7 @@ use crate::{
 };
 
 pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 8;
+pub const RENDER_DISTANCE: i32 = 12;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -482,35 +483,35 @@ pub struct NeighbourChunks<'a> {
 impl<'a> NeighbourChunks<'a> {
     fn all<F>(&self, mut f: F) -> bool
     where
-        F: FnMut(&Chunk) -> bool,
+        F: FnMut(usize, &Chunk) -> bool,
     {
         if let Some(n) = self.n {
-            if !f(n) {
+            if !f(0, n) {
                 return false;
             }
         }
         if let Some(s) = self.s {
-            if !f(s) {
+            if !f(1, s) {
                 return false;
             }
         }
         if let Some(e) = self.e {
-            if !f(e) {
+            if !f(2, e) {
                 return false;
             }
         }
         if let Some(w) = self.w {
-            if !f(w) {
+            if !f(3, w) {
                 return false;
             }
         }
         if let Some(u) = self.u {
-            if !f(u) {
+            if !f(4, u) {
                 return false;
             }
         }
         if let Some(d) = self.d {
-            if !f(d) {
+            if !f(5, d) {
                 return false;
             }
         }
@@ -786,8 +787,86 @@ impl Chunk {
             .all(|&b| b.block_type() == BlockType::Air)
     }
 
-    fn is_full_opaque(&self) -> bool {
-        self.blocks.iter().all(|&b| b.block_type() == BlockType::FullOpaque)
+    // fn is_full_opaque(&self) -> bool {
+    //     self.blocks.iter().all(|&b| b.block_type() == BlockType::FullOpaque)
+    // }
+
+    fn is_side_full(&self, side: u8) -> bool {
+        match side {
+            0 => {
+                // -Z
+                for x in 0..CHUNK_SIZE {
+                    for y in 0..CHUNK_SIZE {
+                        let block = self.get_block(x, y, 0);
+                        if block.block_type() != BlockType::FullOpaque {
+                            return false;
+                        }
+                    }
+                }
+                true
+            }
+            1 => {
+                // +Z
+                for x in 0..CHUNK_SIZE {
+                    for y in 0..CHUNK_SIZE {
+                        let block = self.get_block(x, y, CHUNK_SIZE - 1);
+                        if block.block_type() != BlockType::FullOpaque {
+                            return false;
+                        }
+                    }
+                }
+                true
+            }
+            2 => {
+                // +X
+                for y in 0..CHUNK_SIZE {
+                    for z in 0..CHUNK_SIZE {
+                        let block = self.get_block(CHUNK_SIZE - 1, y, z);
+                        if block.block_type() != BlockType::FullOpaque {
+                            return false;
+                        }
+                    }
+                }
+                true
+            }
+            3 => {
+                // -X
+                for y in 0..CHUNK_SIZE {
+                    for z in 0..CHUNK_SIZE {
+                        let block = self.get_block(0, y, z);
+                        if block.block_type() != BlockType::FullOpaque {
+                            return false;
+                        }
+                    }
+                }
+                true
+            }
+            4 => {
+                // +Y
+                for x in 0..CHUNK_SIZE {
+                    for z in 0..CHUNK_SIZE {
+                        let block = self.get_block(x, CHUNK_SIZE - 1, z);
+                        if block.block_type() != BlockType::FullOpaque {
+                            return false;
+                        }
+                    }
+                }
+                true
+            }
+            5 => {
+                // -Y
+                for x in 0..CHUNK_SIZE {
+                    for z in 0..CHUNK_SIZE {
+                        let block = self.get_block(x, 0, z);
+                        if block.block_type() != BlockType::FullOpaque {
+                            return false;
+                        }
+                    }
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn generate_chunk_mesh(
@@ -1450,8 +1529,8 @@ impl Entity for Billboard {
 }
 
 pub struct World {
-    chunks: HashMap<IVec3, Chunk>,
-    changes: HashMap<(IVec3, IVec3), Block>,
+    chunks: FxHashMap<IVec3, Chunk>,
+    changes: FxHashMap<(IVec3, IVec3), Block>,
     entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
     pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
     noise: OpenSimplex,
@@ -1480,8 +1559,8 @@ impl World {
         let player = Player::new(vec3(0.0, 10.0, 0.0), window);
 
         let mut world = World {
-            chunks,
-            changes: HashMap::new(),
+            chunks: FxHashMap::from_iter(chunks.into_iter()),
+            changes: FxHashMap::default(),
             entities: HashMap::new(),
             meshes: HashMap::new(),
             noise,
@@ -1786,7 +1865,7 @@ impl World {
                     u: self.chunks.get(&(chunk_pos + ivec3(0, 1, 0))),
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
-                if neighbour_chunks.all(|c| c.is_full_opaque()) {
+                if neighbour_chunks.all(|i, c| c.is_side_full(i as u8 ^ 1)) {
                     return None;
                 }
                 let pos = *chunk_pos;
