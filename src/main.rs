@@ -711,6 +711,7 @@ Current Block: {}"#,
             shader.set_uniform("texture_sampler", 0);
             shader.set_uniform("textures_per_row", 12);
             shader.set_uniform("texture_row_count", 12);
+            shader.set_uniform("chunk_side_length", CHUNK_SIZE as f32);
             shader.set_uniform("time", time);
             for (pos, mesh) in &world.meshes {
                 shader.set_uniform("chunk_pos", pos);

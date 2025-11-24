@@ -19,8 +19,8 @@ use crate::{
     texture::Texture,
 };
 
-pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 12;
+pub const CHUNK_SIZE: usize = 32;
+pub const RENDER_DISTANCE: i32 = 4;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -886,8 +886,9 @@ impl Chunk {
 
         // Precompute sizes & capacities
         const STRIDE_X: usize = CHUNK_SIZE * CHUNK_SIZE; // N*N
-        let mut vertices = Vec::new();
-        let mut indices = Vec::new();
+
+        let mut vertices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 24);
+        let mut indices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 36);
         let mut index_offset: u32 = 0;
 
         // Make local aliases for speed

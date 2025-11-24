@@ -13,6 +13,7 @@ out vec4 frag_pos;
 uniform ivec3 chunk_pos;
 uniform mat4 view;
 uniform mat4 projection;
+uniform float chunk_side_length;
 uniform float time;
 
 const vec3 normals[6] = vec3[](
@@ -49,13 +50,7 @@ vec2 unpack_uv(uint hi, uint lo) {
 }
 
 vec3 get_pos(vec3 position) {
-	// uint pos = lo & 0x7FFFu;
-
-	// uint x = (pos >> 10) & 0x1Fu;
-	// uint y = (pos >> 5) & 0x1Fu;
-	// uint z = pos & 0x1Fu;
-	// return ivec3(int(x), int(y), int(z)) + chunk_pos * 16;
-	return position + vec3(chunk_pos * 16);
+	return position + vec3(chunk_pos * chunk_side_length);
 }
 
 vec3 unpack_color(uint color) {
