@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use fxhash::FxHashMap;
 use glam::{UVec2, Vec3};
 
 use crate::{shader::ShaderProgram, texture::Texture};
@@ -180,13 +181,13 @@ impl_resource!(Texture);
 impl_resource!(ShaderProgram);
 
 pub struct ResourceManager {
-    resources: HashMap<String, Box<dyn Resource>>,
+    resources: FxHashMap<String, Box<dyn Resource>>,
 }
 
 impl ResourceManager {
     pub fn new() -> Self {
         ResourceManager {
-            resources: HashMap::new(),
+            resources: FxHashMap::default(),
         }
     }
 

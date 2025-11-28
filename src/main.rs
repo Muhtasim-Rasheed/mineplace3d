@@ -518,7 +518,7 @@ fn main() {
         }
 
         let player = world.get_player().clone();
-        let dt = (Instant::now() - last_time).as_secs_f64().min(0.05);
+        let dt = (Instant::now() - last_time).as_secs_f64().min(2.0);
         last_time = Instant::now();
 
         if grab {
@@ -627,7 +627,8 @@ Current Block: {}"#,
         }
         world.update(window_events.as_slice(), dt);
         let vp = player.projection * view;
-        world.generate_meshes(vp);
+        world.update_mesh_visibility(vp);
+        world.generate_meshes();
 
         let blocks = shift_vec(&PLACABLE_BLOCKS, player.current_block)
             [mid(&PLACABLE_BLOCKS) - 3..=mid(&PLACABLE_BLOCKS) + 3]
@@ -700,7 +701,6 @@ Current Block: {}"#,
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             shader.use_program();
-            // atlas_texture.bind_to_unit(0);
             world
                 .resource_mgr
                 .get::<Texture>("atlas")
@@ -714,6 +714,9 @@ Current Block: {}"#,
             shader.set_uniform("chunk_side_length", CHUNK_SIZE as f32);
             shader.set_uniform("time", time);
             for (pos, mesh) in &world.meshes {
+                if !world.mesh_visible.contains(pos) {
+                    continue;
+                }
                 shader.set_uniform("chunk_pos", pos);
                 mesh.draw();
             }

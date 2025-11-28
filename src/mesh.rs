@@ -239,7 +239,7 @@ impl<T: VertexFormat> Mesh<T> {
                 gl::ARRAY_BUFFER,
                 std::mem::size_of_val(vertices) as isize,
                 vertices.as_ptr() as *const _,
-                gl::STATIC_DRAW,
+                gl::DYNAMIC_DRAW,
             );
 
             // Element Buffer
@@ -248,7 +248,7 @@ impl<T: VertexFormat> Mesh<T> {
                 gl::ELEMENT_ARRAY_BUFFER,
                 std::mem::size_of_val(indices) as isize,
                 indices.as_ptr() as *const _,
-                gl::STATIC_DRAW,
+                gl::DYNAMIC_DRAW,
             );
 
             // Setup vertex attributes
@@ -270,6 +270,51 @@ impl<T: VertexFormat> Mesh<T> {
 
     pub fn vertex_count(&self) -> usize {
         self.vertex_count
+    }
+
+    pub fn update(&mut self, vertices: &[T], indices: &[u32]) {
+        unsafe {
+            gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+            // gl::BufferData(
+            //     gl::ARRAY_BUFFER,
+            //     std::mem::size_of_val(vertices) as isize,
+            //     vertices.as_ptr() as *const _,
+            //     gl::DYNAMIC_DRAW,
+            // );
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                std::mem::size_of_val(vertices) as isize,
+                std::ptr::null(),
+                gl::DYNAMIC_DRAW,
+            );
+            gl::BufferSubData(
+                gl::ARRAY_BUFFER,
+                0,
+                std::mem::size_of_val(vertices) as isize,
+                vertices.as_ptr() as *const _,
+            );
+
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+            // gl::BufferData(
+            //     gl::ELEMENT_ARRAY_BUFFER,
+            //     std::mem::size_of_val(indices) as isize,
+            //     indices.as_ptr() as *const _,
+            //     gl::DYNAMIC_DRAW,
+            // );
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                std::mem::size_of_val(indices) as isize,
+                std::ptr::null(),
+                gl::DYNAMIC_DRAW,
+            );
+            gl::BufferSubData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                0,
+                std::mem::size_of_val(indices) as isize,
+                indices.as_ptr() as *const _,
+            );
+            self.vertex_count = indices.len();
+        }
     }
 
     pub fn draw(&self) {

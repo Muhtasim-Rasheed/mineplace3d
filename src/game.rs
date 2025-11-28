@@ -19,8 +19,8 @@ use crate::{
     texture::Texture,
 };
 
-pub const CHUNK_SIZE: usize = 32;
-pub const RENDER_DISTANCE: i32 = 4;
+pub const CHUNK_SIZE: usize = 24;
+pub const RENDER_DISTANCE: i32 = 6;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -521,7 +521,6 @@ impl<'a> NeighbourChunks<'a> {
 
 pub struct Chunk {
     is_dirty: bool,
-    cached_mesh: Option<Arc<(Vec<BlockVertex>, Vec<u32>)>>,
     blocks: Vec<Block>,
     foliage_color: Vec<Vec3>,
 }
@@ -764,7 +763,6 @@ impl Chunk {
         (
             Chunk {
                 is_dirty: true,
-                cached_mesh: None,
                 blocks,
                 foliage_color,
             },
@@ -874,16 +872,6 @@ impl Chunk {
         neighbour_chunks: &NeighbourChunks,
         model_defs: &ModelDefs,
     ) -> (Vec<BlockVertex>, Vec<u32>) {
-        // Fast path: cached
-        if !self.is_dirty {
-            // if let Some((ref verts, ref idxs)) = self.cached_mesh {
-            //     return (verts.clone(), idxs.clone());
-            // }
-            if let Some(cached) = &self.cached_mesh {
-                return (cached.0.clone(), cached.1.clone());
-            }
-        }
-
         // Precompute sizes & capacities
         const STRIDE_X: usize = CHUNK_SIZE * CHUNK_SIZE; // N*N
 
@@ -903,62 +891,71 @@ impl Chunk {
             y: isize,
             z: isize,
             blocks: &[Block],
-            neighbour_chunks: &NeighbourChunks,
+            nei: &NeighbourChunks,
         ) -> BlockType {
-            // in-chunk
+            // inside main chunk?
             if (0..CHUNK_SIZE as isize).contains(&x)
                 && (0..CHUNK_SIZE as isize).contains(&y)
                 && (0..CHUNK_SIZE as isize).contains(&z)
             {
-                let xi = x as usize;
-                let yi = y as usize;
-                let zi = z as usize;
-                return blocks[xi * STRIDE_X + yi * CHUNK_SIZE + zi].block_type();
+                let idx = (x as usize) * STRIDE_X + (y as usize) * CHUNK_SIZE + (z as usize);
+                return blocks[idx].block_type();
             }
 
+            // west
             if x < 0 {
-                if let Some(w) = neighbour_chunks.w {
-                    return (*w.get_block(CHUNK_SIZE - 1, y as usize, z as usize)).block_type();
-                } else {
-                    return BlockType::Air;
-                }
+                return nei
+                    .w
+                    .map(|c| {
+                        c.get_block(CHUNK_SIZE - 1, y as usize, z as usize)
+                            .block_type()
+                    })
+                    .unwrap_or(BlockType::Air);
             }
+
+            // east
             if x >= CHUNK_SIZE as isize {
-                if let Some(e) = neighbour_chunks.e {
-                    return (*e.get_block(0, y as usize, z as usize)).block_type();
-                } else {
-                    return BlockType::Air;
-                }
+                return nei
+                    .e
+                    .map(|c| c.get_block(0, y as usize, z as usize).block_type())
+                    .unwrap_or(BlockType::Air);
             }
+
+            // down
             if y < 0 {
-                if let Some(d) = neighbour_chunks.d {
-                    return (*d.get_block(x as usize, CHUNK_SIZE - 1, z as usize)).block_type();
-                } else {
-                    return BlockType::Air;
-                }
+                return nei
+                    .d
+                    .map(|c| {
+                        c.get_block(x as usize, CHUNK_SIZE - 1, z as usize)
+                            .block_type()
+                    })
+                    .unwrap_or(BlockType::Air);
             }
+
+            // up
             if y >= CHUNK_SIZE as isize {
-                if let Some(u) = neighbour_chunks.u {
-                    return (*u.get_block(x as usize, 0, z as usize)).block_type();
-                } else {
-                    return BlockType::Air;
-                }
+                return nei
+                    .u
+                    .map(|c| c.get_block(x as usize, 0, z as usize).block_type())
+                    .unwrap_or(BlockType::Air);
             }
+
+            // north
             if z < 0 {
-                if let Some(n) = neighbour_chunks.n {
-                    return (*n.get_block(x as usize, y as usize, CHUNK_SIZE - 1)).block_type();
-                } else {
-                    return BlockType::Air;
-                }
+                return nei
+                    .n
+                    .map(|c| {
+                        c.get_block(x as usize, y as usize, CHUNK_SIZE - 1)
+                            .block_type()
+                    })
+                    .unwrap_or(BlockType::Air);
             }
-            if z >= CHUNK_SIZE as isize {
-                if let Some(s) = neighbour_chunks.s {
-                    return (*s.get_block(x as usize, y as usize, 0)).block_type();
-                } else {
-                    return BlockType::Air;
-                }
-            }
-            BlockType::Air // should not happen
+
+            // south
+            return nei
+                .s
+                .map(|c| c.get_block(x as usize, y as usize, 0).block_type())
+                .unwrap_or(BlockType::Air);
         }
 
         for x in 0..CHUNK_SIZE {
@@ -1534,6 +1531,10 @@ pub struct World {
     changes: FxHashMap<(IVec3, IVec3), Block>,
     entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
     pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
+    pub mesh_visible: HashSet<IVec3>,
+    // When a chunk is unloaded, its curresponding mesh is stored here for reuse
+    unused_meshes: Vec<Mesh<BlockVertex>>,
+    previous_vp: Option<Mat4>,
     noise: OpenSimplex,
     cave_noise: OpenSimplex,
     biome_noise: OpenSimplex,
@@ -1564,6 +1565,9 @@ impl World {
             changes: FxHashMap::default(),
             entities: HashMap::new(),
             meshes: HashMap::new(),
+            mesh_visible: HashSet::new(),
+            unused_meshes: Vec::new(),
+            previous_vp: None,
             noise,
             cave_noise,
             biome_noise,
@@ -1574,7 +1578,7 @@ impl World {
         world
     }
 
-    pub fn get_player(&self) -> Ref<Player> {
+    pub fn get_player(&self) -> Ref<'_, Player> {
         for entity in self.entities.values() {
             if entity.borrow().as_any().is::<Player>() {
                 return Ref::map(entity.borrow(), |e| {
@@ -1585,7 +1589,7 @@ impl World {
         panic!("No player found");
     }
 
-    pub fn get_player_mut(&mut self) -> RefMut<Player> {
+    pub fn get_player_mut(&mut self) -> RefMut<'_, Player> {
         for entity in self.entities.values() {
             if entity.borrow().as_any().is::<Player>() {
                 return RefMut::map(entity.borrow_mut(), |e| {
@@ -1620,6 +1624,13 @@ impl World {
                 .distance_squared(player_pos / CHUNK_SIZE as f32);
             distance_squared <= RENDER_DISTANCE as f32 * RENDER_DISTANCE as f32
         });
+        for pos in self.meshes.keys().cloned().collect::<Vec<_>>() {
+            if !self.chunks.contains_key(&pos) {
+                if let Some(mesh) = self.meshes.remove(&pos) {
+                    self.unused_meshes.push(mesh);
+                }
+            }
+        }
         self.entities.retain(|_, e| !e.borrow().requests_removal());
         for (id, entity) in self.entities.clone() {
             entity.borrow_mut().update(id, self, events, dt);
@@ -1841,21 +1852,46 @@ impl World {
         }
     }
 
-    pub fn generate_meshes(&mut self, vp: Mat4) {
+    pub fn update_mesh_visibility(&mut self, vp: Mat4) {
+        if let Some(previous_vp) = self.previous_vp {
+            if previous_vp == vp {
+                return;
+            }
+        }
+        self.previous_vp = Some(vp);
+
+        self.mesh_visible.clear();
+
+        let frustum = extract_frustum_planes(vp);
+        for (chunk_pos, _) in &self.chunks {
+            let min = chunk_pos.as_vec3() * CHUNK_SIZE as f32;
+            let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
+            if aabb_in_frustum(min, max, &frustum) {
+                self.mesh_visible.insert(*chunk_pos);
+            }
+        }
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.chunks.values().any(|chunk| chunk.is_dirty)
+    }
+
+    pub fn generate_meshes(&mut self) {
+        if !self.is_dirty() {
+            return;
+        }
+
         struct ChunkMeshData {
             pos: IVec3,
             verts: Vec<BlockVertex>,
             idxs: Vec<u32>,
         }
 
-        let frustum = extract_frustum_planes(vp);
-        let results: Vec<_> = self
+        let dirty_results: Vec<_> = self
             .chunks
             .par_iter()
             .filter_map(|(chunk_pos, chunk)| {
-                let min = chunk_pos.as_vec3() * CHUNK_SIZE as f32;
-                let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-                if chunk.is_empty() || !aabb_in_frustum(min, max, &frustum) {
+                if chunk.is_empty() || !chunk.is_dirty {
                     return None;
                 }
                 let neighbour_chunks = NeighbourChunks {
@@ -1877,26 +1913,30 @@ impl World {
                 Some(ChunkMeshData { pos, verts, idxs })
             })
             .collect();
-        let results: HashMap<_, _> = results
-            .into_iter()
-            .map(|data| {
-                let pos = data.pos;
-                let verts = data.verts;
-                let idxs = data.idxs;
-                let chunk = self.get_chunk(pos.x, pos.y, pos.z);
-                let mesh_arc = Arc::new((verts, idxs));
-                if chunk.is_dirty {
-                    chunk.cached_mesh = Some(mesh_arc.clone());
-                }
-                chunk.is_dirty = false;
-                (
-                    pos,
-                    Mesh::new(&mesh_arc.0, &mesh_arc.1, DrawMode::Triangles),
-                )
-            })
-            .collect();
 
-        self.meshes = results;
+        for data in dirty_results {
+            let pos = data.pos;
+            let verts = data.verts;
+            let idxs = data.idxs;
+            // We can unwrap because we are sure it exists because how else would we get the mesh
+            let chunk = self.chunks.get_mut(&pos).unwrap();
+            chunk.is_dirty = false;
+            if let Some(existing_mesh) = self.meshes.get_mut(&pos) {
+                // The mesh was edited
+                existing_mesh.update(&verts, &idxs);
+            } else {
+                // self.meshes
+                //     .insert(pos, Mesh::new(&verts, &idxs, DrawMode::Triangles));
+                // Reuse an old mesh if possible
+                if let Some(mut mesh) = self.unused_meshes.pop() {
+                    mesh.update(&verts, &idxs);
+                    self.meshes.insert(pos, mesh);
+                } else {
+                    self.meshes
+                        .insert(pos, Mesh::new(&verts, &idxs, DrawMode::Triangles));
+                }
+            }
+        }
     }
 }
 
