@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub const CHUNK_SIZE: usize = 24;
-pub const RENDER_DISTANCE: i32 = 6;
+pub const RENDER_DISTANCE: i32 = 8;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;
@@ -1532,7 +1532,7 @@ pub struct World {
     entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
     pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
     pub mesh_visible: HashSet<IVec3>,
-    // When a chunk is unloaded, its curresponding mesh is stored here for reuse
+    // When a chunk is unloaded, its corresponding mesh is stored here for reuse
     unused_meshes: Vec<Mesh<BlockVertex>>,
     previous_vp: Option<Mat4>,
     noise: OpenSimplex,
