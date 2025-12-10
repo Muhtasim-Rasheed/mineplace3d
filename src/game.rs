@@ -1529,6 +1529,7 @@ impl Entity for Billboard {
 pub struct World {
     chunks: FxHashMap<IVec3, Chunk>,
     changes: FxHashMap<(IVec3, IVec3), Block>,
+    chunk_outside_blocks: FxHashMap<(IVec3, IVec3), Block>,
     entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
     pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
     pub mesh_visible: HashSet<IVec3>,
@@ -1549,11 +1550,13 @@ impl World {
         let biome_noise = OpenSimplex::new(seed.wrapping_add(TWO_THIRDS_U32));
 
         let mut chunks = HashMap::new();
+        let mut chunk_outside_blocks = HashMap::new();
         for x in -3..=3 {
             for y in -1..=3 {
                 for z in -3..=3 {
                     let res = Chunk::new(x, y, z, &noise, &cave_noise, &biome_noise);
                     chunks.insert(ivec3(x, y, z), res.0);
+                    chunk_outside_blocks.extend(res.1.into_iter());
                 }
             }
         }
@@ -1563,6 +1566,7 @@ impl World {
         let mut world = World {
             chunks: FxHashMap::from_iter(chunks.into_iter()),
             changes: FxHashMap::default(),
+            chunk_outside_blocks: FxHashMap::from_iter(chunk_outside_blocks.into_iter()),
             entities: HashMap::new(),
             meshes: HashMap::new(),
             mesh_visible: HashSet::new(),
@@ -1653,6 +1657,19 @@ impl World {
         for local_x in 0..CHUNK_SIZE {
             for local_y in 0..CHUNK_SIZE {
                 for local_z in 0..CHUNK_SIZE {
+                    if let Some(block) = self
+                        .chunk_outside_blocks
+                        .get(&(
+                            ivec3(x, y, z),
+                            ivec3(local_x as i32, local_y as i32, local_z as i32),
+                        ))
+                    {
+                        chunk.set_block(local_x, local_y, local_z, *block);
+                        self.chunk_outside_blocks.remove(&(
+                            ivec3(x, y, z),
+                            ivec3(local_x as i32, local_y as i32, local_z as i32),
+                        ));
+                    }
                     if let Some(block) = self.changes.get(&(
                         ivec3(x, y, z),
                         ivec3(local_x as i32, local_y as i32, local_z as i32),
@@ -1662,17 +1679,18 @@ impl World {
                 }
             }
         }
-        for ((chunk_pos, pos), block) in outside_blocks.into_iter() {
-            let local_pos = pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+        // for ((chunk_pos, pos), block) in outside_blocks.into_iter() {
+        //     let local_pos = pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
-            self.get_chunk(chunk_pos.x, chunk_pos.y, chunk_pos.z)
-                .set_block(
-                    local_pos.x as usize,
-                    local_pos.y as usize,
-                    local_pos.z as usize,
-                    block,
-                );
-        }
+        //     self.get_chunk(chunk_pos.x, chunk_pos.y, chunk_pos.z)
+        //         .set_block(
+        //             local_pos.x as usize,
+        //             local_pos.y as usize,
+        //             local_pos.z as usize,
+        //             block,
+        //         );
+        // }
+        self.chunk_outside_blocks.extend(outside_blocks.into_iter());
         self.chunks.insert(ivec3(x, y, z), chunk);
     }
 
