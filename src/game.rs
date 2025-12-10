@@ -1866,9 +1866,21 @@ impl World {
         for (chunk_pos, _) in &self.chunks {
             let min = chunk_pos.as_vec3() * CHUNK_SIZE as f32;
             let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-            if aabb_in_frustum(min, max, &frustum) {
-                self.mesh_visible.insert(*chunk_pos);
+            if !aabb_in_frustum(min, max, &frustum) {
+                continue;
             }
+            let neighbours = NeighbourChunks {
+                n: self.chunks.get(&(chunk_pos + ivec3(0, 0, -1))),
+                s: self.chunks.get(&(chunk_pos + ivec3(0, 0, 1))),
+                e: self.chunks.get(&(chunk_pos + ivec3(1, 0, 0))),
+                w: self.chunks.get(&(chunk_pos + ivec3(-1, 0, 0))),
+                u: self.chunks.get(&(chunk_pos + ivec3(0, 1, 0))),
+                d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
+            };
+            if neighbours.all(|i, c| c.is_side_full(i as u8 ^ 1)) {
+                continue;
+            }
+            self.mesh_visible.insert(*chunk_pos);
         }
     }
 
