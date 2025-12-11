@@ -384,67 +384,49 @@ impl Block {
         }
 
         macro_rules! get_uvs {
-            ($name:ident) => {
-                let $name = model_defs
-                    .get(stringify!($name))
+            ($name:literal) => {
+                model_defs
+                    .get($name)
                     .unwrap()
                     .uvs
                     .iter()
                     .map(|face_uvs| faces_uvs(face_uvs))
-                    .collect::<Vec<_>>();
+                    .collect::<Vec<_>>()
             };
         }
 
-        get_uvs!(full);
-        get_uvs!(slab_top);
-        get_uvs!(slab_bottom);
-        get_uvs!(stairs_n);
-        get_uvs!(stairs_s);
-        get_uvs!(stairs_e);
-        get_uvs!(stairs_w);
-
         match partial_bits {
-            0 => full,           // Full block
-            1 => slab_top,       // Slab top
-            2 => slab_bottom,    // Slab bottom
-            3 => stairs_n,       // Stairs north
-            4 => stairs_s,       // Stairs south
-            5 => stairs_e,       // Stairs east
-            6 => stairs_w,       // Stairs west
-            _ => unreachable!(), // Should not happen
+            0 => get_uvs!("full"),
+            1 => get_uvs!("slab_top"),
+            2 => get_uvs!("slab_bottom"),
+            3 => get_uvs!("stairs_n"),
+            4 => get_uvs!("stairs_s"),
+            5 => get_uvs!("stairs_e"),
+            6 => get_uvs!("stairs_w"),
+            _ => unreachable!(),
         }
     }
 
     pub fn cubes(&self, model_defs: &ModelDefs) -> Vec<[Vec3; 2]> {
         macro_rules! get_cubes {
-            ($name:ident) => {
-                let $name = model_defs.get(stringify!($name)).unwrap().cubes.clone();
+            ($name:literal) => {
+                model_defs.get($name).unwrap().cubes.clone()
             };
         }
 
-        get_cubes!(empty);
-
         if *self == Block::Air {
-            return empty;
+            return vec![];
         }
-
-        get_cubes!(full);
-        get_cubes!(slab_top);
-        get_cubes!(slab_bottom);
-        get_cubes!(stairs_n);
-        get_cubes!(stairs_s);
-        get_cubes!(stairs_e);
-        get_cubes!(stairs_w);
 
         let partial_bits = mask_partial(*self as u32);
         match partial_bits {
-            0 => full,
-            1 => slab_top,
-            2 => slab_bottom,
-            3 => stairs_n,
-            4 => stairs_s,
-            5 => stairs_e,
-            6 => stairs_w,
+            0 => get_cubes!("full"),
+            1 => get_cubes!("slab_top"),
+            2 => get_cubes!("slab_bottom"),
+            3 => get_cubes!("stairs_n"),
+            4 => get_cubes!("stairs_s"),
+            5 => get_cubes!("stairs_e"),
+            6 => get_cubes!("stairs_w"),
             _ => unreachable!(),
         }
     }
@@ -785,10 +767,6 @@ impl Chunk {
             .all(|&b| b.block_type() == BlockType::Air)
     }
 
-    // fn is_full_opaque(&self) -> bool {
-    //     self.blocks.iter().all(|&b| b.block_type() == BlockType::FullOpaque)
-    // }
-
     fn is_side_full(&self, side: u8) -> bool {
         match side {
             0 => {
@@ -872,7 +850,6 @@ impl Chunk {
         neighbour_chunks: &NeighbourChunks,
         model_defs: &ModelDefs,
     ) -> (Vec<BlockVertex>, Vec<u32>) {
-        // Precompute sizes & capacities
         const STRIDE_X: usize = CHUNK_SIZE * CHUNK_SIZE; // N*N
 
         let mut vertices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 24);
@@ -1679,17 +1656,6 @@ impl World {
                 }
             }
         }
-        // for ((chunk_pos, pos), block) in outside_blocks.into_iter() {
-        //     let local_pos = pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
-
-        //     self.get_chunk(chunk_pos.x, chunk_pos.y, chunk_pos.z)
-        //         .set_block(
-        //             local_pos.x as usize,
-        //             local_pos.y as usize,
-        //             local_pos.z as usize,
-        //             block,
-        //         );
-        // }
         self.chunk_outside_blocks.extend(outside_blocks.into_iter());
         self.chunks.insert(ivec3(x, y, z), chunk);
     }
@@ -1702,6 +1668,7 @@ impl World {
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
         self.chunks.entry(ivec3(x, y, z)).or_insert_with(|| {
             let res = Chunk::new(x, y, z, &self.noise, &self.cave_noise, &self.biome_noise);
+            self.chunk_outside_blocks.extend(res.1.into_iter());
             res.0
         })
     }
@@ -1738,16 +1705,23 @@ impl World {
             block,
         );
 
-        for dx in -1i32..=1 {
-            for dy in -1i32..=1 {
-                for dz in -1i32..=1 {
-                    if dx.abs() + dy.abs() + dz.abs() != 1 {
-                        continue;
-                    }
-                    self.get_chunk(dx + chunk_x, dy + chunk_y, dz + chunk_z)
-                        .is_dirty = true;
-                }
-            }
+        if local_z == 0 {
+            self.get_chunk(chunk_x, chunk_y, chunk_z - 1).is_dirty = true;
+        }
+        if local_z == CHUNK_SIZE - 1 {
+            self.get_chunk(chunk_x, chunk_y, chunk_z + 1).is_dirty = true;
+        }
+        if local_x == 0 {
+            self.get_chunk(chunk_x - 1, chunk_y, chunk_z).is_dirty = true;
+        }
+        if local_x == CHUNK_SIZE - 1 {
+            self.get_chunk(chunk_x + 1, chunk_y, chunk_z).is_dirty = true;
+        }
+        if local_y == 0 {
+            self.get_chunk(chunk_x, chunk_y - 1, chunk_z).is_dirty = true;
+        }
+        if local_y == CHUNK_SIZE - 1 {
+            self.get_chunk(chunk_x, chunk_y + 1, chunk_z).is_dirty = true;
         }
     }
 
