@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub const CHUNK_SIZE: usize = 16;
-pub const RENDER_DISTANCE: i32 = 8;
+pub const RENDER_DISTANCE: u32 = 8;
 
 const FULL_BLOCK: u32 = 0x00000000;
 const PARTIAL_SLAB_TOP: u32 = 0x00010000;

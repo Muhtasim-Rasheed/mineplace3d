@@ -33,7 +33,7 @@ macro_rules! shader {
 const TRANSLATIONS_JSON: &str = include_str!("assets/translations.json");
 const MODEL_DEF_JSON: &str = include_str!("assets/models.json");
 
-const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE - 1;
+const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE as i32 - 1;
 
 const PLACABLE_BLOCKS: [Block; 22] = [
     Block::Grass,
