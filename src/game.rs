@@ -20,7 +20,7 @@ use crate::{
     texture::Texture,
 };
 
-pub const CHUNK_SIZE: usize = 24;
+pub const CHUNK_SIZE: usize = 16;
 pub const RENDER_DISTANCE: i32 = 8;
 
 const FULL_BLOCK: u32 = 0x00000000;
