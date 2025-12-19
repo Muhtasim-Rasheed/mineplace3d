@@ -362,7 +362,7 @@ fn main() {
     }
     let ssao_noise_texture = Texture::new(4, 4, ssao_noise_data.as_slice());
 
-    let seed = rand::random::<u32>();
+    let seed = rand::random::<i32>();
 
     let cloud_plane = game::make_cloud_plane();
     let cloud_texture = game::cloud_texture_gen(UVec2::splat(144), seed);

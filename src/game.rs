@@ -1,7 +1,8 @@
 use fxhash::FxHashMap;
 use glam::*;
 use glfw::MouseButton;
-use noise::{NoiseFn, OpenSimplex, Seedable};
+// use noise::{NoiseFn, OpenSimplex, Seedable};
+use fastnoise_lite::{FastNoiseLite, NoiseType};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use rayon::prelude::*;
 use std::{
@@ -180,9 +181,9 @@ pub enum ChunkTask {
         cx: i32,
         cy: i32,
         cz: i32,
-        noise: Arc<OpenSimplex>,
-        cave_noise: Arc<OpenSimplex>,
-        biome_noise: Arc<OpenSimplex>,
+        noise: Arc<FastNoiseLite>,
+        cave_noise: Arc<FastNoiseLite>,
+        biome_noise: Arc<FastNoiseLite>,
     },
 }
 
@@ -512,28 +513,28 @@ impl Chunk {
         cx: i32,
         cy: i32,
         cz: i32,
-        noise: &OpenSimplex,
-        cave_noise: &OpenSimplex,
-        biome_noise: &OpenSimplex,
+        noise: &FastNoiseLite,
+        cave_noise: &FastNoiseLite,
+        biome_noise: &FastNoiseLite,
     ) -> (Self, HashMap<(IVec3, IVec3), Block>) {
-        let mut rng = StdRng::seed_from_u64(noise.seed() as u64);
+        let mut rng = StdRng::seed_from_u64(noise.seed as u64);
         let mut blocks = vec![Block::Air; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         let mut foliage_color = vec![Vec3::splat(0.0); CHUNK_SIZE * CHUNK_SIZE];
         fn fractal_noise(
-            noise: &OpenSimplex,
-            x: f64,
-            y: f64,
+            noise: &FastNoiseLite,
+            x: f32,
+            y: f32,
             octaves: i32,
-            persistence: f64,
-            lacunarity: f64,
-        ) -> f64 {
+            persistence: f32,
+            lacunarity: f32,
+        ) -> f32 {
             let mut amplitude = 1.0;
             let mut frequency = 1.0;
             let mut value = 0.0;
             let mut max_value = 0.0;
 
             for _ in 0..octaves {
-                value += noise.get([x * frequency, y * frequency]) * amplitude;
+                value += noise.get_noise_2d(x * frequency, y * frequency) * amplitude;
                 max_value += amplitude;
                 amplitude *= persistence;
                 frequency *= lacunarity;
@@ -545,30 +546,33 @@ impl Chunk {
             for z in 0..CHUNK_SIZE {
                 let real_x = x as i32 + cx * CHUNK_SIZE as i32;
                 let real_z = z as i32 + cz * CHUNK_SIZE as i32;
-                let t = (biome_noise.get([real_x as f64 * 0.01, real_z as f64 * 0.01]) + 1.0) / 2.0;
+                let t = ((biome_noise.get_noise_2d(
+                    real_x as f32 * 0.1,
+                    real_z as f32 * 0.1,
+                ) + 1.0) / 2.0).powi(2);
 
                 let plains_noise_val = fractal_noise(
                     noise,
-                    real_x as f64 * 0.03,
-                    real_z as f64 * 0.03,
-                    3,
+                    real_x as f32 * 0.05,
+                    real_z as f32 * 0.05,
+                    4,
                     0.5,
                     2.0,
                 );
                 let plains_height = plains_noise_val * 30.0;
-                let plains_cave_thresh = -1.0;
+                let plains_cave_thresh = 2.0;
                 let plains_foliage_color = vec3(0.5, 1.0, 0.5);
 
                 let mtn_noise_val = fractal_noise(
                     noise,
-                    real_x as f64 * 0.015,
-                    real_z as f64 * 0.015,
-                    5,
+                    real_x as f32 * 0.04,
+                    real_z as f32 * 0.04,
+                    8,
                     0.5,
                     2.0,
                 );
-                let mtn_height = (mtn_noise_val * 10.0).powi(4).max(plains_height + 15.0);
-                let mtn_cave_thresh = 0.3;
+                let mtn_height = (mtn_noise_val * 7.0 + 10.0).powi(2) / 2.0;
+                let mtn_cave_thresh = -0.3;
                 let mtn_foliage_color = vec3(0.1, 0.7, 0.5);
 
                 let height = (plains_height * (1.0 - t) + mtn_height * t) as i32;
@@ -587,24 +591,26 @@ impl Chunk {
                 for y in 0..CHUNK_SIZE {
                     let real_y = y as i32 + cy * CHUNK_SIZE as i32;
 
-                    let is_cave = cave_noise.get([
-                        real_x as f64 * 0.095,
-                        real_y as f64 * 0.095,
-                        real_z as f64 * 0.095,
-                    ]) < cave_thresh;
+                    let is_cave = cave_noise.get_noise_3d(
+                        real_x as f32 * 0.1,
+                        real_y as f32 * 0.1,
+                        real_z as f32 * 0.1,
+                    ) > cave_thresh as f32;
 
-                    let ore_thresh = 0.3;
-                    let ore_val = cave_noise.get([
-                        real_x as f64 * 0.2 + 100.0,
-                        real_y as f64 * 0.2 + 100.0,
-                        real_z as f64 * 0.2 + 100.0,
-                    ]);
+                    let ore_thresh = 0.7;
+                    let ore_val = cave_noise.get_noise_3d(
+                        real_x as f32 * 0.6 + 100.0,
+                        real_y as f32 * 0.6 + 100.0,
+                        real_z as f32 * 0.6 + 100.0,
+                    );
                     let is_ore = ore_val > ore_thresh;
 
                     let block;
                     if real_y < -32 {
                         block = Block::Air;
-                    } else if real_y < -30 {
+                    } else if real_y == -31 {
+                        block = Block::Bedrock;
+                    } else if real_y == -30 && rng.random_bool(0.5) {
                         block = Block::Bedrock;
                     } else if is_cave {
                         block = Block::Air;
@@ -1513,18 +1519,30 @@ pub struct World {
     // When a chunk is unloaded, its corresponding mesh is stored here for reuse
     unused_meshes: Vec<Mesh<BlockVertex>>,
     previous_vp: Option<Mat4>,
-    noise: OpenSimplex,
-    cave_noise: OpenSimplex,
-    biome_noise: OpenSimplex,
+    noise: Arc<FastNoiseLite>,
+    cave_noise: Arc<FastNoiseLite>,
+    biome_noise: Arc<FastNoiseLite>,
     pub resource_mgr: ResourceManager,
 }
 
 impl World {
-    pub fn new(seed: u32, resource_mgr: ResourceManager, window: &glfw::Window) -> Self {
-        let noise = OpenSimplex::new(seed);
-        let cave_noise = OpenSimplex::new(seed.wrapping_add(u32::MAX / 3));
-        const TWO_THIRDS_U32: u32 = (u32::MAX as f32 * (2.0 / 3.0)) as u32;
-        let biome_noise = OpenSimplex::new(seed.wrapping_add(TWO_THIRDS_U32));
+    pub fn new(seed: i32, resource_mgr: ResourceManager, window: &glfw::Window) -> Self {
+        const TWO_THIRDS_I32: i32 = (i32::MAX as f32 * (2.0 / 3.0)) as i32;
+
+        let mut noise = FastNoiseLite::new();
+        noise.set_seed(Some(seed));
+        noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+        noise.set_frequency(Some(0.1));
+        
+        let mut cave_noise = FastNoiseLite::new();
+        cave_noise.set_seed(Some(seed.wrapping_add(i32::MAX / 3)));
+        cave_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+        cave_noise.set_frequency(Some(0.5));
+        
+        let mut biome_noise = FastNoiseLite::new();
+        biome_noise.set_seed(Some(seed.wrapping_add(TWO_THIRDS_I32)));
+        biome_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+        biome_noise.set_frequency(Some(0.1));
 
         let mut chunks = HashMap::new();
         let mut chunk_outside_blocks = HashMap::new();
@@ -1538,7 +1556,7 @@ impl World {
             }
         }
 
-        let player = Player::new(vec3(0.0, 10.0, 0.0), window);
+        let player = Player::new(vec3(0.0, 100.0, 0.0), window);
 
         let mut world = World {
             chunks: FxHashMap::from_iter(chunks.into_iter()),
@@ -1549,9 +1567,9 @@ impl World {
             mesh_visible: HashSet::new(),
             unused_meshes: Vec::new(),
             previous_vp: None,
-            noise,
-            cave_noise,
-            biome_noise,
+            noise: noise.into(),
+            cave_noise: cave_noise.into(),
+            biome_noise: biome_noise.into(),
             resource_mgr,
         };
         world.add_entity(player);
@@ -1581,20 +1599,20 @@ impl World {
         panic!("No player found");
     }
 
-    pub fn seed(&self) -> u32 {
-        self.noise.seed()
+    pub fn seed(&self) -> i32 {
+        self.noise.seed
     }
 
-    pub fn noise(&self) -> Arc<OpenSimplex> {
-        self.noise.into()
+    pub fn noise(&self) -> Arc<FastNoiseLite> {
+        Arc::clone(&self.noise)
     }
 
-    pub fn cave_noise(&self) -> Arc<OpenSimplex> {
-        self.cave_noise.into()
+    pub fn cave_noise(&self) -> Arc<FastNoiseLite> {
+        Arc::clone(&self.cave_noise)
     }
 
-    pub fn biome_noise(&self) -> Arc<OpenSimplex> {
-        self.biome_noise.into()
+    pub fn biome_noise(&self) -> Arc<FastNoiseLite> {
+        Arc::clone(&self.biome_noise)
     }
 
     pub fn update(&mut self, events: &[glfw::WindowEvent], dt: f64) {
@@ -2006,32 +2024,39 @@ fn calc_face_normal(hit: Vec3, block: Vec3) -> IVec3 {
     }
 }
 
-pub fn cloud_texture_gen(texture_size: UVec2, seed: u32) -> Texture {
-    let noise = OpenSimplex::new(seed);
+pub fn cloud_texture_gen(texture_size: UVec2, seed: i32) -> Texture {
+    let mut noise = FastNoiseLite::new();
+    noise.set_seed(Some(seed));
+    noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    noise.set_frequency(Some(0.4));
     let width = texture_size.x;
     let height = texture_size.y;
     let mut image_data = vec![0u8; (width * height * 4) as usize];
 
     for y in 0..height {
         for x in 0..width {
-            let nx = x as f64 / width as f64 - 0.5;
-            let ny = y as f64 / height as f64 - 0.5;
+            let nx = x as f32 / width as f32 - 0.5;
+            let ny = y as f32 / height as f32 - 0.5;
 
             fn fractal_noise(
-                noise: &OpenSimplex,
-                x: f64,
-                y: f64,
+                noise: &FastNoiseLite,
+                x: f32,
+                y: f32,
                 octaves: i32,
-                persistence: f64,
-                lacunarity: f64,
-            ) -> f64 {
+                persistence: f32,
+                lacunarity: f32,
+            ) -> f32 {
                 let mut amplitude = 1.0;
                 let mut frequency = 1.0;
                 let mut value = 0.0;
                 let mut max_value = 0.0;
 
                 for _ in 0..octaves {
-                    value += noise.get([x * frequency, y * frequency]) * amplitude;
+                    value += noise.get_noise_2d(
+                        x * frequency,
+                        y * frequency,
+                    )
+                        * amplitude;
                     max_value += amplitude;
                     amplitude *= persistence;
                     frequency *= lacunarity;
