@@ -1225,7 +1225,7 @@ impl Entity for Player {
             || world
                 .get_block(
                     self.position.x as i32,
-                    (self.position.y as i32) - 1,
+                    (self.position.y as i32) - 4,
                     self.position.z as i32,
                 )
                 .block_type()
