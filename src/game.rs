@@ -1221,7 +1221,20 @@ impl Entity for Player {
 
         self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
-        let player_accel = if self.sneaking { 0.5 } else { 0.9 };
+        let player_accel = if self.sneaking
+            || world
+                .get_block(
+                    self.position.x as i32,
+                    (self.position.y as i32) - 1,
+                    self.position.z as i32,
+                )
+                .block_type()
+                == BlockType::Air
+        {
+            0.5
+        } else {
+            0.9
+        };
         let jump_accel = 8.0;
         let sprint_player_accel = player_accel * if self.sneaking { 1.0 } else { 1.5 };
         if self.keys_down.contains(&glfw::Key::W) {
@@ -1652,13 +1665,10 @@ impl World {
         for local_x in 0..CHUNK_SIZE {
             for local_y in 0..CHUNK_SIZE {
                 for local_z in 0..CHUNK_SIZE {
-                    if let Some(block) = self
-                        .chunk_outside_blocks
-                        .get(&(
-                            ivec3(x, y, z),
-                            ivec3(local_x as i32, local_y as i32, local_z as i32),
-                        ))
-                    {
+                    if let Some(block) = self.chunk_outside_blocks.get(&(
+                        ivec3(x, y, z),
+                        ivec3(local_x as i32, local_y as i32, local_z as i32),
+                    )) {
                         chunk.set_block(local_x, local_y, local_z, *block);
                         self.chunk_outside_blocks.remove(&(
                             ivec3(x, y, z),
