@@ -5,19 +5,15 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
+use crate::abs::*;
 use crate::asset::ResourceManager;
 use crate::game::*;
 use crate::shader::{ShaderProgram, ShaderProgramBuilder};
 use crate::texture::Texture;
 use crate::ui::*;
 
-mod asset;
-mod framebuffer;
+mod abs;
 mod game;
-mod mesh;
-mod shader;
-mod texture;
-mod ui;
 
 macro_rules! shader {
     ($folder:literal -> $vert:ident & $frag:ident -> $program:ident) => {
@@ -32,33 +28,6 @@ macro_rules! shader {
 
 const TRANSLATIONS_JSON: &str = include_str!("assets/translations.json");
 const MODEL_DEF_JSON: &str = include_str!("assets/models.json");
-
-const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE as i32 - 1;
-
-const PLACABLE_BLOCKS: [Block; 22] = [
-    Block::Grass,
-    Block::Dirt,
-    Block::Planks,
-    Block::PlanksSlabTop,
-    Block::PlanksSlabBottom,
-    Block::PlanksStairsN,
-    Block::PlanksStairsS,
-    Block::PlanksStairsE,
-    Block::PlanksStairsW,
-    Block::OakLog,
-    Block::Leaves,
-    Block::CobbleStone,
-    Block::StoneSlabTop,
-    Block::StoneSlabBottom,
-    Block::StoneStairsN,
-    Block::StoneStairsS,
-    Block::StoneStairsE,
-    Block::StoneStairsW,
-    Block::Glass,
-    Block::Brick,
-    Block::Snow,
-    Block::Glungus,
-];
 
 fn mid<T>(v: &[T]) -> usize {
     if v.len() % 2 == 0 {
@@ -129,44 +98,6 @@ fn key_to_char(key: Key) -> Option<char> {
         Key::Num8 => Some('8'),
         Key::Num9 => Some('9'),
         _ => None,
-    }
-}
-
-fn request_chunks_around_player(
-    player_pos: Vec3,
-    world: &mut World,
-    task_sender: &mpsc::Sender<ChunkTask>,
-    queued_chunks: &mut HashSet<IVec3>,
-) {
-    let player_chunk = (player_pos / CHUNK_SIZE as f32).floor().as_ivec3();
-
-    for x in -CHUNK_RADIUS..=CHUNK_RADIUS {
-        for y in -CHUNK_RADIUS..=CHUNK_RADIUS {
-            for z in -CHUNK_RADIUS..=CHUNK_RADIUS {
-                let offset = ivec3(x, y, z);
-                let chunk_pos = player_chunk + offset;
-
-                if offset.length_squared() > (CHUNK_RADIUS * CHUNK_RADIUS) {
-                    continue;
-                }
-
-                if !world.chunk_exists(chunk_pos.x, chunk_pos.y, chunk_pos.z)
-                    && !queued_chunks.contains(&chunk_pos)
-                {
-                    task_sender
-                        .send(ChunkTask::Generate {
-                            cx: chunk_pos.x,
-                            cy: chunk_pos.y,
-                            cz: chunk_pos.z,
-                            noise: world.noise(),
-                            cave_noise: world.cave_noise(),
-                            biome_noise: world.biome_noise(),
-                        })
-                        .unwrap();
-                    queued_chunks.insert(chunk_pos);
-                }
-            }
-        }
     }
 }
 
