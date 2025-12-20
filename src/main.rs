@@ -22,14 +22,17 @@ macro_rules! shader {
         let $vert: Shader = Shader::new(
             &$gl,
             glow::VERTEX_SHADER,
-            include_str!(concat!("shaders/", $folder, "vertex_shader.glsl"))
-        ).unwrap();
+            include_str!(concat!("shaders/", $folder, "vertex_shader.glsl")),
+        )
+        .unwrap();
         let $frag: Shader = Shader::new(
             &$gl,
             glow::FRAGMENT_SHADER,
-            include_str!(concat!("shaders/", $folder, "fragment_shader.glsl"))
-        ).unwrap();
-        let $program = ShaderProgram::new(&$gl, &[&$vert, &$frag]).expect("Failed to create shader program");
+            include_str!(concat!("shaders/", $folder, "fragment_shader.glsl")),
+        )
+        .unwrap();
+        let $program =
+            ShaderProgram::new(&$gl, &[&$vert, &$frag]).expect("Failed to create shader program");
     };
 }
 
@@ -144,8 +147,7 @@ fn main() {
         image::load_from_memory(include_bytes!("assets/font.png")).expect("Failed to load texture");
 
     let font = BitmapFont::new(
-        font_image,
-        ' ', // first character
+        font_image, ' ', // first character
         12,  // characters per row
         7,   // character width
         12,  // character height
@@ -154,18 +156,15 @@ fn main() {
     game(i32::MAX / 2, &mut app, &font);
 }
 
-fn game(
-    seed: i32,
-    app: &mut App,
-    font: &BitmapFont,
-) {
+fn game(seed: i32, app: &mut App, font: &BitmapFont) {
     unsafe {
         app.gl.enable(glow::DEPTH_TEST);
         app.gl.enable(glow::CULL_FACE);
         app.gl.cull_face(glow::BACK);
         app.gl.front_face(glow::CCW);
         app.gl.enable(glow::BLEND);
-        app.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+        app.gl
+            .blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
     }
 
     let atlas_image = image::load_from_memory(include_bytes!("assets/atlas.png"))
@@ -217,10 +216,7 @@ fn game(
     let atlas_texture = Texture::new(&app.gl, &atlas_image.into());
 
     let billboard_atlas_image = billboard_atlas_image.to_rgba8();
-    let billboard_atlas_texture = Texture::new(
-        &app.gl,
-        &billboard_atlas_image.into(),
-    );
+    let billboard_atlas_texture = Texture::new(&app.gl, &billboard_atlas_image.into());
 
     let mut debug_mesh;
     let mut chat_mesh = font.build(&app.gl, "", 50.0, app.window.size().1 as f32 - 150.0, 24.0);
@@ -245,8 +241,6 @@ fn game(
     let mut keys_down: HashSet<Keycode> = HashSet::new();
     let mut mouse_down: HashSet<MouseButton> = HashSet::new();
 
-    let mut last_mouse_pos;
-
     let mut last_time = Instant::now();
     let mut duration = Instant::now();
     let mut fps = 1.0 / 0.016;
@@ -263,12 +257,8 @@ fn game(
     );
     framebuffer.bind();
     unsafe {
-        app.gl.viewport(
-            0,
-            0,
-            app.window.size().0 as i32,
-            app.window.size().1 as i32,
-        );
+        app.gl
+            .viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
     }
     Framebuffer::unbind(&*app.gl);
     let ssao_framebuffer = Framebuffer::new(
@@ -280,7 +270,8 @@ fn game(
     );
     ssao_framebuffer.bind();
     unsafe {
-        app.gl.viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
+        app.gl
+            .viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
     }
     Framebuffer::unbind(&*app.gl);
     let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 64];
@@ -328,10 +319,7 @@ fn game(
 
     let resource_mgr = ResourceManager::new()
         .add("atlas", atlas_texture)
-        .add("font", Texture::new(
-            &app.gl,
-            &font.atlas,
-        ))
+        .add("font", Texture::new(&app.gl, &font.atlas))
         .add("cloud", cloud_texture)
         .add("billboard_atlas", billboard_atlas_texture)
         .add("block_shader", shader_program)
@@ -345,8 +333,6 @@ fn game(
         .add("model_defs", model_defs);
 
     let mut world = World::new(seed, resource_mgr, &app.window);
-
-    let mut mouse_pos = (0, 0);
 
     'running: loop {
         if vsync {
@@ -366,11 +352,12 @@ fn game(
             window_events.push(event);
         }
 
-        last_mouse_pos = mouse_pos;
-
         for event in &window_events {
             match event {
-                sdl2::event::Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => {
                     if !chat_open {
                         grab = !grab;
                     } else {
@@ -378,7 +365,9 @@ fn game(
                         grab = true;
                     }
                 }
-                sdl2::event::Event::KeyDown { keycode: Some(key), .. } => {
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(key), ..
+                } => {
                     if !chat_open {
                         keys_down.insert(*key);
                     }
@@ -462,14 +451,38 @@ fn game(
                         }
                     }
                 }
-                sdl2::event::Event::KeyUp { keycode: Some(key), .. } => {
+                sdl2::event::Event::KeyUp {
+                    keycode: Some(key), ..
+                } => {
                     keys_down.remove(key);
                 }
-                sdl2::event::Event::MouseButtonDown { mouse_btn: button, .. } => {
+                sdl2::event::Event::MouseButtonDown {
+                    mouse_btn: button, ..
+                } => {
                     mouse_down.insert(*button);
                 }
-                sdl2::event::Event::MouseMotion { x, y, .. } => {
-                    mouse_pos = (*x, *y);
+                sdl2::event::Event::MouseMotion { xrel, yrel, .. } => {
+                    if app.window.grab() {
+                        let sensitivity = 0.175;
+                        world.get_player_mut().yaw += (*xrel as f32) * sensitivity;
+                        world.get_player_mut().pitch -= (*yrel as f32) * sensitivity;
+                        if world.get_player().pitch > 89.0 {
+                            world.get_player_mut().pitch = 89.0;
+                        }
+                        if world.get_player().pitch < -89.0 {
+                            world.get_player_mut().pitch = -89.0;
+                        }
+
+                        // Update camera front vector
+                        let yaw_rad = world.get_player().yaw.to_radians();
+                        let pitch_rad = world.get_player().pitch.to_radians();
+                        world.get_player_mut().forward = vec3(
+                            yaw_rad.cos() * pitch_rad.cos(),
+                            pitch_rad.sin(),
+                            yaw_rad.sin() * pitch_rad.cos(),
+                        )
+                        .normalize();
+                    }
                 }
                 _ => {}
             }
@@ -480,8 +493,10 @@ fn game(
         last_time = Instant::now();
 
         if grab {
+            app.sdl.mouse().set_relative_mouse_mode(true);
             app.window.set_grab(true);
         } else {
+            app.sdl.mouse().set_relative_mouse_mode(false);
             app.window.set_grab(false);
         }
 
@@ -659,7 +674,8 @@ Current Block: {}"#,
 
             app.gl.enable(glow::DEPTH_TEST);
             app.gl.clear_color(0.6, 0.6, 0.9, 1.0);
-            app.gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+            app.gl
+                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
             shader.use_program();
             world
@@ -772,30 +788,6 @@ Current Block: {}"#,
         }
 
         app.window.gl_swap_window();
-
-        let dx = mouse_pos.0 - last_mouse_pos.0;
-        let dy = mouse_pos.1 - last_mouse_pos.1;
-        if app.window.grab() {
-            let sensitivity = 0.1;
-            world.get_player_mut().yaw += (dx as f32) * sensitivity;
-            world.get_player_mut().pitch -= (dy as f32) * sensitivity;
-            if world.get_player().pitch > 89.0 {
-                world.get_player_mut().pitch = 89.0;
-            }
-            if world.get_player().pitch < -89.0 {
-                world.get_player_mut().pitch = -89.0;
-            }
-
-            // Update camera front vector
-            let yaw_rad = player.yaw.to_radians();
-            let pitch_rad = player.pitch.to_radians();
-            world.get_player_mut().forward = vec3(
-                yaw_rad.cos() * pitch_rad.cos(),
-                pitch_rad.sin(),
-                yaw_rad.sin() * pitch_rad.cos(),
-            )
-            .normalize();
-        }
 
         window_events.clear();
         time += dt as f32;

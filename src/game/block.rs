@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     abs::{Mesh, UIVertex, Vertex},
-    game::{collision_aabb, mask_partial, pack_color_rgb677, pack_uv, Key, KeyPart, ModelDefs},
+    game::{Key, KeyPart, ModelDefs, collision_aabb, mask_partial, pack_color_rgb677, pack_uv},
 };
 
 const FULL_BLOCK: u32 = 0x00000000;
@@ -164,13 +164,7 @@ impl Vertex for BlockVertex {
         unsafe {
             let stride = std::mem::size_of::<BlockVertex>() as i32;
 
-            gl.vertex_attrib_pointer_i32(
-                0,
-                1,
-                glow::UNSIGNED_INT,
-                stride,
-                0,
-            );
+            gl.vertex_attrib_pointer_i32(0, 1, glow::UNSIGNED_INT, stride, 0);
             gl.enable_vertex_attrib_array(0);
 
             gl.vertex_attrib_pointer_i32(
@@ -190,6 +184,7 @@ impl Vertex for BlockVertex {
                 stride,
                 2 * std::mem::size_of::<u32>() as i32,
             );
+            gl.enable_vertex_attrib_array(2);
         }
     }
 }
@@ -205,14 +200,7 @@ impl Vertex for OutlineVertex {
         unsafe {
             let stride = std::mem::size_of::<OutlineVertex>() as i32;
 
-            gl.vertex_attrib_pointer_f32(
-                0,
-                3,
-                glow::FLOAT,
-                false,
-                stride,
-                0,
-            );
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride, 0);
             gl.enable_vertex_attrib_array(0);
         }
     }
@@ -325,7 +313,14 @@ impl Block {
         }
     }
 
-    pub fn ui_mesh(&self, gl: &Arc<glow::Context>, from: Vec2, to: Vec2, m: Mat4, model_defs: &ModelDefs) -> Mesh {
+    pub fn ui_mesh(
+        &self,
+        gl: &Arc<glow::Context>,
+        from: Vec2,
+        to: Vec2,
+        m: Mat4,
+        model_defs: &ModelDefs,
+    ) -> Mesh {
         let cubes = self.cubes(model_defs);
         let uvs = self.uvs(model_defs);
 

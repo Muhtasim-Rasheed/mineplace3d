@@ -6,7 +6,7 @@ use sdl2::{keyboard::Keycode, mouse::MouseButton};
 
 use crate::{
     abs::{Mesh, ShaderProgram, Texture, Vertex},
-    game::{cast_ray, Block, BlockType, RayHit, ResourceManager, World},
+    game::{Block, BlockType, RayHit, ResourceManager, World, cast_ray},
 };
 
 pub const PLACABLE_BLOCKS: [Block; 22] = [
@@ -195,24 +195,32 @@ impl Entity for Player {
     fn update(&mut self, _id: EntityId, world: &mut World, events: &[sdl2::event::Event], dt: f64) {
         for event in events {
             match event {
-                sdl2::event::Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => {
                     self.current_block =
                         (self.current_block + PLACABLE_BLOCKS.len() - 1) % PLACABLE_BLOCKS.len();
                 }
-                sdl2::event::Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => {
                     self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                 }
-                sdl2::event::Event::KeyDown { keycode: Some(key), .. } => {
-                    match *key {
-                        Keycode::T | Keycode::Slash => self.chat_open = true,
-                        Keycode::Return | Keycode::Escape => self.chat_open = false,
-                        _ => {
-                            self.keys_down.insert(*key);
-                        }
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(key), ..
+                } => match *key {
+                    Keycode::T | Keycode::Slash => self.chat_open = true,
+                    Keycode::Return | Keycode::Escape => self.chat_open = false,
+                    _ => {
+                        self.keys_down.insert(*key);
                     }
-                }
-                sdl2::event::Event::KeyUp { keycode: Some(key), .. } => {
-                    self.keys_down.insert(*key);
+                },
+                sdl2::event::Event::KeyUp {
+                    keycode: Some(key), ..
+                } => {
+                    self.keys_down.remove(key);
                 }
                 sdl2::event::Event::MouseButtonDown { mouse_btn, .. } => {
                     self.mouse_down.insert(*mouse_btn);
@@ -220,14 +228,6 @@ impl Entity for Player {
                 sdl2::event::Event::MouseButtonUp { mouse_btn, .. } => {
                     self.mouse_down.remove(mouse_btn);
                 }
-                // glfw::WindowEvent::Scroll(_, yoffset) => {
-                //     if *yoffset > 0.0 {
-                //         self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
-                //             % PLACABLE_BLOCKS.len();
-                //     } else if *yoffset < 0.0 {
-                //         self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
-                //     }
-                // }
                 sdl2::event::Event::MouseWheel { y, .. } => {
                     if *y > 0 {
                         self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
@@ -240,8 +240,8 @@ impl Entity for Player {
             }
         }
 
-        self.sneaking = self.keys_down.contains(&Keycode::LShift)
-            || self.keys_down.contains(&Keycode::RShift);
+        self.sneaking =
+            self.keys_down.contains(&Keycode::LShift) || self.keys_down.contains(&Keycode::RShift);
 
         self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
@@ -414,14 +414,7 @@ impl Vertex for BillboardVertex {
         unsafe {
             let stride = std::mem::size_of::<BillboardVertex>() as i32;
 
-            gl.vertex_attrib_pointer_f32(
-                0,
-                2,
-                glow::FLOAT,
-                false,
-                stride,
-                0
-            );
+            gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, stride, 0);
             gl.enable_vertex_attrib_array(0);
 
             gl.vertex_attrib_pointer_f32(
@@ -506,7 +499,13 @@ impl Entity for Billboard {
         self.life == 0
     }
 
-    fn update(&mut self, id: EntityId, world: &mut World, _events: &[sdl2::event::Event], _dt: f64) {
+    fn update(
+        &mut self,
+        id: EntityId,
+        world: &mut World,
+        _events: &[sdl2::event::Event],
+        _dt: f64,
+    ) {
         if self.life > 0 {
             self.life -= 1;
         }

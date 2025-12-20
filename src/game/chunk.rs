@@ -4,9 +4,7 @@ use fastnoise_lite::FastNoiseLite;
 use glam::*;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::{
-    game::{Block, BlockType, BlockVertex, FACE_TEMPLATES, Face, ModelDefs, should_occlude},
-};
+use crate::game::{Block, BlockType, BlockVertex, FACE_TEMPLATES, Face, ModelDefs, should_occlude};
 
 pub const CHUNK_SIZE: usize = 16;
 

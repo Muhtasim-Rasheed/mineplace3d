@@ -1,11 +1,16 @@
-use std::{collections::HashSet, sync::{mpsc, Arc}};
+use std::{
+    collections::HashSet,
+    sync::{Arc, mpsc},
+};
 
 use fastnoise_lite::{FastNoiseLite, NoiseType};
 use glam::*;
 use glow::HasContext;
 
 use crate::{
-    game::{BlockType, ChunkTask, World, CHUNK_SIZE, RENDER_DISTANCE}, mesh::{Vertex, Mesh}, texture::Texture
+    game::{BlockType, CHUNK_SIZE, ChunkTask, RENDER_DISTANCE, World},
+    mesh::{Mesh, Vertex},
+    texture::Texture,
 };
 
 const CHUNK_RADIUS: i32 = RENDER_DISTANCE as i32 - 1;
@@ -148,7 +153,6 @@ pub fn request_chunks_around_player(
     }
 }
 
-
 fn calc_face_normal(hit: Vec3, block: Vec3) -> IVec3 {
     let rel = hit - block;
 
@@ -190,14 +194,7 @@ impl Vertex for CloudPlaneVertex {
         unsafe {
             let stride = std::mem::size_of::<CloudPlaneVertex>() as i32;
 
-            gl.vertex_attrib_pointer_f32(
-                0,
-                2,
-                glow::FLOAT,
-                false,
-                stride,
-                0,
-            );
+            gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, stride, 0);
             gl.enable_vertex_attrib_array(0);
 
             gl.vertex_attrib_pointer_f32(
@@ -261,9 +258,12 @@ pub fn cloud_texture_gen(gl: &Arc<glow::Context>, texture_size: UVec2, seed: i32
         }
     }
 
-    Texture::new(&gl, &image::DynamicImage::ImageRgba8(
-        image::ImageBuffer::from_raw(width, height, image_data).unwrap(),
-    ))
+    Texture::new(
+        &gl,
+        &image::DynamicImage::ImageRgba8(
+            image::ImageBuffer::from_raw(width, height, image_data).unwrap(),
+        ),
+    )
 }
 
 pub fn make_cloud_plane(gl: &Arc<glow::Context>) -> Mesh {

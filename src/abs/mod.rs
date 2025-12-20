@@ -2,15 +2,15 @@
 //! including application setup, shader management, and mesh handling and textures.
 
 pub mod app;
+pub mod framebuffer;
 pub mod mesh;
 pub mod shader;
 pub mod texture;
-pub mod framebuffer;
 pub mod ui;
 
 pub use app::*;
+pub use framebuffer::*;
 pub use mesh::*;
 pub use shader::*;
 pub use texture::*;
-pub use framebuffer::*;
 pub use ui::*;

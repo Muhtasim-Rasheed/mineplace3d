@@ -12,7 +12,8 @@ use std::{
 use crate::{
     asset::{ModelDefs, ResourceManager},
     game::{
-        aabb_in_frustum, extract_frustum_planes, Billboard, BillboardType, Block, BlockVertex, Chunk, Entity, EntityId, NeighbourChunks, Player, CHUNK_SIZE
+        Billboard, BillboardType, Block, BlockVertex, CHUNK_SIZE, Chunk, Entity, EntityId,
+        NeighbourChunks, Player, aabb_in_frustum, extract_frustum_planes,
     },
     mesh::Mesh,
 };

@@ -25,7 +25,12 @@ pub struct Mesh {
 
 impl Mesh {
     /// Creates a new mesh from the given vertex and index data.
-    pub fn new<V: Vertex>(gl: &Arc<glow::Context>, vertices: &[V], indices: &[u32], draw_mode: u32) -> Self {
+    pub fn new<V: Vertex>(
+        gl: &Arc<glow::Context>,
+        vertices: &[V],
+        indices: &[u32],
+        draw_mode: u32,
+    ) -> Self {
         unsafe {
             let vao = gl.create_vertex_array().unwrap();
             let vbo = gl.create_buffer().unwrap();
@@ -84,7 +89,8 @@ impl Mesh {
                 glow::DYNAMIC_DRAW,
             );
 
-            self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
+            self.gl
+                .bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.ebo));
             self.gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
                 std::slice::from_raw_parts(
@@ -103,7 +109,12 @@ impl Mesh {
     pub fn draw(&self) {
         unsafe {
             self.gl.bind_vertex_array(Some(self.vao));
-            self.gl.draw_elements(self.draw_mode, self.index_count as i32, glow::UNSIGNED_INT, 0);
+            self.gl.draw_elements(
+                self.draw_mode,
+                self.index_count as i32,
+                glow::UNSIGNED_INT,
+                0,
+            );
             self.gl.bind_vertex_array(None);
         }
     }

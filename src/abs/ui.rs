@@ -24,14 +24,7 @@ impl Vertex for UIVertex {
         unsafe {
             let stride = std::mem::size_of::<UIVertex>() as i32;
 
-            gl.vertex_attrib_pointer_f32(
-                0,
-                3,
-                glow::FLOAT,
-                false,
-                stride,
-                0,
-            );
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride, 0);
             gl.enable_vertex_attrib_array(0);
 
             gl.vertex_attrib_pointer_f32(
@@ -147,7 +140,14 @@ impl BitmapFont {
     }
 
     /// Builds a mesh for rendering the given text string at the specified position and font size.
-    pub fn build(&self, gl: &Arc<glow::Context>, text: &str, start_x: f32, start_y: f32, font_size: f32) -> Mesh {
+    pub fn build(
+        &self,
+        gl: &Arc<glow::Context>,
+        text: &str,
+        start_x: f32,
+        start_y: f32,
+        font_size: f32,
+    ) -> Mesh {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
 

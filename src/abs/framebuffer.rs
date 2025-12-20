@@ -43,16 +43,8 @@ impl Framebuffer {
                 gl.bind_texture(glow::TEXTURE_2D, Some(tex));
 
                 let (internal, format, ty) = match color_usage {
-                    ColorUsage::All => (
-                        glow::RGBA8 as i32,
-                        glow::RGBA,
-                        glow::UNSIGNED_BYTE,
-                    ),
-                    ColorUsage::RedFloat => (
-                        glow::R32F as i32,
-                        glow::RED,
-                        glow::FLOAT,
-                    ),
+                    ColorUsage::All => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
+                    ColorUsage::RedFloat => (glow::R32F as i32, glow::RED, glow::FLOAT),
                 };
 
                 gl.tex_image_2d(
@@ -67,10 +59,26 @@ impl Framebuffer {
                     glow::PixelUnpackData::Slice(None),
                 );
 
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_MIN_FILTER,
+                    glow::LINEAR as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_MAG_FILTER,
+                    glow::LINEAR as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_WRAP_S,
+                    glow::CLAMP_TO_EDGE as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_WRAP_T,
+                    glow::CLAMP_TO_EDGE as i32,
+                );
 
                 gl.framebuffer_texture_2d(
                     glow::FRAMEBUFFER,
@@ -100,10 +108,26 @@ impl Framebuffer {
                     glow::PixelUnpackData::Slice(None),
                 );
 
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_MIN_FILTER,
+                    glow::NEAREST as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_MAG_FILTER,
+                    glow::NEAREST as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_WRAP_S,
+                    glow::CLAMP_TO_EDGE as i32,
+                );
+                gl.tex_parameter_i32(
+                    glow::TEXTURE_2D,
+                    glow::TEXTURE_WRAP_T,
+                    glow::CLAMP_TO_EDGE as i32,
+                );
 
                 // Attach to framebuffer
                 gl.framebuffer_texture_2d(
@@ -121,8 +145,7 @@ impl Framebuffer {
             };
 
             assert!(
-                gl.check_framebuffer_status(glow::FRAMEBUFFER)
-                    == glow::FRAMEBUFFER_COMPLETE,
+                gl.check_framebuffer_status(glow::FRAMEBUFFER) == glow::FRAMEBUFFER_COMPLETE,
                 "Framebuffer incomplete"
             );
 
@@ -131,8 +154,14 @@ impl Framebuffer {
             Self {
                 gl: gl.clone(),
                 fbo,
-                color_tex: Texture { gl: gl.clone(), id: color_tex },
-                depth_tex: depth_tex.map(|tex| Texture { gl: gl.clone(), id: tex }),
+                color_tex: Texture {
+                    gl: gl.clone(),
+                    id: color_tex,
+                },
+                depth_tex: depth_tex.map(|tex| Texture {
+                    gl: gl.clone(),
+                    id: tex,
+                }),
             }
         }
     }
