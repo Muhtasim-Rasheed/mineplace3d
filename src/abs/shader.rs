@@ -1,219 +1,221 @@
-use std::collections::HashMap;
+//! OpenGL Shaders
+//!
+//! This module defines the [`Shader`] and [`ShaderProgram`] structs for managing OpenGL shaders.
+//! This module also provides the [`Uniform`] trait for setting uniform variables in shader
+//! programs.
 
-use glam::*;
+use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ShaderType {
-    Vertex = gl::VERTEX_SHADER as isize,
-    Fragment = gl::FRAGMENT_SHADER as isize,
-}
+use glam::{IVec3, Mat4, Vec2, Vec3, Vec4};
+use glow::HasContext;
 
+/// Represents an individual OpenGL shader.
 pub struct Shader {
-    id: u32,
+    gl: Arc<glow::Context>,
+    id: glow::Shader,
+    shader_type: u32,
 }
 
 impl Shader {
-    pub fn new(shader_type: ShaderType, source: &str) -> Self {
-        let id = unsafe {
-            let shader = gl::CreateShader(shader_type as u32);
-            let c_str = std::ffi::CString::new(source).unwrap();
-            gl::ShaderSource(shader, 1, &c_str.as_ptr(), std::ptr::null());
-            gl::CompileShader(shader);
+    /// Compiles a new shader from the given source code.
+    pub fn new(gl: &Arc<glow::Context>, shader_type: u32, source: &str) -> Result<Self, String> {
+        unsafe {
+            let shader = gl.create_shader(shader_type).map_err(|e| e.to_string())?;
+            gl.shader_source(shader, source);
+            gl.compile_shader(shader);
 
-            let mut success = 0;
-            gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
-            if success == 0 {
-                let mut v = Vec::<u8>::with_capacity(1024);
-                let mut log_len = 0;
-                gl::GetShaderInfoLog(
-                    shader,
-                    v.capacity() as i32,
-                    &mut log_len,
-                    v.as_mut_ptr().cast(),
-                );
-                v.set_len(log_len as usize);
-                panic!("Shader compilation failed: {}", String::from_utf8_lossy(&v));
+            if !gl.get_shader_compile_status(shader) {
+                let log = gl.get_shader_info_log(shader);
+                gl.delete_shader(shader);
+                return Err(log);
             }
-            shader
-        };
 
-        Shader { id }
-    }
-}
-
-pub struct ShaderProgramBuilder {
-    shaders: HashMap<ShaderType, Shader>,
-}
-
-impl ShaderProgramBuilder {
-    pub fn new() -> Self {
-        ShaderProgramBuilder {
-            shaders: HashMap::new(),
+            Ok(Self {
+                gl: Arc::clone(gl),
+                id: shader,
+                shader_type,
+            })
         }
     }
+}
 
-    pub fn attach_shader(mut self, shader_type: ShaderType, source: &str) -> Self {
-        let shader = Shader::new(shader_type, source);
-        self.shaders.insert(shader_type, shader);
-        self
+impl Drop for Shader {
+    fn drop(&mut self) {
+        unsafe {
+            self.gl.delete_shader(self.id);
+        }
     }
+}
 
-    pub fn build(self) -> ShaderProgram {
-        let id = unsafe {
-            let program = gl::CreateProgram();
-            for shader in self.shaders.values() {
-                gl::AttachShader(program, shader.id);
+/// Represents a uniform variable in a shader program.
+pub trait Uniform {
+    /// Sets the value of the uniform variable in the given shader program.
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str);
+}
+
+impl Uniform for bool {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
+        unsafe {
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_1_i32(Some(&loc), *self as i32);
             }
-            gl::LinkProgram(program);
-            for shader in self.shaders.values() {
-                gl::DetachShader(program, shader.id);
+        }
+    }
+}
+
+impl Uniform for f32 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
+        unsafe {
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_1_f32(Some(&loc), *self);
             }
-            program
-        };
-
-        ShaderProgram { id }
+        }
     }
 }
 
-pub trait UniformValue {
-    fn set_uniform(&self, program_id: u32, name: &str);
-}
-
-impl UniformValue for i32 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl Uniform for i32 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform1i(location, *self);
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_1_i32(Some(&loc), *self);
+            }
         }
     }
 }
 
-impl UniformValue for f32 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl Uniform for Vec2 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform1f(location, *self);
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_2_f32(Some(&loc), self.x, self.y);
+            }
         }
     }
 }
 
-impl UniformValue for Vec2 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl Uniform for Vec3 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform2f(location, self.x, self.y);
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_3_f32(Some(&loc), self.x, self.y, self.z);
+            }
         }
     }
 }
 
-impl UniformValue for Vec3 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl Uniform for IVec3 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform3f(location, self.x, self.y, self.z);
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_3_i32(Some(&loc), self.x, self.y, self.z);
+            }
         }
     }
 }
 
-impl UniformValue for Vec4 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl Uniform for Vec4 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform4f(location, self.x, self.y, self.z, self.w);
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_4_f32(Some(&loc), self.x, self.y, self.z, self.w);
+            }
         }
     }
 }
 
-impl UniformValue for Mat4 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl Uniform for Mat4 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::UniformMatrix4fv(location, 1, gl::FALSE, self.to_cols_array().as_ptr());
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_matrix_4_f32_slice(Some(&loc), false, self.as_ref());
+            }
         }
     }
 }
 
-impl UniformValue for bool {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
+impl<const N: usize> Uniform for [Vec3; N] {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform1i(location, if *self { gl::TRUE } else { gl::FALSE } as i32);
-        }
-    }
-}
-
-impl<const N: usize> UniformValue for [Vec3; N] {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        #[repr(C, packed)]
-        struct Vec3Packed {
-            x: f32,
-            y: f32,
-            z: f32,
-        }
-
-        impl From<Vec3> for Vec3Packed {
-            fn from(v: Vec3) -> Self {
-                Vec3Packed {
-                    x: v.x,
-                    y: v.y,
-                    z: v.z,
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                let mut data = Vec::with_capacity(N * 3);
+                for vec in self.iter() {
+                    data.push(vec.x);
+                    data.push(vec.y);
+                    data.push(vec.z);
                 }
+                gl.uniform_3_f32_slice(Some(&loc), &data);
             }
         }
-
-        let self_packed: [Vec3Packed; N] = self.map(|v| v.into());
-
-        let c_str = std::ffi::CString::new(name).unwrap();
-        unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform3fv(location, N as i32, self_packed.as_ptr() as *const f32);
-        }
     }
 }
 
-impl UniformValue for IVec3 {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        let c_str = std::ffi::CString::new(name).unwrap();
-        unsafe {
-            let location = gl::GetUniformLocation(program_id, c_str.as_ptr());
-            gl::Uniform3i(location, self.x, self.y, self.z);
-        }
+impl<T: Uniform> Uniform for &T {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
+        (*self).set_uniform(gl, program, name);
     }
 }
 
-impl<T: UniformValue> UniformValue for &T {
-    fn set_uniform(&self, program_id: u32, name: &str) {
-        (*self).set_uniform(program_id, name);
-    }
-}
-
+/// Represents an OpenGL shader program composed of multiple shaders.
 pub struct ShaderProgram {
-    id: u32,
+    gl: Arc<glow::Context>,
+    id: glow::Program,
 }
 
 impl ShaderProgram {
-    pub fn set_uniform<T: UniformValue>(&self, name: &str, value: T) {
-        value.set_uniform(self.id, name);
+    /// Links a new shader program from the given shaders.
+    pub fn new(gl: &Arc<glow::Context>, shaders: &[&Shader]) -> Result<Self, String> {
+        unsafe {
+            let program = gl.create_program().map_err(|e| e.to_string())?;
+
+            for shader in shaders {
+                gl.attach_shader(program, shader.id);
+            }
+
+            gl.link_program(program);
+
+            if !gl.get_program_link_status(program) {
+                let log = gl.get_program_info_log(program);
+                gl.delete_program(program);
+                return Err(log);
+            }
+
+            for shader in shaders {
+                gl.detach_shader(program, shader.id);
+            }
+
+            Ok(Self {
+                gl: Arc::clone(gl),
+                id: program,
+            })
+        }
     }
 
+    /// Binds the shader program for use.
     pub fn use_program(&self) {
         unsafe {
-            gl::UseProgram(self.id);
+            self.gl.use_program(Some(self.id));
         }
+    }
+
+    /// Sets a uniform variable in the shader program.
+    pub fn set_uniform<T: Uniform>(&self, name: &str, value: T) {
+        value.set_uniform(&self.gl, self.id, name);
     }
 }
 
 impl Drop for ShaderProgram {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteProgram(self.id);
+            self.gl.delete_program(self.id);
         }
     }
 }

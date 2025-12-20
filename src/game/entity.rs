@@ -1,11 +1,12 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use glam::*;
-use glfw::MouseButton;
+use glow::HasContext;
+use sdl2::{keyboard::Keycode, mouse::MouseButton};
 
 use crate::{
-    abs::{BillboardVertex, DrawMode, Mesh, ShaderProgram, Texture},
-    game::{Block, BlockType, RayHit, ResourceManager, World, cast_ray},
+    abs::{Mesh, ShaderProgram, Texture, Vertex},
+    game::{cast_ray, Block, BlockType, RayHit, ResourceManager, World},
 };
 
 pub const PLACABLE_BLOCKS: [Block; 22] = [
@@ -95,8 +96,8 @@ pub trait Entity: 'static {
     fn requests_removal(&self) -> bool {
         false
     }
-    fn update(&mut self, id: EntityId, world: &mut World, events: &[glfw::WindowEvent], dt: f64);
-    fn draw(&self, _world: &World, _resource_manager: &ResourceManager) {}
+    fn update(&mut self, id: EntityId, world: &mut World, events: &[sdl2::event::Event], dt: f64);
+    fn draw(&self, _gl: &Arc<glow::Context>, _world: &World, _resource_manager: &ResourceManager) {}
 }
 
 #[derive(Clone)]
@@ -109,8 +110,8 @@ pub struct Player {
     pub yaw: f32,
     pub pitch: f32,
     pub jumping: bool,
-    pub keys_down: HashSet<glfw::Key>,
-    pub mouse_down: HashSet<glfw::MouseButton>,
+    pub keys_down: HashSet<Keycode>,
+    pub mouse_down: HashSet<MouseButton>,
     pub break_place_cooldown: u32,
     pub selected_block: Option<RayHit>,
     pub current_block: usize,
@@ -121,7 +122,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(position: Vec3, window: &glfw::Window) -> Self {
+    pub fn new(position: Vec3, window: &sdl2::video::Window) -> Self {
         Player {
             old_position: position,
             position,
@@ -139,13 +140,13 @@ impl Player {
             sneaking: false,
             projection: Mat4::perspective_rh_gl(
                 90f32.to_radians(),
-                window.get_size().0 as f32 / window.get_size().1 as f32,
+                window.size().0 as f32 / window.size().1 as f32,
                 0.1,
                 200.0,
             ),
             cloud_projection: Mat4::perspective_rh_gl(
                 90f32.to_radians(),
-                window.get_size().0 as f32 / window.get_size().1 as f32,
+                window.size().0 as f32 / window.size().1 as f32,
                 0.1,
                 400.0,
             ),
@@ -191,56 +192,47 @@ impl Entity for Player {
         if self.sneaking { 1.55 } else { 1.7 }
     }
 
-    fn update(&mut self, _id: EntityId, world: &mut World, events: &[glfw::WindowEvent], dt: f64) {
+    fn update(&mut self, _id: EntityId, world: &mut World, events: &[sdl2::event::Event], dt: f64) {
         for event in events {
             match event {
-                glfw::WindowEvent::Key(glfw::Key::Left, _, glfw::Action::Press, _) => {
+                sdl2::event::Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
                     self.current_block =
                         (self.current_block + PLACABLE_BLOCKS.len() - 1) % PLACABLE_BLOCKS.len();
                 }
-                glfw::WindowEvent::Key(glfw::Key::Right, _, glfw::Action::Press, _) => {
+                sdl2::event::Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
                     self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                 }
-                glfw::WindowEvent::Key(key, _, action, _) => {
-                    if *key == glfw::Key::T && *action == glfw::Action::Press {
-                        self.chat_open = true;
-                    }
-                    if *key == glfw::Key::Slash && *action == glfw::Action::Press {
-                        self.chat_open = true;
-                    }
-                    if *key == glfw::Key::Enter && *action == glfw::Action::Press {
-                        self.chat_open = false;
-                    }
-                    if *key == glfw::Key::Escape && *action == glfw::Action::Press {
-                        self.chat_open = false;
-                    }
-
-                    if !self.chat_open {
-                        match action {
-                            glfw::Action::Press => {
-                                self.keys_down.insert(*key);
-                            }
-                            glfw::Action::Release => {
-                                self.keys_down.remove(key);
-                            }
-                            _ => {}
+                sdl2::event::Event::KeyDown { keycode: Some(key), .. } => {
+                    match *key {
+                        Keycode::T | Keycode::Slash => self.chat_open = true,
+                        Keycode::Return | Keycode::Escape => self.chat_open = false,
+                        _ => {
+                            self.keys_down.insert(*key);
                         }
                     }
                 }
-                glfw::WindowEvent::MouseButton(button, action, _) => match action {
-                    glfw::Action::Press => {
-                        self.mouse_down.insert(*button);
-                    }
-                    glfw::Action::Release => {
-                        self.mouse_down.remove(button);
-                    }
-                    _ => {}
-                },
-                glfw::WindowEvent::Scroll(_, yoffset) => {
-                    if *yoffset > 0.0 {
+                sdl2::event::Event::KeyUp { keycode: Some(key), .. } => {
+                    self.keys_down.insert(*key);
+                }
+                sdl2::event::Event::MouseButtonDown { mouse_btn, .. } => {
+                    self.mouse_down.insert(*mouse_btn);
+                }
+                sdl2::event::Event::MouseButtonUp { mouse_btn, .. } => {
+                    self.mouse_down.remove(mouse_btn);
+                }
+                // glfw::WindowEvent::Scroll(_, yoffset) => {
+                //     if *yoffset > 0.0 {
+                //         self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
+                //             % PLACABLE_BLOCKS.len();
+                //     } else if *yoffset < 0.0 {
+                //         self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
+                //     }
+                // }
+                sdl2::event::Event::MouseWheel { y, .. } => {
+                    if *y > 0 {
                         self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
                             % PLACABLE_BLOCKS.len();
-                    } else if *yoffset < 0.0 {
+                    } else if *y < 0 {
                         self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                     }
                 }
@@ -248,8 +240,8 @@ impl Entity for Player {
             }
         }
 
-        self.sneaking = self.keys_down.contains(&glfw::Key::LeftShift)
-            || self.keys_down.contains(&glfw::Key::RightShift);
+        self.sneaking = self.keys_down.contains(&Keycode::LShift)
+            || self.keys_down.contains(&Keycode::RShift);
 
         self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
@@ -269,33 +261,33 @@ impl Entity for Player {
         };
         let jump_accel = 8.0;
         let sprint_player_accel = player_accel * if self.sneaking { 1.0 } else { 1.5 };
-        if self.keys_down.contains(&glfw::Key::W) {
+        if self.keys_down.contains(&Keycode::W) {
             self.velocity += vec3(self.forward.x, 0.0, self.forward.z).normalize()
-                * if self.keys_down.contains(&glfw::Key::LeftControl)
-                    || self.keys_down.contains(&glfw::Key::Q)
+                * if self.keys_down.contains(&Keycode::LCtrl)
+                    || self.keys_down.contains(&Keycode::Q)
                 {
                     sprint_player_accel
                 } else {
                     player_accel
                 };
         }
-        if self.keys_down.contains(&glfw::Key::S) {
+        if self.keys_down.contains(&Keycode::S) {
             self.velocity -= vec3(self.forward.x, 0.0, self.forward.z).normalize() * player_accel;
         }
-        if self.keys_down.contains(&glfw::Key::A) {
+        if self.keys_down.contains(&Keycode::A) {
             self.velocity -= self.forward.cross(self.up).normalize() * player_accel;
         }
-        if self.keys_down.contains(&glfw::Key::D) {
+        if self.keys_down.contains(&Keycode::D) {
             self.velocity += self.forward.cross(self.up).normalize() * player_accel;
         }
-        if self.keys_down.contains(&glfw::Key::Space) && !self.jumping {
+        if self.keys_down.contains(&Keycode::Space) && !self.jumping {
             self.velocity.y += jump_accel;
         }
         self.old_position = self.position;
         if self.break_place_cooldown > 0 {
             self.break_place_cooldown -= 1;
         }
-        if self.mouse_down.contains(&MouseButton::Button2) && self.break_place_cooldown == 0 {
+        if self.mouse_down.contains(&MouseButton::Right) && self.break_place_cooldown == 0 {
             if let Some(ref hit) = self.selected_block {
                 let block_pos = hit.block_pos;
                 let hit_normal = hit.face_normal;
@@ -314,7 +306,7 @@ impl Entity for Player {
                 self.break_place_cooldown = 12;
             }
         }
-        if self.mouse_down.contains(&MouseButton::Button1) && self.break_place_cooldown == 0 {
+        if self.mouse_down.contains(&MouseButton::Left) && self.break_place_cooldown == 0 {
             if let Some(ref hit) = self.selected_block {
                 if !(world.get_block(hit.block_pos.x, hit.block_pos.y, hit.block_pos.z)
                     == Block::Bedrock)
@@ -410,6 +402,41 @@ impl BillboardType {
     }
 }
 
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub struct BillboardVertex {
+    pub corner: Vec2,
+    pub uv: Vec2,
+}
+
+impl Vertex for BillboardVertex {
+    fn vertex_attribs(gl: &glow::Context) {
+        unsafe {
+            let stride = std::mem::size_of::<BillboardVertex>() as i32;
+
+            gl.vertex_attrib_pointer_f32(
+                0,
+                2,
+                glow::FLOAT,
+                false,
+                stride,
+                0
+            );
+            gl.enable_vertex_attrib_array(0);
+
+            gl.vertex_attrib_pointer_f32(
+                1,
+                2,
+                glow::FLOAT,
+                false,
+                stride,
+                std::mem::size_of::<Vec2>() as i32,
+            );
+            gl.enable_vertex_attrib_array(1);
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Billboard {
     pub position: Vec3,
@@ -479,7 +506,7 @@ impl Entity for Billboard {
         self.life == 0
     }
 
-    fn update(&mut self, id: EntityId, world: &mut World, _events: &[glfw::WindowEvent], _dt: f64) {
+    fn update(&mut self, id: EntityId, world: &mut World, _events: &[sdl2::event::Event], _dt: f64) {
         if self.life > 0 {
             self.life -= 1;
         }
@@ -504,7 +531,7 @@ impl Entity for Billboard {
         }
     }
 
-    fn draw(&self, world: &World, resource_manager: &ResourceManager) {
+    fn draw(&self, gl: &Arc<glow::Context>, world: &World, resource_manager: &ResourceManager) {
         if self.life == 0 {
             return;
         }
@@ -540,7 +567,7 @@ impl Entity for Billboard {
             },
         ];
         let indices = [0, 1, 2, 0, 2, 3];
-        let mesh = Mesh::new(&vertices, &indices, DrawMode::Triangles);
+        let mesh = Mesh::new(gl, &vertices, &indices, glow::TRIANGLES);
 
         shader.use_program();
         shader.set_uniform("view", view);

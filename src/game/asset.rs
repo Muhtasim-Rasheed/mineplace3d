@@ -119,48 +119,6 @@ impl ModelDefs {
     }
 }
 
-// #[derive(Default)]
-// pub struct ResourceManager {
-//     translations: Option<Translations>,
-//     model_defs: Option<ModelDefs>,
-//     textures: HashMap<String, Texture>,
-//     shader_programs: HashMap<String, ShaderProgram>,
-// }
-
-// impl ResourceManager {
-//     pub fn new() -> Self {
-//         ResourceManager::default()
-//     }
-
-//     pub fn with_translations(mut self, s: &str) -> Result<Self, String> {
-//         self.translations = Some(Translations::new(s)?);
-//         Ok(self)
-//     }
-
-//     pub fn with_model_defs(mut self, s: &str) -> Result<Self, String> {
-//         self.model_defs = Some(ModelDefs::new(s)?);
-//         Ok(self)
-//     }
-
-//     pub fn add_texture(mut self, name: &str, texture: Texture) -> Self {
-//         self.textures.insert(name.to_string(), texture);
-//         self
-//     }
-
-//     pub fn add_shader_program(mut self, name: &str, program: ShaderProgram) -> Self {
-//         self.shader_programs.insert(name.to_string(), program);
-//         self
-//     }
-
-//     pub fn get_texture(&self, name: &str) -> Option<&Texture> {
-//         self.textures.get(name)
-//     }
-
-//     pub fn get_shader_program(&self, name: &str) -> Option<&ShaderProgram> {
-//         self.shader_programs.get(name)
-//     }
-// }
-
 pub trait Resource: 'static + Send + Sync {
     fn as_any(&self) -> &dyn std::any::Any;
 }

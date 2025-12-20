@@ -5,8 +5,7 @@ use glam::*;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::{
-    abs::BlockVertex,
-    game::{Block, BlockType, FACE_TEMPLATES, Face, ModelDefs, should_occlude},
+    game::{Block, BlockType, BlockVertex, FACE_TEMPLATES, Face, ModelDefs, should_occlude},
 };
 
 pub const CHUNK_SIZE: usize = 16;

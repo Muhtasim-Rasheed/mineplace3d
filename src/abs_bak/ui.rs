@@ -1,77 +1,7 @@
-//! UI rendering utilities, including quad mesh and bitmap font support.
-//!
-//! This module provides structures and functions for rendering 2D UI elements
-//! in a 3D graphics application. It includes a vertex structure for UI rendering,
-//! a function to create a quad mesh, and a bitmap font structure for rendering text.
-
-use std::sync::Arc;
-
-use crate::{abs::Vertex, mesh::Mesh};
+use crate::mesh::{DrawMode, Mesh, UIVertex};
 use glam::*;
-use glow::HasContext;
 use image::DynamicImage;
 
-/// Vertex structure for UI rendering.
-#[derive(Clone, Copy)]
-#[repr(C, packed)]
-pub struct UIVertex {
-    pub position: Vec3,
-    pub uv: Vec2,
-}
-
-impl Vertex for UIVertex {
-    fn vertex_attribs(gl: &glow::Context) {
-        unsafe {
-            let stride = std::mem::size_of::<UIVertex>() as i32;
-
-            gl.vertex_attrib_pointer_f32(
-                0,
-                3,
-                glow::FLOAT,
-                false,
-                stride,
-                0,
-            );
-            gl.enable_vertex_attrib_array(0);
-
-            gl.vertex_attrib_pointer_f32(
-                1,
-                2,
-                glow::FLOAT,
-                false,
-                stride,
-                std::mem::size_of::<Vec3>() as i32,
-            );
-            gl.enable_vertex_attrib_array(1);
-        }
-    }
-}
-
-/// Creates a quad mesh for UI rendering.
-pub fn quad_mesh(gl: &Arc<glow::Context>) -> Mesh {
-    let vertices: [UIVertex; 4] = [
-        UIVertex {
-            position: vec3(-1.0, -1.0, 0.0),
-            uv: vec2(0.0, 0.0),
-        },
-        UIVertex {
-            position: vec3(1.0, -1.0, 0.0),
-            uv: vec2(1.0, 0.0),
-        },
-        UIVertex {
-            position: vec3(1.0, 1.0, 0.0),
-            uv: vec2(1.0, 1.0),
-        },
-        UIVertex {
-            position: vec3(-1.0, 1.0, 0.0),
-            uv: vec2(0.0, 1.0),
-        },
-    ];
-    let indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
-    Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
-}
-
-/// Bitmap font structure for rendering text.
 pub struct BitmapFont {
     first_char: char,
     chars_per_row: u32,
@@ -81,7 +11,6 @@ pub struct BitmapFont {
 }
 
 impl BitmapFont {
-    /// Creates a new bitmap font from the given parameters.
     pub fn new(
         atlas: DynamicImage,
         first_char: char,
@@ -98,7 +27,6 @@ impl BitmapFont {
         }
     }
 
-    /// Gets the UV coordinates for the given character.
     pub fn get_glyph_uv(&self, ch: char) -> Option<([f32; 2], [f32; 2])> {
         let glyph_index = ch as u32 - self.first_char as u32;
 
@@ -120,7 +48,6 @@ impl BitmapFont {
         Some(([u0, v0], [u1, v1]))
     }
 
-    /// Calculates the width and height of the given text string at the specified font size.
     pub fn text_metrics(&self, text: &str, font_size: f32) -> (f32, f32) {
         let mut max_width = 0f32;
         let mut current_width = 0.0;
@@ -146,8 +73,7 @@ impl BitmapFont {
         (max_width, total_height)
     }
 
-    /// Builds a mesh for rendering the given text string at the specified position and font size.
-    pub fn build(&self, gl: &Arc<glow::Context>, text: &str, start_x: f32, start_y: f32, font_size: f32) -> Mesh {
+    pub fn build(&self, text: &str, start_x: f32, start_y: f32, font_size: f32) -> Mesh<UIVertex> {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
 
@@ -192,6 +118,6 @@ impl BitmapFont {
             }
         }
 
-        Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
+        Mesh::new(&vertices, &indices, DrawMode::Triangles)
     }
 }

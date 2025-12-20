@@ -6,12 +6,12 @@ edition = "2024"
 [dependencies]
 fastnoise-lite = "1.1.1"
 fxhash = "0.2.1"
-gl = "0.14.0"
 glam = "0.30.4"
-glfw = "0.59.0"
+glow = "0.16.0"
 image = "0.25.6"
 indexmap = { version = "2.11.1", features = ["serde"] }
 rand = "0.9.1"
 rayon = "1.10.0"
+sdl2 = "0.38.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.143" }

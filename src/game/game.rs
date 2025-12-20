@@ -1,15 +1,27 @@
-use std::{collections::HashSet, sync::mpsc};
+use std::{collections::HashSet, sync::{mpsc, Arc}};
 
 use fastnoise_lite::{FastNoiseLite, NoiseType};
 use glam::*;
+use glow::HasContext;
 
 use crate::{
-    game::{BlockType, ChunkTask, World, CHUNK_SIZE, RENDER_DISTANCE},
-    mesh::{CloudPlaneVertex, DrawMode, Mesh},
-    texture::Texture,
+    game::{BlockType, ChunkTask, World, CHUNK_SIZE, RENDER_DISTANCE}, mesh::{Vertex, Mesh}, texture::Texture
 };
 
 const CHUNK_RADIUS: i32 = RENDER_DISTANCE as i32 - 1;
+
+#[inline]
+pub fn pack_uv(uv: UVec2) -> u64 {
+    ((uv.x << 5) | uv.y) as u64
+}
+
+#[inline]
+pub fn pack_color_rgb677(color: Vec3) -> u64 {
+    let r = (color.x * 63.0).round() as u64; // 6 bits
+    let g = (color.y * 127.0).round() as u64; // 7 bits
+    let b = (color.z * 127.0).round() as u64; // 7 bits
+    (r << 14) | (g << 7) | b
+}
 
 #[inline]
 pub fn mask_partial(bits: u32) -> u32 {
@@ -166,7 +178,42 @@ fn calc_face_normal(hit: Vec3, block: Vec3) -> IVec3 {
     }
 }
 
-pub fn cloud_texture_gen(texture_size: UVec2, seed: i32) -> Texture {
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub struct CloudPlaneVertex {
+    pub position: Vec2,
+    pub uv: Vec2,
+}
+
+impl Vertex for CloudPlaneVertex {
+    fn vertex_attribs(gl: &glow::Context) {
+        unsafe {
+            let stride = std::mem::size_of::<CloudPlaneVertex>() as i32;
+
+            gl.vertex_attrib_pointer_f32(
+                0,
+                2,
+                glow::FLOAT,
+                false,
+                stride,
+                0,
+            );
+            gl.enable_vertex_attrib_array(0);
+
+            gl.vertex_attrib_pointer_f32(
+                1,
+                2,
+                glow::FLOAT,
+                false,
+                stride,
+                std::mem::size_of::<Vec2>() as i32,
+            );
+            gl.enable_vertex_attrib_array(1);
+        }
+    }
+}
+
+pub fn cloud_texture_gen(gl: &Arc<glow::Context>, texture_size: UVec2, seed: i32) -> Texture {
     let mut noise = FastNoiseLite::new();
     noise.set_seed(Some(seed));
     noise.set_noise_type(Some(NoiseType::OpenSimplex2));
@@ -214,10 +261,12 @@ pub fn cloud_texture_gen(texture_size: UVec2, seed: i32) -> Texture {
         }
     }
 
-    Texture::new(width, height, &image_data)
+    Texture::new(&gl, &image::DynamicImage::ImageRgba8(
+        image::ImageBuffer::from_raw(width, height, image_data).unwrap(),
+    ))
 }
 
-pub fn make_cloud_plane() -> Mesh<CloudPlaneVertex> {
+pub fn make_cloud_plane(gl: &Arc<glow::Context>) -> Mesh {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
 
@@ -243,5 +292,5 @@ pub fn make_cloud_plane() -> Mesh<CloudPlaneVertex> {
 
     indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
 
-    Mesh::new(&vertices, &indices, DrawMode::Triangles)
+    Mesh::new(&gl, &vertices, &indices, glow::TRIANGLES)
 }

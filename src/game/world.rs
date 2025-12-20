@@ -12,10 +12,9 @@ use std::{
 use crate::{
     asset::{ModelDefs, ResourceManager},
     game::{
-        Billboard, BillboardType, Block, CHUNK_SIZE, Chunk, Entity, EntityId, NeighbourChunks,
-        Player, aabb_in_frustum, extract_frustum_planes,
+        aabb_in_frustum, extract_frustum_planes, Billboard, BillboardType, Block, BlockVertex, Chunk, Entity, EntityId, NeighbourChunks, Player, CHUNK_SIZE
     },
-    mesh::{BlockVertex, DrawMode, Mesh},
+    mesh::Mesh,
 };
 
 pub const RENDER_DISTANCE: u32 = 8;
@@ -25,10 +24,10 @@ pub struct World {
     changes: FxHashMap<(IVec3, IVec3), Block>,
     chunk_outside_blocks: FxHashMap<(IVec3, IVec3), Block>,
     pub entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
-    pub meshes: HashMap<IVec3, Mesh<BlockVertex>>,
+    pub meshes: HashMap<IVec3, Mesh>,
     pub mesh_visible: HashSet<IVec3>,
     // When a chunk is unloaded, its corresponding mesh is stored here for reuse
-    unused_meshes: Vec<Mesh<BlockVertex>>,
+    unused_meshes: Vec<Mesh>,
     previous_vp: Option<Mat4>,
     noise: Arc<FastNoiseLite>,
     cave_noise: Arc<FastNoiseLite>,
@@ -37,7 +36,7 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(seed: i32, resource_mgr: ResourceManager, window: &glfw::Window) -> Self {
+    pub fn new(seed: i32, resource_mgr: ResourceManager, window: &sdl2::video::Window) -> Self {
         const TWO_THIRDS_I32: i32 = (i32::MAX as f32 * (2.0 / 3.0)) as i32;
 
         let mut noise = FastNoiseLite::new();
@@ -126,7 +125,7 @@ impl World {
         Arc::clone(&self.biome_noise)
     }
 
-    pub fn update(&mut self, events: &[glfw::WindowEvent], dt: f64) {
+    pub fn update(&mut self, events: &[sdl2::event::Event], dt: f64) {
         let player_pos = self.get_player().position();
         self.chunks.retain(|pos, _| {
             let distance_squared = pos
@@ -364,9 +363,9 @@ impl World {
         collided
     }
 
-    pub fn draw_entities(&self) {
+    pub fn draw_entities(&self, gl: &Arc<glow::Context>) {
         for entity in self.entities.values() {
-            entity.borrow().draw(self, &self.resource_mgr);
+            entity.borrow().draw(gl, self, &self.resource_mgr);
         }
     }
 
@@ -406,7 +405,7 @@ impl World {
         self.chunks.values().any(|chunk| chunk.is_dirty)
     }
 
-    pub fn generate_meshes(&mut self) {
+    pub fn generate_meshes(&mut self, gl: &Arc<glow::Context>) {
         if !self.is_dirty() {
             return;
         }
@@ -455,15 +454,13 @@ impl World {
                 // The mesh was edited
                 existing_mesh.update(&verts, &idxs);
             } else {
-                // self.meshes
-                //     .insert(pos, Mesh::new(&verts, &idxs, DrawMode::Triangles));
                 // Reuse an old mesh if possible
                 if let Some(mut mesh) = self.unused_meshes.pop() {
                     mesh.update(&verts, &idxs);
                     self.meshes.insert(pos, mesh);
                 } else {
                     self.meshes
-                        .insert(pos, Mesh::new(&verts, &idxs, DrawMode::Triangles));
+                        .insert(pos, Mesh::new(gl, &verts, &idxs, glow::TRIANGLES));
                 }
             }
         }

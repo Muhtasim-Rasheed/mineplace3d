@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use glam::*;
+use glow::HasContext;
 
 use crate::{
-    abs::{Mesh, UIVertex},
-    game::{Key, KeyPart, ModelDefs, collision_aabb, mask_partial},
+    abs::{Mesh, UIVertex, Vertex},
+    game::{collision_aabb, mask_partial, pack_color_rgb677, pack_uv, Key, KeyPart, ModelDefs},
 };
 
 const FULL_BLOCK: u32 = 0x00000000;
@@ -132,6 +135,124 @@ pub enum BlockType {
     Air,
 }
 
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub struct BlockVertex {
+    pub hi: u32,
+    pub lo: u32,
+    pub position: Vec3,
+}
+
+impl BlockVertex {
+    pub fn new(position: Vec3, normal: u8, uv: UVec2, block_type: u16, foliage: Vec3) -> Self {
+        let uv = pack_uv(uv);
+        let foliage = pack_color_rgb677(foliage);
+        let normal = normal as u64;
+        let block_type = block_type as u64;
+        // space for lighting stuff or anything really that fits in 15 bits
+        let serialized = (normal << 15) | (uv << 18) | (block_type << 28) | (foliage << 44);
+        BlockVertex {
+            hi: (serialized >> 32) as u32,
+            lo: (serialized & 0xFFFFFFFF) as u32,
+            position,
+        }
+    }
+}
+
+impl Vertex for BlockVertex {
+    fn vertex_attribs(gl: &glow::Context) {
+        unsafe {
+            let stride = std::mem::size_of::<BlockVertex>() as i32;
+
+            gl.vertex_attrib_pointer_i32(
+                0,
+                1,
+                glow::UNSIGNED_INT,
+                stride,
+                0,
+            );
+            gl.enable_vertex_attrib_array(0);
+
+            gl.vertex_attrib_pointer_i32(
+                1,
+                1,
+                glow::UNSIGNED_INT,
+                stride,
+                std::mem::size_of::<u32>() as i32,
+            );
+            gl.enable_vertex_attrib_array(1);
+
+            gl.vertex_attrib_pointer_f32(
+                2,
+                3,
+                glow::FLOAT,
+                false,
+                stride,
+                2 * std::mem::size_of::<u32>() as i32,
+            );
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub struct OutlineVertex {
+    pub position: Vec3,
+}
+
+impl Vertex for OutlineVertex {
+    fn vertex_attribs(gl: &glow::Context) {
+        unsafe {
+            let stride = std::mem::size_of::<OutlineVertex>() as i32;
+
+            gl.vertex_attrib_pointer_f32(
+                0,
+                3,
+                glow::FLOAT,
+                false,
+                stride,
+                0,
+            );
+            gl.enable_vertex_attrib_array(0);
+        }
+    }
+}
+
+pub fn outline_mesh(gl: &Arc<glow::Context>) -> Mesh {
+    let vertices: [OutlineVertex; 8] = [
+        OutlineVertex {
+            position: vec3(0.0, 0.0, 0.0),
+        },
+        OutlineVertex {
+            position: vec3(1.0, 0.0, 0.0),
+        },
+        OutlineVertex {
+            position: vec3(1.0, 1.0, 0.0),
+        },
+        OutlineVertex {
+            position: vec3(0.0, 1.0, 0.0),
+        },
+        OutlineVertex {
+            position: vec3(0.0, 0.0, 1.0),
+        },
+        OutlineVertex {
+            position: vec3(1.0, 0.0, 1.0),
+        },
+        OutlineVertex {
+            position: vec3(1.0, 1.0, 1.0),
+        },
+        OutlineVertex {
+            position: vec3(0.0, 1.0, 1.0),
+        },
+    ];
+
+    let indices: [u32; 24] = [
+        0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7,
+    ];
+
+    Mesh::new(gl, &vertices, &indices, glow::LINES)
+}
+
 #[rustfmt::skip]
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -204,7 +325,7 @@ impl Block {
         }
     }
 
-    pub fn ui_mesh(&self, from: Vec2, to: Vec2, m: Mat4, model_defs: &ModelDefs) -> Mesh<UIVertex> {
+    pub fn ui_mesh(&self, gl: &Arc<glow::Context>, from: Vec2, to: Vec2, m: Mat4, model_defs: &ModelDefs) -> Mesh {
         let cubes = self.cubes(model_defs);
         let uvs = self.uvs(model_defs);
 
@@ -261,7 +382,7 @@ impl Block {
             }
         }
 
-        Mesh::new(&vertices, &indices, crate::abs::DrawMode::Triangles)
+        Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
     }
 
     pub fn uv_offset(&self) -> Vec2 {

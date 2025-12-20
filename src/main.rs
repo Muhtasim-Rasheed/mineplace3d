@@ -1,5 +1,7 @@
 use glam::*;
-use glfw::{Action, Context, Key, MouseButton};
+use glow::HasContext;
+use sdl2::keyboard::Keycode;
+use sdl2::mouse::MouseButton;
 use std::collections::HashSet;
 use std::sync::mpsc;
 use std::thread;
@@ -8,7 +10,7 @@ use std::time::Instant;
 use crate::abs::*;
 use crate::asset::ResourceManager;
 use crate::game::*;
-use crate::shader::{ShaderProgram, ShaderProgramBuilder};
+use crate::shader::{Shader, ShaderProgram};
 use crate::texture::Texture;
 use crate::ui::*;
 
@@ -16,13 +18,18 @@ mod abs;
 mod game;
 
 macro_rules! shader {
-    ($folder:literal -> $vert:ident & $frag:ident -> $program:ident) => {
-        const $vert: &str = include_str!(concat!("shaders/", $folder, "vertex_shader.glsl"));
-        const $frag: &str = include_str!(concat!("shaders/", $folder, "fragment_shader.glsl"));
-        let $program = ShaderProgramBuilder::new()
-            .attach_shader(shader::ShaderType::Vertex, $vert)
-            .attach_shader(shader::ShaderType::Fragment, $frag)
-            .build();
+    ($gl:expr, $folder:literal -> $vert:ident & $frag:ident -> $program:ident) => {
+        let $vert: Shader = Shader::new(
+            &$gl,
+            glow::VERTEX_SHADER,
+            include_str!(concat!("shaders/", $folder, "vertex_shader.glsl"))
+        ).unwrap();
+        let $frag: Shader = Shader::new(
+            &$gl,
+            glow::FRAGMENT_SHADER,
+            include_str!(concat!("shaders/", $folder, "fragment_shader.glsl"))
+        ).unwrap();
+        let $program = ShaderProgram::new(&$gl, &[&$vert, &$frag]).expect("Failed to create shader program");
     };
 }
 
@@ -47,90 +54,91 @@ fn shift_vec<T: Clone>(v: &[T], index: usize) -> Vec<T> {
         .collect()
 }
 
-fn key_to_char(key: Key) -> Option<char> {
+fn key_to_char(key: Keycode) -> Option<char> {
     match key {
-        Key::A => Some('a'),
-        Key::B => Some('b'),
-        Key::C => Some('c'),
-        Key::D => Some('d'),
-        Key::E => Some('e'),
-        Key::F => Some('f'),
-        Key::G => Some('g'),
-        Key::H => Some('h'),
-        Key::I => Some('i'),
-        Key::J => Some('j'),
-        Key::K => Some('k'),
-        Key::L => Some('l'),
-        Key::M => Some('m'),
-        Key::N => Some('n'),
-        Key::O => Some('o'),
-        Key::P => Some('p'),
-        Key::Q => Some('q'),
-        Key::R => Some('r'),
-        Key::S => Some('s'),
-        Key::T => Some('t'),
-        Key::U => Some('u'),
-        Key::V => Some('v'),
-        Key::W => Some('w'),
-        Key::X => Some('x'),
-        Key::Y => Some('y'),
-        Key::Z => Some('z'),
-        Key::Space => Some(' '),
-        Key::Apostrophe => Some('\''),
-        Key::Comma => Some(','),
-        Key::Minus => Some('-'),
-        Key::Period => Some('.'),
-        Key::Slash => Some('/'),
-        Key::Semicolon => Some(';'),
-        Key::Equal => Some('='),
-        Key::LeftBracket => Some('['),
-        Key::Backslash => Some('\\'),
-        Key::RightBracket => Some(']'),
-        Key::GraveAccent => Some('`'),
-        Key::Num0 => Some('0'),
-        Key::Num1 => Some('1'),
-        Key::Num2 => Some('2'),
-        Key::Num3 => Some('3'),
-        Key::Num4 => Some('4'),
-        Key::Num5 => Some('5'),
-        Key::Num6 => Some('6'),
-        Key::Num7 => Some('7'),
-        Key::Num8 => Some('8'),
-        Key::Num9 => Some('9'),
+        Keycode::A => Some('a'),
+        Keycode::B => Some('b'),
+        Keycode::C => Some('c'),
+        Keycode::D => Some('d'),
+        Keycode::E => Some('e'),
+        Keycode::F => Some('f'),
+        Keycode::G => Some('g'),
+        Keycode::H => Some('h'),
+        Keycode::I => Some('i'),
+        Keycode::J => Some('j'),
+        Keycode::K => Some('k'),
+        Keycode::L => Some('l'),
+        Keycode::M => Some('m'),
+        Keycode::N => Some('n'),
+        Keycode::O => Some('o'),
+        Keycode::P => Some('p'),
+        Keycode::Q => Some('q'),
+        Keycode::R => Some('r'),
+        Keycode::S => Some('s'),
+        Keycode::T => Some('t'),
+        Keycode::U => Some('u'),
+        Keycode::V => Some('v'),
+        Keycode::W => Some('w'),
+        Keycode::X => Some('x'),
+        Keycode::Y => Some('y'),
+        Keycode::Z => Some('z'),
+        Keycode::Space => Some(' '),
+        Keycode::Quote => Some('\''),
+        Keycode::Comma => Some(','),
+        Keycode::Minus => Some('-'),
+        Keycode::Period => Some('.'),
+        Keycode::Slash => Some('/'),
+        Keycode::Semicolon => Some(';'),
+        Keycode::Equals => Some('='),
+        Keycode::LeftBracket => Some('['),
+        Keycode::Backslash => Some('\\'),
+        Keycode::RightBracket => Some(']'),
+        Keycode::Num0 => Some('0'),
+        Keycode::Num1 => Some('1'),
+        Keycode::Num2 => Some('2'),
+        Keycode::Num3 => Some('3'),
+        Keycode::Num4 => Some('4'),
+        Keycode::Num5 => Some('5'),
+        Keycode::Num6 => Some('6'),
+        Keycode::Num7 => Some('7'),
+        Keycode::Num8 => Some('8'),
+        Keycode::Num9 => Some('9'),
         _ => None,
     }
 }
 
 fn main() {
-    use glfw::fail_on_errors;
-    let mut glfw = glfw::init(fail_on_errors!()).unwrap();
-    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-    glfw.window_hint(glfw::WindowHint::OpenGlProfile(
-        glfw::OpenGlProfileHint::Core,
-    ));
-    glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+    // use glfw::fail_on_errors;
+    // let mut glfw = glfw::init(fail_on_errors!()).unwrap();
+    // glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+    // glfw.window_hint(glfw::WindowHint::OpenGlProfile(
+    //     glfw::OpenGlProfileHint::Core,
+    // ));
+    // glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
 
-    let (mut window, events) = glfw
-        .with_primary_monitor(|glfw, m| {
-            let m = m.unwrap();
-            let width = m.get_video_mode().unwrap().width;
-            let height = m.get_video_mode().unwrap().height;
-            glfw.create_window(
-                width,
-                height,
-                "mineplace3D",
-                glfw::WindowMode::FullScreen(m),
-            )
-        })
-        .expect("Failed to create GLFW window.");
+    // let (mut window, events) = glfw
+    //     .with_primary_monitor(|glfw, m| {
+    //         let m = m.unwrap();
+    //         let width = m.get_video_mode().unwrap().width;
+    //         let height = m.get_video_mode().unwrap().height;
+    //         glfw.create_window(
+    //             width,
+    //             height,
+    //             "mineplace3D",
+    //             glfw::WindowMode::FullScreen(m),
+    //         )
+    //     })
+    //     .expect("Failed to create GLFW window.");
 
-    gl::load_with(|symbol| window.get_proc_address(symbol));
-    glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
+    // gl::load_with(|symbol| window.get_proc_address(symbol));
+    // glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
 
-    window.make_current();
-    window.set_key_polling(true);
-    window.set_mouse_button_polling(true);
-    window.set_scroll_polling(true);
+    // window.make_current();
+    // window.set_key_polling(true);
+    // window.set_mouse_button_polling(true);
+    // window.set_scroll_polling(true);
+
+    let mut app = App::new("Mineplace3D", 1280, 720);
 
     let font_image =
         image::load_from_memory(include_bytes!("assets/font.png")).expect("Failed to load texture");
@@ -143,23 +151,21 @@ fn main() {
         12,  // character height
     );
 
-    game(i32::MAX / 2, &mut glfw, &mut window, &events, &font);
+    game(i32::MAX / 2, &mut app, &font);
 }
 
 fn game(
     seed: i32,
-    glfw: &mut glfw::Glfw,
-    window: &mut glfw::Window,
-    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
+    app: &mut App,
     font: &BitmapFont,
 ) {
     unsafe {
-        gl::Enable(gl::DEPTH_TEST);
-        gl::Enable(gl::CULL_FACE);
-        gl::CullFace(gl::BACK);
-        gl::FrontFace(gl::CCW);
-        gl::Enable(gl::BLEND);
-        gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+        app.gl.enable(glow::DEPTH_TEST);
+        app.gl.enable(glow::CULL_FACE);
+        app.gl.cull_face(glow::BACK);
+        app.gl.front_face(glow::CCW);
+        app.gl.enable(glow::BLEND);
+        app.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
     }
 
     let atlas_image = image::load_from_memory(include_bytes!("assets/atlas.png"))
@@ -170,13 +176,13 @@ fn game(
 
     let mut view;
 
-    shader!("block/" -> VERT_SHADER & FRAG_SHADER -> shader_program);
-    shader!("outline/" -> OUTLINE_VERT_SHADER & OUTLINE_FRAG_SHADER -> outline_shader_program);
-    shader!("billboard/" -> BILLBOARD_VERT_SHADER & BILLBOARD_FRAG_SHADER -> billboard_shader_program);
-    shader!("cloud/" -> CLOUD_VERT_SHADER & CLOUD_FRAG_SHADER -> cloud_shader_program);
-    shader!("ssao/" -> SSAO_VERT_SHADER & SSAO_FRAG_SHADER -> ssao_shader_program);
-    shader!("postprocessing/" -> POSTPROCESSING_VERT_SHADER & POSTPROCESSING_FRAG_SHADER -> postprocessing_shader_program);
-    shader!("ui/" -> UI_VERT_SHADER & UI_FRAG_SHADER -> ui_shader_program);
+    shader!(app.gl, "block/" -> vert_shader & frag_shader -> shader_program);
+    shader!(app.gl, "outline/" -> outline_vert_shader & outline_frag_shader -> outline_shader_program);
+    shader!(app.gl, "billboard/" -> billboard_vert_shader & billboard_frag_shader -> billboard_shader_program);
+    shader!(app.gl, "cloud/" -> cloud_vert_shader & cloud_frag_shader -> cloud_shader_program);
+    shader!(app.gl, "ssao/" -> ssao_vert_shader & ssao_frag_shader -> ssao_shader_program);
+    shader!(app.gl, "postprocessing/" -> postprocessing_vert_shader & postprocessing_frag_shader -> postprocessing_shader_program);
+    shader!(app.gl, "ui/" -> ui_vert_shader & ui_frag_shader -> ui_shader_program);
 
     let (task_sender, task_receiver) = mpsc::channel::<ChunkTask>();
     let (result_sender, result_receiver) = mpsc::channel::<ChunkResult>();
@@ -208,40 +214,38 @@ fn game(
     let mut queued_chunks: HashSet<IVec3> = HashSet::new();
 
     let atlas_image = atlas_image.to_rgba8();
-    let (atlas_width, atlas_height) = atlas_image.dimensions();
-    let atlas_texture = Texture::new(atlas_width, atlas_height, &atlas_image);
+    let atlas_texture = Texture::new(&app.gl, &atlas_image.into());
 
     let billboard_atlas_image = billboard_atlas_image.to_rgba8();
-    let (billboard_atlas_width, billboard_atlas_height) = billboard_atlas_image.dimensions();
     let billboard_atlas_texture = Texture::new(
-        billboard_atlas_width,
-        billboard_atlas_height,
-        &billboard_atlas_image,
+        &app.gl,
+        &billboard_atlas_image.into(),
     );
 
     let mut debug_mesh;
-    let mut chat_mesh = font.build("", 50.0, window.get_size().1 as f32 - 150.0, 24.0);
+    let mut chat_mesh = font.build(&app.gl, "", 50.0, app.window.size().1 as f32 - 150.0, 24.0);
     let mut chat_hist_mesh;
     let cursor = font.build(
+        &app.gl,
         "*",
-        window.get_size().0 as u32 as f32 / 2.0 - 10.0,
-        window.get_size().1 as f32 / 2.0 - 10.0,
+        app.window.size().0 as f32 / 2.0 - 10.0,
+        app.window.size().1 as f32 / 2.0 - 10.0,
         36.0,
     );
-    let outline_mesh = mesh::outline_mesh();
+    let outline_mesh = outline_mesh(&app.gl);
     let ui_projection = Mat4::orthographic_rh_gl(
         0.0,
-        window.get_size().0 as u32 as f32,
-        window.get_size().1 as f32,
+        app.window.size().0 as f32,
+        app.window.size().1 as f32,
         0.0,
         -3.0,
         3.0,
     );
 
-    let mut keys_down: HashSet<Key> = HashSet::new();
+    let mut keys_down: HashSet<Keycode> = HashSet::new();
     let mut mouse_down: HashSet<MouseButton> = HashSet::new();
 
-    let mut last_mouse_pos = window.get_cursor_pos();
+    let mut last_mouse_pos;
 
     let mut last_time = Instant::now();
     let mut duration = Instant::now();
@@ -250,33 +254,35 @@ fn game(
 
     let mut time = 0.0;
 
-    let framebuffer = framebuffer::Framebuffer::new(
-        window.get_size().0 as u32,
-        window.get_size().1 as u32,
+    let framebuffer = Framebuffer::new(
+        &app.gl,
+        app.window.size().0 as i32,
+        app.window.size().1 as i32,
         true,
-        framebuffer::ColorFormat::UnsignedRGBA,
+        ColorUsage::All,
     );
     framebuffer.bind();
     unsafe {
-        gl::Viewport(
+        app.gl.viewport(
             0,
             0,
-            window.get_size().0 as u32 as i32,
-            window.get_size().1 as i32,
+            app.window.size().0 as i32,
+            app.window.size().1 as i32,
         );
     }
-    framebuffer::Framebuffer::unbind();
-    let ssao_framebuffer = framebuffer::Framebuffer::new(
-        window.get_size().0 as u32,
-        window.get_size().1 as u32,
+    Framebuffer::unbind(&*app.gl);
+    let ssao_framebuffer = Framebuffer::new(
+        &app.gl,
+        app.window.size().0 as i32,
+        app.window.size().1 as i32,
         false,
-        framebuffer::ColorFormat::FloatR,
+        ColorUsage::RedFloat,
     );
     ssao_framebuffer.bind();
     unsafe {
-        gl::Viewport(0, 0, window.get_size().0 as i32, window.get_size().1 as i32);
+        app.gl.viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
     }
-    framebuffer::Framebuffer::unbind();
+    Framebuffer::unbind(&*app.gl);
     let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 64];
     for (i, sample) in ssao_samples.iter_mut().enumerate() {
         let scale = i as f32 / 64.0;
@@ -298,10 +304,10 @@ fn game(
         ssao_noise_data[i * 4 + 2] = 0;
         ssao_noise_data[i * 4 + 3] = 0;
     }
-    let ssao_noise_texture = Texture::new(4, 4, ssao_noise_data.as_slice());
+    let ssao_noise_texture = Texture::new_from_data(&app.gl, 4, 4, ssao_noise_data.as_slice());
 
-    let cloud_plane = game::make_cloud_plane();
-    let cloud_texture = game::cloud_texture_gen(UVec2::splat(144), seed);
+    let cloud_plane = game::make_cloud_plane(&app.gl);
+    let cloud_texture = game::cloud_texture_gen(&app.gl, UVec2::splat(144), seed);
 
     let mut window_events = Vec::new();
 
@@ -323,9 +329,8 @@ fn game(
     let resource_mgr = ResourceManager::new()
         .add("atlas", atlas_texture)
         .add("font", Texture::new(
-            font.atlas.width(),
-            font.atlas.height(),
-            font.atlas.as_rgba8().unwrap().as_raw(),
+            &app.gl,
+            &font.atlas,
         ))
         .add("cloud", cloud_texture)
         .add("billboard_atlas", billboard_atlas_texture)
@@ -339,23 +344,33 @@ fn game(
         .add("translations", translations)
         .add("model_defs", model_defs);
 
-    let mut world = World::new(seed, resource_mgr, &window);
+    let mut world = World::new(seed, resource_mgr, &app.window);
 
-    while !window.should_close() {
+    let mut mouse_pos = (0, 0);
+
+    'running: loop {
         if vsync {
-            glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
+            app.video_subsystem
+                .gl_set_swap_interval(sdl2::video::SwapInterval::VSync)
+                .unwrap();
         } else {
-            glfw.set_swap_interval(glfw::SwapInterval::None);
+            app.video_subsystem
+                .gl_set_swap_interval(sdl2::video::SwapInterval::Immediate)
+                .unwrap();
         }
 
-        glfw.poll_events();
-        for (_, event) in glfw::flush_messages(&events) {
+        for event in app.event_pump.poll_iter() {
+            if matches!(event, sdl2::event::Event::Quit { .. }) {
+                break 'running;
+            }
             window_events.push(event);
         }
 
+        last_mouse_pos = mouse_pos;
+
         for event in &window_events {
             match event {
-                glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+                sdl2::event::Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     if !chat_open {
                         grab = !grab;
                     } else {
@@ -363,19 +378,19 @@ fn game(
                         grab = true;
                     }
                 }
-                glfw::WindowEvent::Key(key, _, Action::Press, _) => {
+                sdl2::event::Event::KeyDown { keycode: Some(key), .. } => {
                     if !chat_open {
                         keys_down.insert(*key);
                     }
-                    if *key == Key::Slash && !chat_open {
+                    if *key == Keycode::Slash && !chat_open {
                         chat_open = true;
                         command = Some("/".to_string());
                         grab = false;
-                    } else if *key == Key::T && !chat_open {
+                    } else if *key == Keycode::T && !chat_open {
                         chat_open = true;
                         command = Some("".to_string());
                         grab = false;
-                    } else if *key == Key::Enter && chat_open {
+                    } else if *key == Keycode::Return && chat_open {
                         if let Some(cmd) = command.take() {
                             if cmd.starts_with('/') {
                                 let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
@@ -433,7 +448,7 @@ fn game(
                         }
                         chat_open = false;
                         grab = true;
-                    } else if *key == Key::Backspace && chat_open {
+                    } else if *key == Keycode::Backspace && chat_open {
                         if let Some(ref mut cmd) = command {
                             cmd.pop();
                         }
@@ -447,11 +462,14 @@ fn game(
                         }
                     }
                 }
-                glfw::WindowEvent::Key(key, _, Action::Release, _) => {
+                sdl2::event::Event::KeyUp { keycode: Some(key), .. } => {
                     keys_down.remove(key);
                 }
-                glfw::WindowEvent::MouseButton(button, Action::Press, _) => {
+                sdl2::event::Event::MouseButtonDown { mouse_btn: button, .. } => {
                     mouse_down.insert(*button);
+                }
+                sdl2::event::Event::MouseMotion { x, y, .. } => {
+                    mouse_pos = (*x, *y);
                 }
                 _ => {}
             }
@@ -462,9 +480,9 @@ fn game(
         last_time = Instant::now();
 
         if grab {
-            window.set_cursor_mode(glfw::CursorMode::Disabled);
+            app.window.set_grab(true);
         } else {
-            window.set_cursor_mode(glfw::CursorMode::Normal);
+            app.window.set_grab(false);
         }
 
         if duration.elapsed().as_secs_f32() >= 0.5 {
@@ -478,7 +496,7 @@ DT: {:.4}
 XYZ: {:.2} {:.2} {:.2}
 SEED: {}
 FACING: {}
-VERTICES: {}
+INDICES: {}
 
 
 
@@ -504,7 +522,7 @@ Current Block: {}"#,
             world
                 .meshes
                 .values()
-                .map(|m| m.vertex_count())
+                .map(|m| m.index_count())
                 .sum::<usize>(),
             world
                 .resource_mgr
@@ -516,12 +534,13 @@ Current Block: {}"#,
                 })
                 .unwrap_or(&"Unknown".to_string()),
         );
-        debug_mesh = font.build(&text, 50.0, 50.0, 24.0);
+        debug_mesh = font.build(&app.gl, &text, 50.0, 50.0, 24.0);
         if let Some(ref cmd) = command {
             chat_mesh = font.build(
+                &app.gl,
                 &format!("{}", cmd),
                 50.0,
-                window.get_size().1 as f32 - 150.0 - 24.0,
+                app.window.size().1 as f32 - 150.0 - 24.0,
                 24.0,
             );
         }
@@ -536,9 +555,10 @@ Current Block: {}"#,
             .collect::<Vec<&str>>()
             .join("\n");
         chat_hist_mesh = font.build(
+            &app.gl,
             &chat_hist_text,
             50.0,
-            window.get_size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).1 - 150.0 - 24.0,
+            app.window.size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).1 - 150.0 - 24.0,
             24.0,
         );
         view = Mat4::look_at_rh(
@@ -568,7 +588,7 @@ Current Block: {}"#,
         world.update(window_events.as_slice(), dt);
         let vp = player.projection * view;
         world.update_mesh_visibility(vp);
-        world.generate_meshes();
+        world.generate_meshes(&app.gl);
 
         let blocks = shift_vec(&PLACABLE_BLOCKS, player.current_block)
             [mid(&PLACABLE_BLOCKS) - 3..=mid(&PLACABLE_BLOCKS) + 3]
@@ -579,10 +599,11 @@ Current Block: {}"#,
             .map(|(i, block)| {
                 let size = vec2(60.0, -60.0);
                 let x = 100.0 + i as f32 * (size.x * 5.0 / 3.0);
-                let y = window.get_size().1 as f32 - 50.0;
+                let y = app.window.size().1 as f32 - 50.0;
                 let position = vec2(x, y);
 
                 block.ui_mesh(
+                    &app.gl,
                     position,
                     position + size,
                     Mat4::from_rotation_x(30f32.to_radians())
@@ -636,9 +657,9 @@ Current Block: {}"#,
         unsafe {
             framebuffer.bind();
 
-            gl::Enable(gl::DEPTH_TEST);
-            gl::ClearColor(0.6, 0.6, 0.9, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            app.gl.enable(glow::DEPTH_TEST);
+            app.gl.clear_color(0.6, 0.6, 0.9, 1.0);
+            app.gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
             shader.use_program();
             world
@@ -674,8 +695,8 @@ Current Block: {}"#,
                 outline_mesh.draw();
             }
 
-            gl::Disable(gl::CULL_FACE);
-            gl::DepthMask(gl::FALSE);
+            app.gl.disable(glow::CULL_FACE);
+            app.gl.depth_mask(false);
             cloud_shader.use_program();
             cloud_shader.set_uniform("view", view);
             cloud_shader.set_uniform("projection", player.cloud_projection);
@@ -687,18 +708,18 @@ Current Block: {}"#,
                 .bind_to_unit(0);
             cloud_shader.set_uniform("cloud_texture", 0);
             cloud_plane.draw();
-            gl::Enable(gl::CULL_FACE);
-            gl::DepthMask(gl::TRUE);
+            app.gl.enable(glow::CULL_FACE);
+            app.gl.depth_mask(true);
 
-            world.draw_entities();
+            world.draw_entities(&app.gl);
 
-            framebuffer::Framebuffer::unbind();
+            Framebuffer::unbind(&*app.gl);
 
             ssao_framebuffer.bind();
 
-            gl::Disable(gl::DEPTH_TEST);
-            gl::ClearBufferfv(gl::COLOR, 0, [1.0].as_ptr());
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            app.gl.disable(glow::DEPTH_TEST);
+            app.gl.clear_buffer_f32_slice(glow::COLOR, 0, &[1.0]);
+            app.gl.clear(glow::COLOR_BUFFER_BIT);
             ssao_shader.use_program();
             framebuffer.depth_texture().unwrap().bind_to_unit(0);
             ssao_shader.set_uniform("depth_texture", 0);
@@ -708,20 +729,20 @@ Current Block: {}"#,
             ssao_shader.set_uniform("projection", player.projection);
             ssao_shader.set_uniform(
                 "screen_size",
-                vec2(window.get_size().0 as f32, window.get_size().1 as f32),
+                vec2(app.window.size().0 as f32, app.window.size().1 as f32),
             );
-            mesh::quad_mesh().draw();
+            quad_mesh(&app.gl).draw();
 
-            framebuffer::Framebuffer::unbind();
+            Framebuffer::unbind(&*app.gl);
 
-            gl::Disable(gl::DEPTH_TEST);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            app.gl.disable(glow::DEPTH_TEST);
+            app.gl.clear(glow::COLOR_BUFFER_BIT);
             postprocessing_shader.use_program();
             framebuffer.texture().bind_to_unit(0);
             postprocessing_shader.set_uniform("texture_sampler", 0);
             ssao_framebuffer.texture().bind_to_unit(1);
             postprocessing_shader.set_uniform("ssao_texture", 1);
-            mesh::quad_mesh().draw();
+            quad_mesh(&app.gl).draw();
 
             ui_shader.use_program();
             world
@@ -750,11 +771,11 @@ Current Block: {}"#,
             }
         }
 
-        window.swap_buffers();
+        app.window.gl_swap_window();
 
-        let dx = window.get_cursor_pos().0 - last_mouse_pos.0;
-        let dy = window.get_cursor_pos().1 - last_mouse_pos.1;
-        if window.get_cursor_mode() == glfw::CursorMode::Disabled {
+        let dx = mouse_pos.0 - last_mouse_pos.0;
+        let dy = mouse_pos.1 - last_mouse_pos.1;
+        if app.window.grab() {
             let sensitivity = 0.1;
             world.get_player_mut().yaw += (dx as f32) * sensitivity;
             world.get_player_mut().pitch -= (dy as f32) * sensitivity;
@@ -775,8 +796,6 @@ Current Block: {}"#,
             )
             .normalize();
         }
-
-        last_mouse_pos = window.get_cursor_pos();
 
         window_events.clear();
         time += dt as f32;

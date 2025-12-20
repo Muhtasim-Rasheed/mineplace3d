@@ -1,0 +1,33 @@
+warning: fields `sdl` and `gl_context` are never read
+  --> src/abs/app.rs:10:9
+   |
+ 9 | pub struct App {
+   |            --- fields in this struct
+10 |     pub sdl: sdl2::Sdl,
+   |         ^^^
+...
+13 |     pub gl_context: sdl2::video::GLContext,
+   |         ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `shader_type` is never read
+  --> src/abs/shader.rs:16:5
+   |
+13 | pub struct Shader {
+   |            ------ field in this struct
+...
+16 |     shader_type: u32,
+   |     ^^^^^^^^^^^
+
+warning: method `velocity` is never used
+  --> src/game/entity.rs:91:8
+   |
+78 | pub trait Entity: 'static {
+   |           ------ method in this trait
+...
+91 |     fn velocity(&self) -> Vec3;
+   |        ^^^^^^^^
+
+warning: `mineplace3d` (bin "mineplace3d") generated 3 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
