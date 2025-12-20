@@ -126,6 +126,33 @@ fn main() {
 
     gl::load_with(|symbol| window.get_proc_address(symbol));
     glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
+
+    window.make_current();
+    window.set_key_polling(true);
+    window.set_mouse_button_polling(true);
+    window.set_scroll_polling(true);
+
+    let font_image =
+        image::load_from_memory(include_bytes!("assets/font.png")).expect("Failed to load texture");
+
+    let font = BitmapFont::new(
+        font_image,
+        ' ', // first character
+        12,  // characters per row
+        7,   // character width
+        12,  // character height
+    );
+
+    game(i32::MAX / 2, &mut glfw, &mut window, &events, &font);
+}
+
+fn game(
+    seed: i32,
+    glfw: &mut glfw::Glfw,
+    window: &mut glfw::Window,
+    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
+    font: &BitmapFont,
+) {
     unsafe {
         gl::Enable(gl::DEPTH_TEST);
         gl::Enable(gl::CULL_FACE);
@@ -180,21 +207,6 @@ fn main() {
     });
     let mut queued_chunks: HashSet<IVec3> = HashSet::new();
 
-    let font_image =
-        image::load_from_memory(include_bytes!("assets/font.png")).expect("Failed to load texture");
-
-    let font = BitmapFont::new(
-        font_image.clone(),
-        ' ', // first character
-        12,  // characters per row
-        7,   // character width
-        12,  // character height
-    );
-
-    let font_image = font_image.to_rgba8();
-    let (width, height) = font_image.dimensions();
-    let font_texture = Texture::new(width, height, &font_image);
-
     let atlas_image = atlas_image.to_rgba8();
     let (atlas_width, atlas_height) = atlas_image.dimensions();
     let atlas_texture = Texture::new(atlas_width, atlas_height, &atlas_image);
@@ -206,11 +218,6 @@ fn main() {
         billboard_atlas_height,
         &billboard_atlas_image,
     );
-
-    window.make_current();
-    window.set_key_polling(true);
-    window.set_mouse_button_polling(true);
-    window.set_scroll_polling(true);
 
     let mut debug_mesh;
     let mut chat_mesh = font.build("", 50.0, window.get_size().1 as f32 - 150.0, 24.0);
@@ -293,8 +300,6 @@ fn main() {
     }
     let ssao_noise_texture = Texture::new(4, 4, ssao_noise_data.as_slice());
 
-    let seed = rand::random::<i32>();
-
     let cloud_plane = game::make_cloud_plane();
     let cloud_texture = game::cloud_texture_gen(UVec2::splat(144), seed);
 
@@ -317,7 +322,11 @@ fn main() {
 
     let resource_mgr = ResourceManager::new()
         .add("atlas", atlas_texture)
-        .add("font", font_texture)
+        .add("font", Texture::new(
+            font.atlas.width(),
+            font.atlas.height(),
+            font.atlas.as_rgba8().unwrap().as_raw(),
+        ))
         .add("cloud", cloud_texture)
         .add("billboard_atlas", billboard_atlas_texture)
         .add("block_shader", shader_program)

@@ -7,7 +7,7 @@ pub struct BitmapFont {
     chars_per_row: u32,
     char_width: u32,
     char_height: u32,
-    atlas: DynamicImage,
+    pub atlas: DynamicImage,
 }
 
 impl BitmapFont {
