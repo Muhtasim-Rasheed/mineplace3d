@@ -37,11 +37,13 @@ impl App {
             .opengl()
             .build()
             .unwrap();
-        window.set_fullscreen(if fullscreen {
-            sdl2::video::FullscreenType::True
-        } else {
-            sdl2::video::FullscreenType::Off
-        }).unwrap();
+        window
+            .set_fullscreen(if fullscreen {
+                sdl2::video::FullscreenType::True
+            } else {
+                sdl2::video::FullscreenType::Off
+            })
+            .unwrap();
         let gl_context = window.gl_create_context().unwrap();
         window.gl_make_current(&gl_context).unwrap();
         let gl = unsafe {

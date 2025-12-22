@@ -32,13 +32,12 @@ impl Texture {
                 glow::UNSIGNED_BYTE,
                 glow::PixelUnpackData::Slice(Some(data.as_slice())),
             );
-            gl.generate_mipmap(glow::TEXTURE_2D);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D,
                 glow::TEXTURE_MIN_FILTER,
-                glow::NEAREST_MIPMAP_NEAREST as i32,
+                glow::NEAREST as i32,
             );
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D,

@@ -111,36 +111,6 @@ fn key_to_char(key: Keycode) -> Option<char> {
 }
 
 fn main() {
-    // use glfw::fail_on_errors;
-    // let mut glfw = glfw::init(fail_on_errors!()).unwrap();
-    // glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-    // glfw.window_hint(glfw::WindowHint::OpenGlProfile(
-    //     glfw::OpenGlProfileHint::Core,
-    // ));
-    // glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
-
-    // let (mut window, events) = glfw
-    //     .with_primary_monitor(|glfw, m| {
-    //         let m = m.unwrap();
-    //         let width = m.get_video_mode().unwrap().width;
-    //         let height = m.get_video_mode().unwrap().height;
-    //         glfw.create_window(
-    //             width,
-    //             height,
-    //             "mineplace3D",
-    //             glfw::WindowMode::FullScreen(m),
-    //         )
-    //     })
-    //     .expect("Failed to create GLFW window.");
-
-    // gl::load_with(|symbol| window.get_proc_address(symbol));
-    // glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
-
-    // window.make_current();
-    // window.set_key_polling(true);
-    // window.set_mouse_button_polling(true);
-    // window.set_scroll_polling(true);
-
     let mut app = App::new("Mineplace3D", 1280, 720, true);
 
     let font_image =
