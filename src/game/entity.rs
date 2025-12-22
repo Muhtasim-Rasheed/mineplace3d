@@ -228,8 +228,10 @@ impl Entity for Player {
                 } => match *key {
                     Keycode::T | Keycode::Slash => self.chat_open = true,
                     Keycode::Return | Keycode::Escape => self.chat_open = false,
-                    _ => if !self.chat_open {
-                        self.keys_down.insert(*key);
+                    _ => {
+                        if !self.chat_open {
+                            self.keys_down.insert(*key);
+                        }
                     }
                 },
                 sdl2::event::Event::KeyUp {
@@ -251,7 +253,10 @@ impl Entity for Player {
                         self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                     }
                 }
-                sdl2::event::Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+                sdl2::event::Event::Window {
+                    win_event: sdl2::event::WindowEvent::Resized(w, h),
+                    ..
+                } => {
                     self.projection = Mat4::perspective_rh_gl(
                         90f32.to_radians(),
                         *w as f32 / *h as f32,
@@ -274,20 +279,7 @@ impl Entity for Player {
 
         self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
-        let player_accel = if self.sneaking
-            || world
-                .get_block(
-                    self.position.x as i32,
-                    (self.position.y as i32) - 4,
-                    self.position.z as i32,
-                )
-                .block_type()
-                == BlockType::Air
-        {
-            0.5
-        } else {
-            0.9
-        };
+        let player_accel = if self.sneaking { 0.5 } else { 0.9 };
         let jump_accel = 8.0;
         let sprint_player_accel = player_accel * if self.sneaking { 1.0 } else { 1.5 };
         if self.keys_down.contains(&Keycode::W) {

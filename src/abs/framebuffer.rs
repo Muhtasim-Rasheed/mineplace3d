@@ -183,7 +183,8 @@ impl Framebuffer {
     /// Resizes the framebuffer to the specified width and height.
     pub fn resize(&self, width: i32, height: i32) {
         unsafe {
-            self.gl.bind_texture(glow::TEXTURE_2D, Some(self.color_tex.id));
+            self.gl
+                .bind_texture(glow::TEXTURE_2D, Some(self.color_tex.id));
             let (internal, format, ty) = match self.depth_tex {
                 Some(_) => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
                 None => (glow::R32F as i32, glow::RED, glow::FLOAT),

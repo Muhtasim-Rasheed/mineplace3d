@@ -372,13 +372,18 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                                         chat_hist.push("/help - Show this message.".to_string());
                                         chat_hist.push("/seed - Show the world seed.".to_string());
                                         chat_hist.push(
-                                            "/tp <x> <y> <z> - Teleport to coordinates.".to_string(),
+                                            "/tp <x> <y> <z> - Teleport to coordinates."
+                                                .to_string(),
                                         );
-                                        chat_hist.push("/vsync <on|off> - Toggle VSync.".to_string());
-                                        chat_hist.push("/fov <degrees> - Set the field of view.".to_string());
+                                        chat_hist
+                                            .push("/vsync <on|off> - Toggle VSync.".to_string());
+                                        chat_hist.push(
+                                            "/fov <degrees> - Set the field of view.".to_string(),
+                                        );
                                     }
                                     Some("seed") => {
-                                        chat_hist.push(format!("Current world seed: {}", world.seed()));
+                                        chat_hist
+                                            .push(format!("Current world seed: {}", world.seed()));
                                     }
                                     Some("tp") => {
                                         if parts.len() != 4 {
@@ -395,7 +400,8 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                                                     y.clone().unwrap(),
                                                     z.clone().unwrap(),
                                                 );
-                                                world.get_player_mut().velocity = vec3(0.0, 0.0, 0.0);
+                                                world.get_player_mut().velocity =
+                                                    vec3(0.0, 0.0, 0.0);
                                                 chat_hist.push(format!(
                                                     "Teleported to: {:.2} {:.2} {:.2}",
                                                     x.unwrap(),
@@ -431,7 +437,9 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                                                     chat_hist.push("FOV must be between 30 and 120 degrees. It has been clamped.".to_string());
                                                     fov = fov.clamp(30.0, 120.0);
                                                 }
-                                                world.get_player_mut().set_fov(fov, app.window.size());
+                                                world
+                                                    .get_player_mut()
+                                                    .set_fov(fov, app.window.size());
                                                 chat_hist.push(format!("FOV set to {:.2}", fov));
                                             }
                                         }
@@ -492,20 +500,17 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                         .normalize();
                     }
                 }
-                sdl2::event::Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+                sdl2::event::Event::Window {
+                    win_event: sdl2::event::WindowEvent::Resized(w, h),
+                    ..
+                } => {
                     framebuffer.resize(*w as i32, *h as i32);
                     ssao_framebuffer.resize(*w as i32, *h as i32);
                     unsafe {
                         app.gl.viewport(0, 0, *w as i32, *h as i32);
                     }
-                    ui_projection = Mat4::orthographic_rh_gl(
-                        0.0,
-                        *w as f32,
-                        *h as f32,
-                        0.0,
-                        -3.0,
-                        3.0,
-                    );
+                    ui_projection =
+                        Mat4::orthographic_rh_gl(0.0, *w as f32, *h as f32, 0.0, -3.0, 3.0);
                     cursor = font.build(
                         &app.gl,
                         "*",
@@ -812,7 +817,9 @@ Current Block: {}"#,
                     .get::<Texture>("atlas")
                     .unwrap()
                     .bind_to_unit(0);
-                for (block_mesh, color) in block_meshes.iter().zip(block_mesh_multiply_colors.iter()) {
+                for (block_mesh, color) in
+                    block_meshes.iter().zip(block_mesh_multiply_colors.iter())
+                {
                     ui_shader.set_uniform("ui_color", color);
                     block_mesh.draw();
                 }
