@@ -141,7 +141,7 @@ fn main() {
     // window.set_mouse_button_polling(true);
     // window.set_scroll_polling(true);
 
-    let mut app = App::new("Mineplace3D", 1280, 720);
+    let mut app = App::new("Mineplace3D", 1280, 720, true);
 
     let font_image =
         image::load_from_memory(include_bytes!("assets/font.png")).expect("Failed to load texture");
