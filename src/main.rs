@@ -191,7 +191,7 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
     let mut debug_mesh;
     let mut chat_mesh = font.build(&app.gl, "", 50.0, app.window.size().1 as f32 - 150.0, 24.0);
     let mut chat_hist_mesh;
-    let cursor = font.build(
+    let mut cursor = font.build(
         &app.gl,
         "*",
         app.window.size().0 as f32 / 2.0 - 10.0,
@@ -199,7 +199,7 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
         36.0,
     );
     let outline_mesh = outline_mesh(&app.gl);
-    let ui_projection = Mat4::orthographic_rh_gl(
+    let mut ui_projection = Mat4::orthographic_rh_gl(
         0.0,
         app.window.size().0 as f32,
         app.window.size().1 as f32,
@@ -278,6 +278,7 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
         "Type /help for a list of commands.".to_string(),
     ];
     let mut chat_open = false;
+    let mut show_ui = true;
 
     let mut vsync = true;
 
@@ -325,6 +326,18 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
         for event in &window_events {
             match event {
                 sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::F1),
+                    ..
+                } => {
+                    show_ui = !show_ui;
+                }
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::F2),
+                    ..
+                } => {
+                    chat_hist.clear();
+                }
+                sdl2::event::Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => {
@@ -353,55 +366,80 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                         if let Some(cmd) = command.take() {
                             if cmd.starts_with('/') {
                                 let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
-                                if parts.is_empty() {
-                                } else if parts[0] == "help" {
-                                    chat_hist.push("Available commands.".to_string());
-                                    chat_hist.push("/help - Show this message.".to_string());
-                                    chat_hist.push("/seed - Show the world seed.".to_string());
-                                    chat_hist.push(
-                                        "/tp <x> <y> <z> - Teleport to coordinates.".to_string(),
-                                    );
-                                    chat_hist.push("/vsync <on|off> - Toggle VSync.".to_string());
-                                } else if parts[0] == "seed" {
-                                    chat_hist.push(format!("Current world seed: {}", world.seed()));
-                                } else if parts[0] == "tp" {
-                                    if parts.len() != 4 {
-                                        chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
-                                    } else {
-                                        let x = parts[1].parse::<f32>();
-                                        let y = parts[2].parse::<f32>();
-                                        let z = parts[3].parse::<f32>();
-                                        if x.is_err() || y.is_err() || z.is_err() {
-                                            chat_hist.push("Invalid coordinates.".to_string());
+                                match parts.get(0).map(|s| *s) {
+                                    Some("help") => {
+                                        chat_hist.push("Available commands.".to_string());
+                                        chat_hist.push("/help - Show this message.".to_string());
+                                        chat_hist.push("/seed - Show the world seed.".to_string());
+                                        chat_hist.push(
+                                            "/tp <x> <y> <z> - Teleport to coordinates.".to_string(),
+                                        );
+                                        chat_hist.push("/vsync <on|off> - Toggle VSync.".to_string());
+                                        chat_hist.push("/fov <degrees> - Set the field of view.".to_string());
+                                    }
+                                    Some("seed") => {
+                                        chat_hist.push(format!("Current world seed: {}", world.seed()));
+                                    }
+                                    Some("tp") => {
+                                        if parts.len() != 4 {
+                                            chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
                                         } else {
-                                            world.get_player_mut().position = vec3(
-                                                x.clone().unwrap(),
-                                                y.clone().unwrap(),
-                                                z.clone().unwrap(),
-                                            );
-                                            world.get_player_mut().velocity = vec3(0.0, 0.0, 0.0);
-                                            chat_hist.push(format!(
-                                                "Teleported to: {:.2} {:.2} {:.2}",
-                                                x.unwrap(),
-                                                y.unwrap(),
-                                                z.unwrap()
-                                            ));
+                                            let x = parts[1].parse::<f32>();
+                                            let y = parts[2].parse::<f32>();
+                                            let z = parts[3].parse::<f32>();
+                                            if x.is_err() || y.is_err() || z.is_err() {
+                                                chat_hist.push("Invalid coordinates.".to_string());
+                                            } else {
+                                                world.get_player_mut().position = vec3(
+                                                    x.clone().unwrap(),
+                                                    y.clone().unwrap(),
+                                                    z.clone().unwrap(),
+                                                );
+                                                world.get_player_mut().velocity = vec3(0.0, 0.0, 0.0);
+                                                chat_hist.push(format!(
+                                                    "Teleported to: {:.2} {:.2} {:.2}",
+                                                    x.unwrap(),
+                                                    y.unwrap(),
+                                                    z.unwrap()
+                                                ));
+                                            }
                                         }
                                     }
-                                } else if parts[0] == "vsync" {
-                                    if parts.len() != 2 {
-                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
-                                    } else if parts[1] == "on" {
-                                        vsync = true;
-                                        chat_hist.push("VSync enabled.".to_string());
-                                    } else if parts[1] == "off" {
-                                        vsync = false;
-                                        chat_hist.push("VSync disabled.".to_string());
-                                    } else {
-                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
+                                    Some("vsync") => {
+                                        if parts.len() != 2 {
+                                            chat_hist.push("Usage: /vsync <on|off>".to_string());
+                                        } else if parts[1] == "on" {
+                                            vsync = true;
+                                            chat_hist.push("VSync enabled.".to_string());
+                                        } else if parts[1] == "off" {
+                                            vsync = false;
+                                            chat_hist.push("VSync disabled.".to_string());
+                                        } else {
+                                            chat_hist.push("Usage: /vsync <on|off>".to_string());
+                                        }
                                     }
-                                } else {
-                                    chat_hist.push(format!("Unknown command: {}", parts[0]));
+                                    Some("fov") => {
+                                        if parts.len() != 2 {
+                                            chat_hist.push("Usage: /fov <degrees>".to_string());
+                                        } else {
+                                            let fov = parts[1].parse::<f32>();
+                                            if fov.is_err() {
+                                                chat_hist.push("Invalid FOV value.".to_string());
+                                            } else {
+                                                let mut fov = fov.unwrap();
+                                                if fov < 30.0 || fov > 120.0 {
+                                                    chat_hist.push("FOV must be between 30 and 120 degrees. It has been clamped.".to_string());
+                                                    fov = fov.clamp(30.0, 120.0);
+                                                }
+                                                world.get_player_mut().set_fov(fov, app.window.size());
+                                                chat_hist.push(format!("FOV set to {:.2}", fov));
+                                            }
+                                        }
+                                    }
+                                    Some(cmd) => {
+                                        chat_hist.push(format!("Unknown command: {}", cmd));
+                                    }
+                                    None => {}
                                 }
                             }
                         }
@@ -453,6 +491,28 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                         )
                         .normalize();
                     }
+                }
+                sdl2::event::Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+                    framebuffer.resize(*w as i32, *h as i32);
+                    ssao_framebuffer.resize(*w as i32, *h as i32);
+                    unsafe {
+                        app.gl.viewport(0, 0, *w as i32, *h as i32);
+                    }
+                    ui_projection = Mat4::orthographic_rh_gl(
+                        0.0,
+                        *w as f32,
+                        *h as f32,
+                        0.0,
+                        -3.0,
+                        3.0,
+                    );
+                    cursor = font.build(
+                        &app.gl,
+                        "*",
+                        *w as f32 / 2.0 - 10.0,
+                        *h as f32 / 2.0 - 10.0,
+                        36.0,
+                    );
                 }
                 _ => {}
             }
@@ -533,7 +593,7 @@ Current Block: {}"#,
             .join("\n")
             .lines()
             .rev()
-            .take(10)
+            .take(20)
             .collect::<Vec<&str>>()
             .into_iter()
             .rev()
@@ -730,30 +790,32 @@ Current Block: {}"#,
             postprocessing_shader.set_uniform("ssao_texture", 1);
             quad_mesh(&app.gl).draw();
 
-            ui_shader.use_program();
-            world
-                .resource_mgr
-                .get::<Texture>("font")
-                .unwrap()
-                .bind_to_unit(0);
-            ui_shader.set_uniform("projection", ui_projection);
-            ui_shader.set_uniform("ui_color", vec4(1.0, 1.0, 1.0, 1.0));
-            debug_mesh.draw();
-            if grab {
-                cursor.draw();
-            }
-            if chat_open {
-                chat_mesh.draw();
-            }
-            chat_hist_mesh.draw();
-            world
-                .resource_mgr
-                .get::<Texture>("atlas")
-                .unwrap()
-                .bind_to_unit(0);
-            for (block_mesh, color) in block_meshes.iter().zip(block_mesh_multiply_colors.iter()) {
-                ui_shader.set_uniform("ui_color", color);
-                block_mesh.draw();
+            if show_ui {
+                ui_shader.use_program();
+                world
+                    .resource_mgr
+                    .get::<Texture>("font")
+                    .unwrap()
+                    .bind_to_unit(0);
+                ui_shader.set_uniform("projection", ui_projection);
+                ui_shader.set_uniform("ui_color", vec4(1.0, 1.0, 1.0, 1.0));
+                debug_mesh.draw();
+                if grab {
+                    cursor.draw();
+                }
+                if chat_open {
+                    chat_mesh.draw();
+                }
+                chat_hist_mesh.draw();
+                world
+                    .resource_mgr
+                    .get::<Texture>("atlas")
+                    .unwrap()
+                    .bind_to_unit(0);
+                for (block_mesh, color) in block_meshes.iter().zip(block_mesh_multiply_colors.iter()) {
+                    ui_shader.set_uniform("ui_color", color);
+                    block_mesh.draw();
+                }
             }
         }
 

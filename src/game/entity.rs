@@ -154,6 +154,21 @@ impl Player {
         }
     }
 
+    pub fn set_fov(&mut self, fov_degrees: f32, window_size: (u32, u32)) {
+        self.projection = Mat4::perspective_rh_gl(
+            fov_degrees.to_radians(),
+            window_size.0 as f32 / window_size.1 as f32,
+            0.1,
+            200.0,
+        );
+        self.cloud_projection = Mat4::perspective_rh_gl(
+            fov_degrees.to_radians(),
+            window_size.0 as f32 / window_size.1 as f32,
+            0.1,
+            400.0,
+        );
+    }
+
     pub fn camera_pos(&self) -> Vec3 {
         self.position.with_y(self.position.y + self.eye_height())
     }
@@ -213,7 +228,7 @@ impl Entity for Player {
                 } => match *key {
                     Keycode::T | Keycode::Slash => self.chat_open = true,
                     Keycode::Return | Keycode::Escape => self.chat_open = false,
-                    _ => {
+                    _ => if !self.chat_open {
                         self.keys_down.insert(*key);
                     }
                 },
@@ -235,6 +250,20 @@ impl Entity for Player {
                     } else if *y < 0 {
                         self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                     }
+                }
+                sdl2::event::Event::Window { win_event: sdl2::event::WindowEvent::Resized(w, h), .. } => {
+                    self.projection = Mat4::perspective_rh_gl(
+                        90f32.to_radians(),
+                        *w as f32 / *h as f32,
+                        0.1,
+                        200.0,
+                    );
+                    self.cloud_projection = Mat4::perspective_rh_gl(
+                        90f32.to_radians(),
+                        *w as f32 / *h as f32,
+                        0.1,
+                        400.0,
+                    );
                 }
                 _ => {}
             }

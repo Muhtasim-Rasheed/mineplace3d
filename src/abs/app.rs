@@ -35,11 +35,12 @@ impl App {
         let mut window = video_subsystem
             .window(title, width, height)
             .opengl()
+            .resizable()
             .build()
             .unwrap();
         window
             .set_fullscreen(if fullscreen {
-                sdl2::video::FullscreenType::True
+                sdl2::video::FullscreenType::Desktop
             } else {
                 sdl2::video::FullscreenType::Off
             })

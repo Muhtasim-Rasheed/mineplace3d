@@ -180,6 +180,45 @@ impl Framebuffer {
         }
     }
 
+    /// Resizes the framebuffer to the specified width and height.
+    pub fn resize(&self, width: i32, height: i32) {
+        unsafe {
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(self.color_tex.id));
+            let (internal, format, ty) = match self.depth_tex {
+                Some(_) => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
+                None => (glow::R32F as i32, glow::RED, glow::FLOAT),
+            };
+            self.gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                internal,
+                width,
+                height,
+                0,
+                format,
+                ty,
+                glow::PixelUnpackData::Slice(None),
+            );
+            self.gl.bind_texture(glow::TEXTURE_2D, None);
+            if let Some(depth_tex) = &self.depth_tex {
+                self.gl.bind_texture(glow::TEXTURE_2D, Some(depth_tex.id));
+                self.gl.tex_image_2d(
+                    glow::TEXTURE_2D,
+                    0,
+                    glow::DEPTH_COMPONENT24 as i32,
+                    width,
+                    height,
+                    0,
+                    glow::DEPTH_COMPONENT,
+                    glow::UNSIGNED_INT,
+                    glow::PixelUnpackData::Slice(None),
+                );
+                self.gl.bind_texture(glow::TEXTURE_2D, None);
+            }
+            self.gl.viewport(0, 0, width, height);
+        }
+    }
+
     /// Returns the color texture of the framebuffer.
     pub fn texture(&self) -> &Texture {
         &self.color_tex
