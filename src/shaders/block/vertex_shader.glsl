@@ -35,22 +35,62 @@ uint get_normal_idx(uint hi, uint lo) {
 		return (lo >> 15) & 0x7u;
 }
 
-vec2 unpack_uv(uint hi, uint lo) {
+uint hash_uvec3(uvec3 v) {
+	v = v * 1664525u + 1013904223u;
+	v.x += v.y * v.z;
+	v.y += v.z * v.x;
+	v.z += v.x * v.y;
+	v ^= v >> 16;
+	return v.x ^ v.y ^ v.z;
+}
+
+uint flip_uvs(uint block_type, uvec3 position) {
+	if (block_type == 0x0004u || block_type == 0x0006u || block_type == 0x000Cu) {
+		uint h = hash_uvec3(position);
+		return h % 4u;
+	}
+	return 0u;
+}
+
+vec2 unpack_uv(uint hi, uint lo, uvec3 position) {
 	uint uv = (lo >> 18) & 0x3FFu;
 	uint block_type = get_block_type(hi, lo);
 
-	uint local_u = (uv >> 5) & 0x1Fu;
-	uint local_v = uv & 0x1Fu;
+	uint texel_u = (uv >> 5) & 0x1Fu;
+	uint texel_v = uv & 0x1Fu;
 
 	uint tile_index = block_type;
 	uint tile_x = tile_index % 12u;
 	uint tile_y = tile_index / 12u;
+
+	uint tile_u = texel_u - 16u * tile_x;
+	uint tile_v = texel_v - 16u * tile_y;
+
+	uint flip = flip_uvs(block_type, uvec3(position));
+	if ((flip & 1u) == 1u) {
+		tile_u = 16u - texel_u - 16u * tile_x;
+	}
+	if ((flip & 2u) == 2u) {
+		tile_v = 16u - texel_v - 16u * tile_y;
+	}
+
+	texel_u = tile_u + 16u * tile_x;
+	texel_v = tile_v + 16u * tile_y;
+
 	float uv_unit = 1.0 / 12.0;
-	return vec2(float(local_u), float(local_v)) / 192.0 + vec2(float(tile_x), float(tile_y)) * uv_unit;
+	return vec2(float(texel_u), float(texel_v)) / 192.0 + vec2(float(tile_x), float(tile_y)) * uv_unit;
 }
 
 vec3 get_pos(vec3 position) {
 	return position + vec3(chunk_pos * chunk_side_length);
+}
+
+uvec3 get_pos_grid(uint hi, uint lo) {
+	uint all_components = (lo >> 3) & 0xFFFFFFu;
+	uint x = all_components & 0xFu;
+	uint y = (all_components >> 4) & 0xFu;
+	uint z = (all_components >> 8) & 0xFu;
+	return uvec3(x, y, z);
 }
 
 vec3 unpack_color(uint color) {
@@ -78,7 +118,7 @@ void main() {
 	}
 	gl_Position = projection * view * gl_Position;
 	frag_normal = normalize(normals[get_normal_idx(hi, lo)]);
-	frag_uv = unpack_uv(hi, lo);
+	frag_uv = unpack_uv(hi, lo, get_pos_grid(hi, lo));
 	frag_block_type = get_block_type(hi, lo);
 	frag_foliage = unpack_foliage(hi, lo);
 	frag_camera_pos = (view * vec4(world_pos, 1.0)).xyz;

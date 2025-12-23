@@ -21,6 +21,11 @@ pub fn pack_uv(uv: UVec2) -> u64 {
 }
 
 #[inline]
+pub fn pack_block_pos(pos: UVec3) -> u64 {
+    ((pos.x << 8) | (pos.y << 4) | pos.z) as u64
+}
+
+#[inline]
 pub fn pack_color_rgb677(color: Vec3) -> u64 {
     let r = (color.x * 63.0).round() as u64; // 6 bits
     let g = (color.y * 127.0).round() as u64; // 7 bits
