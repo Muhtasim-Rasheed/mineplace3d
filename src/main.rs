@@ -244,9 +244,9 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
             .viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
     }
     Framebuffer::unbind(&*app.gl);
-    let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 64];
+    let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 32];
     for (i, sample) in ssao_samples.iter_mut().enumerate() {
-        let scale = i as f32 / 64.0;
+        let scale = i as f32 / 32.0;
         let mut sample_ = vec3(
             rand::random::<f32>() * 2.0 - 1.0,
             rand::random::<f32>() * 2.0 - 1.0,
@@ -778,6 +778,7 @@ Current Block: {}"#,
             ssao_shader.set_uniform("noise_texture", 1);
             ssao_shader.set_uniform("samples", ssao_samples);
             ssao_shader.set_uniform("projection", player.projection);
+            ssao_shader.set_uniform("inverse_projection", player.projection.inverse());
             ssao_shader.set_uniform(
                 "screen_size",
                 vec2(app.window.size().0 as f32, app.window.size().1 as f32),

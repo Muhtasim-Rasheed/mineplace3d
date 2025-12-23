@@ -4,16 +4,17 @@ out vec4 occlusion;
 
 uniform sampler2D depth_texture;
 uniform sampler2D noise_texture;
-uniform vec3 samples[64];
+uniform vec3 samples[32];
 uniform mat4 projection;
+uniform mat4 inverse_projection;
 uniform vec2 screen_size;
 
-const int kernel_size = 64;
+const int kernel_size = 32;
 const float radius = 5.0;
 
 vec3 getViewPos(vec2 uv, float depth) {
 	vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-	vec4 view = inverse(projection) * clip;
+	vec4 view = inverse_projection * clip;
 	return view.xyz / view.w;
 }
 
