@@ -10,7 +10,7 @@ uniform mat4 inverse_projection;
 uniform vec2 screen_size;
 
 const int kernel_size = 32;
-const float radius = 5.0;
+const float radius = 7.0;
 
 vec3 getViewPos(vec2 uv, float depth) {
 	vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);

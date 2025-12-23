@@ -11,7 +11,7 @@ void main() {
 	if (color.a < 0.1) {
 		discard;
 	}
-	color = vec4(color.rgb * ao, color.a);
+	color = vec4(color.rgb * pow(ao, 1.5), color.a);
 
 	final_color = color;
 }
