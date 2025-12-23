@@ -230,3 +230,12 @@ impl Framebuffer {
         self.depth_tex.as_ref()
     }
 }
+
+impl Drop for Framebuffer {
+    fn drop(&mut self) {
+        unsafe {
+            self.gl.delete_framebuffer(self.fbo);
+            // The textures are dropped in their respective Drop implementations
+        }
+    }
+}
