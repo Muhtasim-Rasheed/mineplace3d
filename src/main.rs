@@ -123,7 +123,7 @@ fn main() {
         12,  // character height
     );
 
-    game(i32::MAX / 2, &mut app, &font);
+    game(rand::random(), &mut app, &font);
 }
 
 fn game(seed: i32, app: &mut App, font: &BitmapFont) {
