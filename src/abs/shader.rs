@@ -13,7 +13,7 @@ use glow::HasContext;
 pub struct Shader {
     gl: Arc<glow::Context>,
     id: glow::Shader,
-    shader_type: u32,
+    _shader_type: u32,
 }
 
 impl Shader {
@@ -33,7 +33,7 @@ impl Shader {
             Ok(Self {
                 gl: Arc::clone(gl),
                 id: shader,
-                shader_type,
+                _shader_type: shader_type,
             })
         }
     }

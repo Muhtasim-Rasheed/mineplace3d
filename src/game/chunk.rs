@@ -43,35 +43,35 @@ impl<'a> NeighbourChunks<'a> {
     where
         F: FnMut(usize, &Chunk) -> bool,
     {
-        if let Some(n) = self.n {
-            if !f(0, n) {
-                return false;
-            }
+        if let Some(n) = self.n
+            && !f(0, n)
+        {
+            return false;
         }
-        if let Some(s) = self.s {
-            if !f(1, s) {
-                return false;
-            }
+        if let Some(s) = self.s
+            && !f(1, s)
+        {
+            return false;
         }
-        if let Some(e) = self.e {
-            if !f(2, e) {
-                return false;
-            }
+        if let Some(e) = self.e
+            && !f(2, e)
+        {
+            return false;
         }
-        if let Some(w) = self.w {
-            if !f(3, w) {
-                return false;
-            }
+        if let Some(w) = self.w
+            && !f(3, w)
+        {
+            return false;
         }
-        if let Some(u) = self.u {
-            if !f(4, u) {
-                return false;
-            }
+        if let Some(u) = self.u
+            && !f(4, u)
+        {
+            return false;
         }
-        if let Some(d) = self.d {
-            if !f(5, d) {
-                return false;
-            }
+        if let Some(d) = self.d
+            && !f(5, d)
+        {
+            return false;
         }
         true
     }
@@ -152,8 +152,7 @@ impl Chunk {
 
                 let height = (plains_height * (1.0 - t) + mtn_height * t) as i32;
                 let cave_thresh = plains_cave_thresh * (1.0 - t) + mtn_cave_thresh * t;
-                let foliage_color_val =
-                    plains_foliage_color * (1.0 - t as f32) + mtn_foliage_color * t as f32;
+                let foliage_color_val = plains_foliage_color * (1.0 - t) + mtn_foliage_color * t;
                 let snow_replace_grass_chance = if height <= 96 {
                     0.0
                 } else if height >= 108 {
@@ -170,7 +169,7 @@ impl Chunk {
                         real_x as f32 * 0.1,
                         real_y as f32 * 0.1,
                         real_z as f32 * 0.1,
-                    ) > cave_thresh as f32;
+                    ) > cave_thresh;
 
                     let ore_thresh = 0.7;
                     let ore_val = cave_noise.get_noise_3d(
@@ -183,9 +182,7 @@ impl Chunk {
                     let block;
                     if real_y < -32 {
                         block = Block::Air;
-                    } else if real_y == -31 {
-                        block = Block::Bedrock;
-                    } else if real_y == -30 && rng.random_bool(0.5) {
+                    } else if real_y == -31 || (real_y == -30 && rng.random_bool(0.5)) {
                         block = Block::Bedrock;
                     } else if is_cave {
                         block = Block::Air;
@@ -510,10 +507,9 @@ impl Chunk {
             }
 
             // south
-            return nei
-                .s
+            nei.s
                 .map(|c| c.get_block(x as usize, y as usize, 0).block_type())
-                .unwrap_or(BlockType::Air);
+                .unwrap_or(BlockType::Air)
         }
 
         for x in 0..CHUNK_SIZE {

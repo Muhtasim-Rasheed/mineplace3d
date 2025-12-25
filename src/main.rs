@@ -40,7 +40,7 @@ const TRANSLATIONS_JSON: &str = include_str!("assets/translations.json");
 const MODEL_DEF_JSON: &str = include_str!("assets/models.json");
 
 fn mid<T>(v: &[T]) -> usize {
-    if v.len() % 2 == 0 {
+    if v.len().is_multiple_of(2) {
         v.len() / 2
     } else {
         v.len() / 2 - 1
@@ -230,7 +230,7 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
         app.gl
             .viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
     }
-    Framebuffer::unbind(&*app.gl);
+    Framebuffer::unbind(&app.gl);
     let ssao_framebuffer = Framebuffer::new(
         &app.gl,
         app.window.size().0 as i32,
@@ -243,7 +243,7 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
         app.gl
             .viewport(0, 0, app.window.size().0 as i32, app.window.size().1 as i32);
     }
-    Framebuffer::unbind(&*app.gl);
+    Framebuffer::unbind(&app.gl);
     let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 32];
     for (i, sample) in ssao_samples.iter_mut().enumerate() {
         let scale = i as f32 / 32.0;
@@ -363,92 +363,85 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                         command = Some("".to_string());
                         grab = false;
                     } else if *key == Keycode::Return && chat_open {
-                        if let Some(cmd) = command.take() {
-                            if cmd.starts_with('/') {
-                                let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
-                                match parts.get(0).map(|s| *s) {
-                                    Some("help") => {
-                                        chat_hist.push("Available commands.".to_string());
-                                        chat_hist.push("/help - Show this message.".to_string());
-                                        chat_hist.push("/seed - Show the world seed.".to_string());
-                                        chat_hist.push(
-                                            "/tp <x> <y> <z> - Teleport to coordinates."
-                                                .to_string(),
-                                        );
-                                        chat_hist
-                                            .push("/vsync <on|off> - Toggle VSync.".to_string());
-                                        chat_hist.push(
-                                            "/fov <degrees> - Set the field of view.".to_string(),
-                                        );
-                                    }
-                                    Some("seed") => {
-                                        chat_hist
-                                            .push(format!("Current world seed: {}", world.seed()));
-                                    }
-                                    Some("tp") => {
-                                        if parts.len() != 4 {
-                                            chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
-                                        } else {
-                                            let x = parts[1].parse::<f32>();
-                                            let y = parts[2].parse::<f32>();
-                                            let z = parts[3].parse::<f32>();
-                                            if x.is_err() || y.is_err() || z.is_err() {
-                                                chat_hist.push("Invalid coordinates.".to_string());
-                                            } else {
-                                                world.get_player_mut().position = vec3(
-                                                    x.clone().unwrap(),
-                                                    y.clone().unwrap(),
-                                                    z.clone().unwrap(),
-                                                );
-                                                world.get_player_mut().velocity =
-                                                    vec3(0.0, 0.0, 0.0);
-                                                chat_hist.push(format!(
-                                                    "Teleported to: {:.2} {:.2} {:.2}",
-                                                    x.unwrap(),
-                                                    y.unwrap(),
-                                                    z.unwrap()
-                                                ));
-                                            }
-                                        }
-                                    }
-                                    Some("vsync") => {
-                                        if parts.len() != 2 {
-                                            chat_hist.push("Usage: /vsync <on|off>".to_string());
-                                        } else if parts[1] == "on" {
-                                            vsync = true;
-                                            chat_hist.push("VSync enabled.".to_string());
-                                        } else if parts[1] == "off" {
-                                            vsync = false;
-                                            chat_hist.push("VSync disabled.".to_string());
-                                        } else {
-                                            chat_hist.push("Usage: /vsync <on|off>".to_string());
-                                        }
-                                    }
-                                    Some("fov") => {
-                                        if parts.len() != 2 {
-                                            chat_hist.push("Usage: /fov <degrees>".to_string());
-                                        } else {
-                                            let fov = parts[1].parse::<f32>();
-                                            if fov.is_err() {
-                                                chat_hist.push("Invalid FOV value.".to_string());
-                                            } else {
-                                                let mut fov = fov.unwrap();
-                                                if fov < 30.0 || fov > 120.0 {
-                                                    chat_hist.push("FOV must be between 30 and 120 degrees. It has been clamped.".to_string());
-                                                    fov = fov.clamp(30.0, 120.0);
-                                                }
-                                                world
-                                                    .get_player_mut()
-                                                    .set_fov(fov, app.window.size());
-                                                chat_hist.push(format!("FOV set to {:.2}", fov));
-                                            }
-                                        }
-                                    }
-                                    Some(cmd) => {
-                                        chat_hist.push(format!("Unknown command: {}", cmd));
-                                    }
-                                    None => {}
+                        if let Some(cmd) = command.take()
+                            && cmd.starts_with('/')
+                        {
+                            let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
+                            match parts.first().copied() {
+                                Some("help") => {
+                                    chat_hist.push("Available commands.".to_string());
+                                    chat_hist.push("/help - Show this message.".to_string());
+                                    chat_hist.push("/seed - Show the world seed.".to_string());
+                                    chat_hist.push(
+                                        "/tp <x> <y> <z> - Teleport to coordinates.".to_string(),
+                                    );
+                                    chat_hist.push("/vsync <on|off> - Toggle VSync.".to_string());
+                                    chat_hist.push(
+                                        "/fov <degrees> - Set the field of view.".to_string(),
+                                    );
                                 }
+                                Some("seed") => {
+                                    chat_hist.push(format!("Current world seed: {}", world.seed()));
+                                }
+                                Some("tp") => {
+                                    if parts.len() != 4 {
+                                        chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
+                                    } else {
+                                        let x = parts[1].parse::<f32>();
+                                        let y = parts[2].parse::<f32>();
+                                        let z = parts[3].parse::<f32>();
+                                        if x.is_err() || y.is_err() || z.is_err() {
+                                            chat_hist.push("Invalid coordinates.".to_string());
+                                        } else {
+                                            world.get_player_mut().position = vec3(
+                                                x.clone().unwrap(),
+                                                y.clone().unwrap(),
+                                                z.clone().unwrap(),
+                                            );
+                                            world.get_player_mut().velocity = vec3(0.0, 0.0, 0.0);
+                                            chat_hist.push(format!(
+                                                "Teleported to: {:.2} {:.2} {:.2}",
+                                                x.unwrap(),
+                                                y.unwrap(),
+                                                z.unwrap()
+                                            ));
+                                        }
+                                    }
+                                }
+                                Some("vsync") => {
+                                    if parts.len() != 2 {
+                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
+                                    } else if parts[1] == "on" {
+                                        vsync = true;
+                                        chat_hist.push("VSync enabled.".to_string());
+                                    } else if parts[1] == "off" {
+                                        vsync = false;
+                                        chat_hist.push("VSync disabled.".to_string());
+                                    } else {
+                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
+                                    }
+                                }
+                                Some("fov") => {
+                                    if parts.len() != 2 {
+                                        chat_hist.push("Usage: /fov <degrees>".to_string());
+                                    } else {
+                                        let fov = parts[1].parse::<f32>();
+                                        if let Ok(mut fov) = fov {
+                                            if !(30.0..=120.0).contains(&fov) {
+                                                chat_hist.push("FOV must be between 30 and 120 degrees. It has been clamped.".to_string());
+                                                fov = fov.clamp(30.0, 120.0);
+                                            }
+                                            world.get_player_mut().set_fov(fov, app.window.size());
+                                            chat_hist.push(format!("FOV set to {:.2}", fov));
+                                        } else {
+                                            chat_hist.push("Invalid FOV value.".to_string());
+                                        }
+                                    }
+                                }
+                                Some(cmd) => {
+                                    chat_hist.push(format!("Unknown command: {}", cmd));
+                                }
+                                None => {}
                             }
                         }
                         chat_open = false;
@@ -457,14 +450,12 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                         if let Some(ref mut cmd) = command {
                             cmd.pop();
                         }
-                    } else if chat_open {
-                        if let Some(ref mut cmd) = command {
-                            if let Some(c) = key_to_char(*key) {
-                                if !c.is_control() {
-                                    cmd.push(c);
-                                }
-                            }
-                        }
+                    } else if chat_open
+                        && let Some(ref mut cmd) = command
+                        && let Some(c) = key_to_char(*key)
+                        && !c.is_control()
+                    {
+                        cmd.push(c);
                     }
                 }
                 sdl2::event::Event::KeyUp {
@@ -504,10 +495,10 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                     win_event: sdl2::event::WindowEvent::Resized(w, h),
                     ..
                 } => {
-                    framebuffer.resize(*w as i32, *h as i32);
-                    ssao_framebuffer.resize(*w as i32, *h as i32);
+                    framebuffer.resize(*w, *h);
+                    ssao_framebuffer.resize(*w, *h);
                     unsafe {
-                        app.gl.viewport(0, 0, *w as i32, *h as i32);
+                        app.gl.viewport(0, 0, *w, *h);
                     }
                     ui_projection =
                         Mat4::orthographic_rh_gl(0.0, *w as f32, *h as f32, 0.0, -3.0, 3.0);
@@ -588,7 +579,7 @@ Current Block: {}"#,
         if let Some(ref cmd) = command {
             chat_mesh = font.build(
                 &app.gl,
-                &format!("{}", cmd),
+                &cmd.to_string(),
                 50.0,
                 app.window.size().1 as f32 - 150.0 - 24.0,
                 24.0,
@@ -764,7 +755,7 @@ Current Block: {}"#,
 
             world.draw_entities(&app.gl);
 
-            Framebuffer::unbind(&*app.gl);
+            Framebuffer::unbind(&app.gl);
 
             ssao_framebuffer.bind();
 
@@ -785,7 +776,7 @@ Current Block: {}"#,
             );
             quad_mesh(&app.gl).draw();
 
-            Framebuffer::unbind(&*app.gl);
+            Framebuffer::unbind(&app.gl);
 
             app.gl.disable(glow::DEPTH_TEST);
             app.gl.clear(glow::COLOR_BUFFER_BIT);

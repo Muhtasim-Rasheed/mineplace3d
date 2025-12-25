@@ -264,7 +264,7 @@ pub fn cloud_texture_gen(gl: &Arc<glow::Context>, texture_size: UVec2, seed: i32
     }
 
     Texture::new(
-        &gl,
+        gl,
         &image::DynamicImage::ImageRgba8(
             image::ImageBuffer::from_raw(width, height, image_data).unwrap(),
         ),
@@ -297,5 +297,5 @@ pub fn make_cloud_plane(gl: &Arc<glow::Context>) -> Mesh {
 
     indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
 
-    Mesh::new(&gl, &vertices, &indices, glow::TRIANGLES)
+    Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
 }

@@ -70,9 +70,9 @@ impl World {
         let player = Player::new(vec3(0.0, 100.0, 0.0), window);
 
         let mut world = World {
-            chunks: FxHashMap::from_iter(chunks.into_iter()),
+            chunks: FxHashMap::from_iter(chunks),
             changes: FxHashMap::default(),
-            chunk_outside_blocks: FxHashMap::from_iter(chunk_outside_blocks.into_iter()),
+            chunk_outside_blocks: FxHashMap::from_iter(chunk_outside_blocks),
             entities: HashMap::new(),
             meshes: HashMap::new(),
             mesh_visible: HashSet::new(),
@@ -135,10 +135,10 @@ impl World {
             distance_squared <= RENDER_DISTANCE as f32 * RENDER_DISTANCE as f32
         });
         for pos in self.meshes.keys().cloned().collect::<Vec<_>>() {
-            if !self.chunks.contains_key(&pos) {
-                if let Some(mesh) = self.meshes.remove(&pos) {
-                    self.unused_meshes.push(mesh);
-                }
+            if !self.chunks.contains_key(&pos)
+                && let Some(mesh) = self.meshes.remove(&pos)
+            {
+                self.unused_meshes.push(mesh);
             }
         }
         self.entities.retain(|_, e| !e.borrow().requests_removal());
@@ -182,7 +182,7 @@ impl World {
                 }
             }
         }
-        self.chunk_outside_blocks.extend(outside_blocks.into_iter());
+        self.chunk_outside_blocks.extend(outside_blocks);
         self.chunks.insert(ivec3(x, y, z), chunk);
     }
 
@@ -194,7 +194,7 @@ impl World {
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
         self.chunks.entry(ivec3(x, y, z)).or_insert_with(|| {
             let res = Chunk::new(x, y, z, &self.noise, &self.cave_noise, &self.biome_noise);
-            self.chunk_outside_blocks.extend(res.1.into_iter());
+            self.chunk_outside_blocks.extend(res.1);
             res.0
         })
     }
@@ -371,17 +371,17 @@ impl World {
     }
 
     pub fn update_mesh_visibility(&mut self, vp: Mat4) {
-        if let Some(previous_vp) = self.previous_vp {
-            if previous_vp == vp {
-                return;
-            }
+        if let Some(previous_vp) = self.previous_vp
+            && previous_vp == vp
+        {
+            return;
         }
         self.previous_vp = Some(vp);
 
         self.mesh_visible.clear();
 
         let frustum = extract_frustum_planes(vp);
-        for (chunk_pos, _) in &self.chunks {
+        for chunk_pos in self.chunks.keys() {
             let min = chunk_pos.as_vec3() * CHUNK_SIZE as f32;
             let max = min + vec3(CHUNK_SIZE as f32, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
             if !aabb_in_frustum(min, max, &frustum) {

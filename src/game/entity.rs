@@ -6,7 +6,7 @@ use sdl2::{keyboard::Keycode, mouse::MouseButton};
 
 use crate::{
     abs::{Mesh, ShaderProgram, Texture, Vertex},
-    game::{Block, BlockType, RayHit, ResourceManager, World, cast_ray},
+    game::{Block, RayHit, ResourceManager, World, cast_ray},
 };
 
 pub const PLACABLE_BLOCKS: [Block; 22] = [
@@ -88,7 +88,6 @@ pub trait Entity: 'static {
         EntityId::new::<Self>()
     }
     fn position(&self) -> Vec3;
-    fn velocity(&self) -> Vec3;
     fn apply_velocity(&mut self, delta: Vec3);
     fn width(&self) -> f32;
     fn height(&self) -> f32;
@@ -185,10 +184,6 @@ impl Entity for Player {
 
     fn position(&self) -> Vec3 {
         self.position
-    }
-
-    fn velocity(&self) -> Vec3 {
-        self.velocity
     }
 
     fn apply_velocity(&mut self, delta: Vec3) {
@@ -308,35 +303,35 @@ impl Entity for Player {
         if self.break_place_cooldown > 0 {
             self.break_place_cooldown -= 1;
         }
-        if self.mouse_down.contains(&MouseButton::Right) && self.break_place_cooldown == 0 {
-            if let Some(ref hit) = self.selected_block {
-                let block_pos = hit.block_pos;
-                let hit_normal = hit.face_normal;
-                let new_pos = block_pos + hit_normal;
-                world.set_block(
-                    new_pos.x,
-                    new_pos.y,
-                    new_pos.z,
-                    PLACABLE_BLOCKS[self.current_block],
-                );
-                let (collide_x, collide_y, collide_z) =
-                    world.player_collision_mask(self.old_position, self.position, 0.5, 1.8);
-                if collide_x || collide_y || collide_z {
-                    world.set_block(new_pos.x, new_pos.y, new_pos.z, Block::Air);
-                }
-                self.break_place_cooldown = 12;
+        if self.mouse_down.contains(&MouseButton::Right)
+            && self.break_place_cooldown == 0
+            && let Some(ref hit) = self.selected_block
+        {
+            let block_pos = hit.block_pos;
+            let hit_normal = hit.face_normal;
+            let new_pos = block_pos + hit_normal;
+            world.set_block(
+                new_pos.x,
+                new_pos.y,
+                new_pos.z,
+                PLACABLE_BLOCKS[self.current_block],
+            );
+            let (collide_x, collide_y, collide_z) =
+                world.player_collision_mask(self.old_position, self.position, 0.5, 1.8);
+            if collide_x || collide_y || collide_z {
+                world.set_block(new_pos.x, new_pos.y, new_pos.z, Block::Air);
             }
+            self.break_place_cooldown = 12;
         }
-        if self.mouse_down.contains(&MouseButton::Left) && self.break_place_cooldown == 0 {
-            if let Some(ref hit) = self.selected_block {
-                if !(world.get_block(hit.block_pos.x, hit.block_pos.y, hit.block_pos.z)
-                    == Block::Bedrock)
-                {
-                    let block_pos = hit.block_pos;
-                    world.break_block(block_pos);
-                    self.break_place_cooldown = 12;
-                }
-            }
+        if self.mouse_down.contains(&MouseButton::Left)
+            && self.break_place_cooldown == 0
+            && let Some(ref hit) = self.selected_block
+            && !(world.get_block(hit.block_pos.x, hit.block_pos.y, hit.block_pos.z)
+                == Block::Bedrock)
+        {
+            let block_pos = hit.block_pos;
+            world.break_block(block_pos);
+            self.break_place_cooldown = 12;
         }
         self.velocity.y -= 0.75 - 0.2 * self.velocity.y;
         self.position += self.velocity * dt as f32;
@@ -494,10 +489,6 @@ impl Entity for Billboard {
 
     fn position(&self) -> Vec3 {
         self.position
-    }
-
-    fn velocity(&self) -> Vec3 {
-        Vec3::ZERO
     }
 
     fn apply_velocity(&mut self, _delta: Vec3) {

@@ -10,7 +10,7 @@ pub struct App {
     pub sdl: sdl2::Sdl,
     pub video_subsystem: sdl2::VideoSubsystem,
     pub window: sdl2::video::Window,
-    pub gl_context: sdl2::video::GLContext,
+    pub _gl_context: sdl2::video::GLContext,
     pub gl: Arc<glow::Context>,
     pub event_pump: sdl2::EventPump,
 }
@@ -59,7 +59,7 @@ impl App {
             sdl,
             video_subsystem,
             window,
-            gl_context,
+            _gl_context: gl_context,
             gl,
             event_pump,
         }

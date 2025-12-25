@@ -5,7 +5,10 @@ use glow::HasContext;
 
 use crate::{
     abs::{Mesh, UIVertex, Vertex},
-    game::{collision_aabb, mask_partial, pack_block_pos, pack_color_rgb677, pack_uv, Key, KeyPart, ModelDefs},
+    game::{
+        Key, KeyPart, ModelDefs, collision_aabb, mask_partial, pack_block_pos, pack_color_rgb677,
+        pack_uv,
+    },
 };
 
 const FULL_BLOCK: u32 = 0x00000000;
@@ -144,7 +147,14 @@ pub struct BlockVertex {
 }
 
 impl BlockVertex {
-    pub fn new(grid_position: UVec3, position: Vec3, normal: u8, uv: UVec2, block_type: u16, foliage: Vec3) -> Self {
+    pub fn new(
+        grid_position: UVec3,
+        position: Vec3,
+        normal: u8,
+        uv: UVec2,
+        block_type: u16,
+        foliage: Vec3,
+    ) -> Self {
         let grid_position = pack_block_pos(grid_position);
         let uv = pack_uv(uv);
         let foliage = pack_color_rgb677(foliage);

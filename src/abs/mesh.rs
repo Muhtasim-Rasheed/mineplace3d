@@ -42,7 +42,7 @@ impl Mesh {
                 glow::ARRAY_BUFFER,
                 std::slice::from_raw_parts(
                     vertices.as_ptr() as *const u8,
-                    vertices.len() * std::mem::size_of::<V>(),
+                    std::mem::size_of_val(vertices),
                 ),
                 glow::DYNAMIC_DRAW,
             );
@@ -52,7 +52,7 @@ impl Mesh {
                 glow::ELEMENT_ARRAY_BUFFER,
                 std::slice::from_raw_parts(
                     indices.as_ptr() as *const u8,
-                    indices.len() * std::mem::size_of::<u32>(),
+                    std::mem::size_of_val(indices),
                 ),
                 glow::DYNAMIC_DRAW,
             );
@@ -84,7 +84,7 @@ impl Mesh {
                 glow::ARRAY_BUFFER,
                 std::slice::from_raw_parts(
                     vertices.as_ptr() as *const u8,
-                    vertices.len() * std::mem::size_of::<V>(),
+                    std::mem::size_of_val(vertices),
                 ),
                 glow::DYNAMIC_DRAW,
             );
@@ -95,7 +95,7 @@ impl Mesh {
                 glow::ELEMENT_ARRAY_BUFFER,
                 std::slice::from_raw_parts(
                     indices.as_ptr() as *const u8,
-                    indices.len() * std::mem::size_of::<u32>(),
+                    std::mem::size_of_val(indices),
                 ),
                 glow::DYNAMIC_DRAW,
             );
