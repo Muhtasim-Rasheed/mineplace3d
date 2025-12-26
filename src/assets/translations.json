@@ -23,5 +23,6 @@
   "block.0009": "Bricks",
 	"block.000A": "Snow",
   "block.000B": "Glungus",
-  "block.000C": "Bedrock"
+  "block.000C": "Bedrock",
+	"block.000D": "missingno"
 }

@@ -9,7 +9,7 @@ use crate::{
     game::{Block, RayHit, ResourceManager, World, cast_ray},
 };
 
-pub const PLACABLE_BLOCKS: [Block; 22] = [
+pub const PLACABLE_BLOCKS: [Block; 23] = [
     Block::Grass,
     Block::Dirt,
     Block::Planks,
@@ -32,6 +32,7 @@ pub const PLACABLE_BLOCKS: [Block; 22] = [
     Block::Brick,
     Block::Snow,
     Block::Glungus,
+    Block::missingno,
 ];
 
 #[derive(Clone, PartialEq, Eq, Hash)]
