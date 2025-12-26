@@ -284,7 +284,8 @@ pub enum Block {
     Snow             = FULL_BLOCK          | 0x000A,
     Glungus          = FULL_BLOCK          | 0x000B,
     Bedrock          = FULL_BLOCK          | 0x000C,
-    missingno        = FULL_BLOCK          | 0x000D,
+    #[allow(dead_code)]
+    Missingno        = FULL_BLOCK          | 0x000D,
 }
 
 impl Block {
