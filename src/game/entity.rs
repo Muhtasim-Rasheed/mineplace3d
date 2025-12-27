@@ -36,8 +36,8 @@ pub const PLACABLE_BLOCKS: [Block; 22] = [
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct EntityId {
-    id: u32,
-    entity_name: String,
+    pub id: u32,
+    pub entity_name: String,
 }
 
 impl EntityId {
@@ -87,6 +87,10 @@ pub trait Entity: 'static {
     {
         EntityId::new::<Self>()
     }
+    fn save(&self) -> Vec<u8>;
+    fn load(data: &[u8]) -> Result<Self, String>
+    where
+        Self: Sized;
     fn position(&self) -> Vec3;
     fn apply_velocity(&mut self, delta: Vec3);
     fn width(&self) -> f32;
@@ -180,6 +184,71 @@ impl Entity for Player {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn save(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend(self.position.x.to_le_bytes());
+        data.extend(self.position.y.to_le_bytes());
+        data.extend(self.position.z.to_le_bytes());
+        data.extend(self.velocity.x.to_le_bytes());
+        data.extend(self.velocity.y.to_le_bytes());
+        data.extend(self.velocity.z.to_le_bytes());
+        data.extend(self.yaw.to_le_bytes());
+        data.extend(self.pitch.to_le_bytes());
+        data
+    }
+
+    fn load(data: &[u8]) -> Result<Self, String> {
+        fn read_f32(data: &[u8], offset: &mut usize) -> Result<f32, String> {
+            if *offset + 4 > data.len() {
+                return Err("Unexpected end of data".to_string());
+            }
+
+            let bytes: [u8; 4] = data[*offset..*offset + 4]
+                .try_into()
+                .map_err(|_| "Failed to read f32".to_string())?;
+
+            *offset += 4;
+            Ok(f32::from_le_bytes(bytes))
+        }
+
+        let mut offset = 0;
+
+        let position = vec3(
+            read_f32(data, &mut offset)?,
+            read_f32(data, &mut offset)?,
+            read_f32(data, &mut offset)?,
+        );
+
+        let velocity = vec3(
+            read_f32(data, &mut offset)?,
+            read_f32(data, &mut offset)?,
+            read_f32(data, &mut offset)?,
+        );
+
+        let yaw = read_f32(data, &mut offset)?;
+        let pitch = read_f32(data, &mut offset)?;
+
+        Ok(Player {
+            old_position: position,
+            position,
+            velocity,
+            up: Vec3::Y,
+            forward: Vec3::NEG_Z,
+            yaw,
+            pitch,
+            jumping: false,
+            keys_down: HashSet::new(),
+            mouse_down: HashSet::new(),
+            break_place_cooldown: 0,
+            selected_block: None,
+            current_block: 0,
+            sneaking: false,
+            projection: Mat4::IDENTITY,
+            cloud_projection: Mat4::IDENTITY,
+            chat_open: false,
+        })
     }
 
     fn position(&self) -> Vec3 {
@@ -485,6 +554,68 @@ impl Entity for Billboard {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn save(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend(self.position.x.to_le_bytes());
+        data.extend(self.position.y.to_le_bytes());
+        data.extend(self.position.z.to_le_bytes());
+        data.extend(self.size.to_le_bytes());
+        data.extend(self.life.to_le_bytes());
+        data.extend((self.kind as u32).to_le_bytes());
+        data
+    }
+
+    fn load(data: &[u8]) -> Result<Self, String> {
+        fn read_f32(data: &[u8], offset: &mut usize) -> Result<f32, String> {
+            if *offset + 4 > data.len() {
+                return Err("Unexpected end of data".to_string());
+            }
+
+            let bytes: [u8; 4] = data[*offset..*offset + 4]
+                .try_into()
+                .map_err(|_| "Failed to read f32".to_string())?;
+
+            *offset += 4;
+            Ok(f32::from_le_bytes(bytes))
+        }
+
+        fn read_u32(data: &[u8], offset: &mut usize) -> Result<u32, String> {
+            if *offset + 4 > data.len() {
+                return Err("Unexpected end of data".to_string());
+            }
+
+            let bytes: [u8; 4] = data[*offset..*offset + 4]
+                .try_into()
+                .map_err(|_| "Failed to read u32".to_string())?;
+
+            *offset += 4;
+            Ok(u32::from_le_bytes(bytes))
+        }
+
+        let mut offset = 0;
+        let position = vec3(
+            read_f32(data, &mut offset)?,
+            read_f32(data, &mut offset)?,
+            read_f32(data, &mut offset)?,
+        );
+        let size = read_f32(data, &mut offset)?;
+        let life = read_u32(data, &mut offset)?;
+        let kind_u32 = read_u32(data, &mut offset)?;
+        let kind = match kind_u32 {
+            0 => BillboardType::Explosion,
+            _ => BillboardType::Explosion,
+        };
+        Ok(Billboard {
+            position,
+            size,
+            life,
+            kind,
+            start_size: size,
+            shader_key: "billboard_shader".to_string(),
+            atlas_key: "billboard_atlas".to_string(),
+        })
     }
 
     fn position(&self) -> Vec3 {

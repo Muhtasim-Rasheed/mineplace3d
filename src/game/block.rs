@@ -284,8 +284,51 @@ pub enum Block {
     Snow             = FULL_BLOCK          | 0x000A,
     Glungus          = FULL_BLOCK          | 0x000B,
     Bedrock          = FULL_BLOCK          | 0x000C,
-    #[allow(dead_code)]
     Missingno        = FULL_BLOCK          | 0x000D,
+}
+
+impl From<u32> for Block {
+    fn from(value: u32) -> Self {
+        match value & 0xFFFF {
+            0x0000 => Block::Air,
+            0x0001 => Block::Grass,
+            0x0002 => Block::Dirt,
+            0x0003 => {
+                let partial_bits = mask_partial(value);
+                match partial_bits {
+                    1 => Block::PlanksSlabTop,
+                    2 => Block::PlanksSlabBottom,
+                    3 => Block::PlanksStairsN,
+                    4 => Block::PlanksStairsS,
+                    5 => Block::PlanksStairsE,
+                    6 => Block::PlanksStairsW,
+                    _ => Block::Planks,
+                }
+            }
+            0x0004 => Block::Stone,
+            0x0005 => Block::OakLog,
+            0x0006 => Block::Leaves,
+            0x0007 => {
+                let partial_bits = mask_partial(value);
+                match partial_bits {
+                    1 => Block::StoneSlabTop,
+                    2 => Block::StoneSlabBottom,
+                    3 => Block::StoneStairsN,
+                    4 => Block::StoneStairsS,
+                    5 => Block::StoneStairsE,
+                    6 => Block::StoneStairsW,
+                    _ => Block::CobbleStone,
+                }
+            }
+            0x0008 => Block::Glass,
+            0x0009 => Block::Brick,
+            0x000A => Block::Snow,
+            0x000B => Block::Glungus,
+            0x000C => Block::Bedrock,
+            0x000D => Block::Missingno,
+            _ => Block::Missingno,
+        }
+    }
 }
 
 impl Block {

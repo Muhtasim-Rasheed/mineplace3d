@@ -22,7 +22,7 @@ pub const RENDER_DISTANCE: u32 = 8;
 
 pub struct World {
     chunks: FxHashMap<IVec3, Chunk>,
-    changes: FxHashMap<(IVec3, IVec3), Block>,
+    pub(super) changes: FxHashMap<(IVec3, IVec3), Block>,
     chunk_outside_blocks: FxHashMap<(IVec3, IVec3), Block>,
     pub entities: HashMap<EntityId, Rc<RefCell<dyn Entity>>>,
     pub meshes: HashMap<IVec3, Mesh>,
@@ -55,24 +55,12 @@ impl World {
         biome_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
         biome_noise.set_frequency(Some(0.1));
 
-        let mut chunks = HashMap::new();
-        let mut chunk_outside_blocks = HashMap::new();
-        for x in -3..=3 {
-            for y in -1..=3 {
-                for z in -3..=3 {
-                    let res = Chunk::new(x, y, z, &noise, &cave_noise, &biome_noise);
-                    chunks.insert(ivec3(x, y, z), res.0);
-                    chunk_outside_blocks.extend(res.1.into_iter());
-                }
-            }
-        }
-
         let player = Player::new(vec3(0.0, 100.0, 0.0), window);
 
         let mut world = World {
-            chunks: FxHashMap::from_iter(chunks),
+            chunks: FxHashMap::default(),
             changes: FxHashMap::default(),
-            chunk_outside_blocks: FxHashMap::from_iter(chunk_outside_blocks),
+            chunk_outside_blocks: FxHashMap::default(),
             entities: HashMap::new(),
             meshes: HashMap::new(),
             mesh_visible: HashSet::new(),
