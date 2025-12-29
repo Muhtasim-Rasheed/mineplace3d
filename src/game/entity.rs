@@ -281,14 +281,18 @@ impl Entity for Player {
                     keycode: Some(Keycode::Left),
                     ..
                 } => {
-                    self.current_block =
-                        (self.current_block + PLACABLE_BLOCKS.len() - 1) % PLACABLE_BLOCKS.len();
+                    if !self.chat_open && self.grab {
+                        self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
+                            % PLACABLE_BLOCKS.len();
+                    }
                 }
                 sdl2::event::Event::KeyDown {
                     keycode: Some(Keycode::Right),
                     ..
                 } => {
-                    self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
+                    if !self.chat_open && self.grab {
+                        self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
+                    }
                 }
                 sdl2::event::Event::KeyDown {
                     keycode: Some(key), ..
@@ -298,11 +302,15 @@ impl Entity for Player {
                         self.grab = false;
                     }
                     Keycode::Return | Keycode::Escape => {
-                        self.chat_open = false;
-                        self.grab = !self.grab;
+                        if !self.chat_open {
+                            self.grab = !self.grab;
+                        } else {
+                            self.chat_open = false;
+                            self.grab = true;
+                        }
                     }
                     _ => {
-                        if !self.chat_open {
+                        if !self.chat_open && self.grab {
                             self.keys_down.insert(*key);
                         }
                     }

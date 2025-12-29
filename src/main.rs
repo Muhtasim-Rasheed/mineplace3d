@@ -287,16 +287,16 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
 
     let mut mouse_pos = (0, 0);
 
-    let mut vsync = true;
-
-    let mut button = Button::new(
+    let mut back_to_game = Button::new(
         font,
-        "testingly\ntesting".to_string(),
-        vec2(600.0, 600.0),
-        vec2(600.0, 200.0),
+        "Return to game".to_string(),
+        vec2(50.0, 300.0),
+        vec2(800.0, 100.0),
         36.0,
         false,
     );
+
+    let mut vsync = true;
 
     let translations =
         asset::Translations::new(TRANSLATIONS_JSON).expect("Failed to load translations");
@@ -371,11 +371,11 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
                     if !chat_open {
                         keys_down.insert(*key);
                     }
-                    if *key == Keycode::Slash && !chat_open {
+                    if *key == Keycode::Slash && !chat_open && grab {
                         chat_open = true;
                         command = Some("/".to_string());
                         grab = false;
-                    } else if *key == Keycode::T && !chat_open {
+                    } else if *key == Keycode::T && !chat_open && grab {
                         chat_open = true;
                         command = Some("".to_string());
                         grab = false;
@@ -627,21 +627,31 @@ Current Block: {}"#,
             app.window.size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).y - 150.0 - 24.0,
             24.0,
         );
-        button.update(
-            (
-                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
-                mouse_down.contains(&MouseButton::Left),
-            ),
-            grab,
-        );
-        if button.pressed() {
-            chat_hist.push("[DEBUG] Button clicked".to_string());
-        }
         view = Mat4::look_at_rh(
             player.camera_pos(),
             player.camera_pos() + player.forward,
             player.up,
         );
+
+        if !chat_open && !grab {
+            back_to_game.set_position_size(
+                vec2(
+                    (app.window.size().0 as f32 - back_to_game.size.x) / 2.0,
+                    300.0,
+                ),
+                back_to_game.size,
+            );
+
+            back_to_game.update(
+                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
+                mouse_down.contains(&MouseButton::Left),
+                grab,
+            );
+
+            if back_to_game.pressed() {
+                grab = true;
+            }
+        }
 
         request_chunks_around_player(
             player.position,
@@ -829,11 +839,13 @@ Current Block: {}"#,
                     .get::<Texture>("font")
                     .unwrap()
                     .bind_to_unit(0);
+                ui_shader.set_uniform("texture_sampler", 0);
                 ui_shader.set_uniform("projection", ui_projection);
                 ui_shader.set_uniform("ui_color", Vec4::ONE);
-                debug_mesh.draw();
-                if grab {
+                ui_shader.set_uniform("solid", false);
+                if grab || chat_open {
                     cursor.draw();
+                    debug_mesh.draw();
                 }
                 if chat_open {
                     chat_mesh.draw();
@@ -850,14 +862,31 @@ Current Block: {}"#,
                     ui_shader.set_uniform("ui_color", color);
                     block_mesh.draw();
                 }
-                if !grab {
-                    button.draw(
-                        &app.gl,
-                        world.resource_mgr.get::<Texture>("font").unwrap(),
-                        world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
-                        ui_shader,
-                    );
-                }
+            }
+
+            if !grab && !chat_open {
+                ui_shader.set_uniform("ui_color", vec4(0.0, 0.0, 0.0, 0.5));
+                ui_shader.set_uniform("solid", true);
+                fullscreen_quad_mesh(&app.gl, app.window.size().0, app.window.size().1).draw();
+
+                world
+                    .resource_mgr
+                    .get::<Texture>("font")
+                    .unwrap()
+                    .bind_to_unit(0);
+                ui_shader.set_uniform("ui_color", Vec4::ONE);
+                ui_shader.set_uniform("solid", false);
+
+                let text_width = font.text_metrics("Mineplace3D", 96.0).x;
+                let text = font.build(&app.gl, "Mineplace3D", app.window.size().0 as f32 / 2.0 - text_width / 2.0, 100.0, 96.0);
+                text.draw();
+
+                back_to_game.draw(
+                    &app.gl,
+                    world.resource_mgr.get::<Texture>("font").unwrap(),
+                    world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
+                    &ui_shader,
+                );
             }
         }
 

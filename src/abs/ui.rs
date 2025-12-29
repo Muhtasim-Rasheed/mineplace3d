@@ -367,8 +367,16 @@ impl Button {
         }
     }
 
+    /// Updates the button's position and size
+    pub fn set_position_size(&mut self, position: Vec2, size: Vec2) {
+        self.position = position;
+        self.size = size;
+        self.nineslice.position = position;
+        self.nineslice.size = size;
+    }
+
     /// Updates the button's state
-    pub fn update(&mut self, mouse: (Vec2, bool), grabbed: bool) {
+    pub fn update(&mut self, mouse_pos: Vec2, mouse_down: bool, grabbed: bool) {
         self.pressed_last = self.pressed;
 
         if self.disabled {
@@ -377,15 +385,15 @@ impl Button {
             self.nineslice.uv_top_left = uvec2(0, 0);
         }
 
-        if self.disabled || !mouse.1 || grabbed {
+        if self.disabled || !mouse_down || grabbed {
             self.pressed = false;
             return;
         }
 
-        if mouse.0.x >= self.position.x
-            && mouse.0.x <= self.position.x + self.size.x
-            && mouse.0.y >= self.position.y
-            && mouse.0.y <= self.position.y + self.size.y
+        if mouse_pos.x >= self.position.x
+            && mouse_pos.x <= self.position.x + self.size.x
+            && mouse_pos.y >= self.position.y
+            && mouse_pos.y <= self.position.y + self.size.y
         {
             self.pressed = true;
         } else {
@@ -415,7 +423,7 @@ impl Button {
     pub fn build_meshes(&self, gl: &Arc<glow::Context>) -> [Mesh; 2] {
         let text_metrics = self.bitmap_font.text_metrics(&self.text, self.font_size);
         let text_x = self.position.x + (self.size.x - text_metrics.x) * 0.5;
-        let text_y = self.position.y + (self.size.y - text_metrics.y) * 0.5;
+        let text_y = self.position.y + (self.size.y - text_metrics.y) * 0.5 - self.nineslice.scale as f32 * 2.0;
         let text = self
             .bitmap_font
             .build(gl, &self.text, text_x, text_y, self.font_size);
@@ -438,4 +446,28 @@ impl Button {
         font_tex.bind_to_unit(0);
         meshes[1].draw();
     }
+}
+
+/// Creates a full screen quad mesh
+pub fn fullscreen_quad_mesh(gl: &Arc<glow::Context>, width: u32, height: u32) -> Mesh {
+    let vertices: [UIVertex; 4] = [
+        UIVertex {
+            position: vec3(width as f32, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        UIVertex {
+            position: vec3(0.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        UIVertex {
+            position: vec3(0.0, height as f32, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        UIVertex {
+            position: vec3(width as f32, height as f32, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+    ];
+    let indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
+    Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
 }
