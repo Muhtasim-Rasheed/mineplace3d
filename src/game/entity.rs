@@ -122,6 +122,7 @@ pub struct Player {
     pub projection: Mat4,
     pub cloud_projection: Mat4,
     chat_open: bool,
+    grab: bool,
 }
 
 impl Player {
@@ -154,6 +155,7 @@ impl Player {
                 400.0,
             ),
             chat_open: false,
+            grab: false,
         }
     }
 
@@ -248,6 +250,7 @@ impl Entity for Player {
             projection: Mat4::IDENTITY,
             cloud_projection: Mat4::IDENTITY,
             chat_open: false,
+            grab: false,
         })
     }
 
@@ -290,8 +293,14 @@ impl Entity for Player {
                 sdl2::event::Event::KeyDown {
                     keycode: Some(key), ..
                 } => match *key {
-                    Keycode::T | Keycode::Slash => self.chat_open = true,
-                    Keycode::Return | Keycode::Escape => self.chat_open = false,
+                    Keycode::T | Keycode::Slash => {
+                        self.chat_open = true;
+                        self.grab = false;
+                    }
+                    Keycode::Return | Keycode::Escape => {
+                        self.chat_open = false;
+                        self.grab = !self.grab;
+                    }
                     _ => {
                         if !self.chat_open {
                             self.keys_down.insert(*key);
@@ -304,10 +313,14 @@ impl Entity for Player {
                     self.keys_down.remove(key);
                 }
                 sdl2::event::Event::MouseButtonDown { mouse_btn, .. } => {
-                    self.mouse_down.insert(*mouse_btn);
+                    if self.grab {
+                        self.mouse_down.insert(*mouse_btn);
+                    }
                 }
                 sdl2::event::Event::MouseButtonUp { mouse_btn, .. } => {
-                    self.mouse_down.remove(mouse_btn);
+                    if self.grab {
+                        self.mouse_down.remove(mouse_btn);
+                    }
                 }
                 sdl2::event::Event::MouseWheel { y, .. } => {
                     if *y > 0 {

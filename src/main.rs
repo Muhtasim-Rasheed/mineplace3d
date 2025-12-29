@@ -3,7 +3,7 @@ use glow::HasContext;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use std::collections::HashSet;
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::Instant;
 
@@ -116,17 +116,17 @@ fn main() {
     let font_image =
         image::load_from_memory(include_bytes!("assets/font.png")).expect("Failed to load texture");
 
-    let font = BitmapFont::new(
+    let font = Arc::new(BitmapFont::new(
         font_image, ' ', // first character
         12,  // characters per row
         7,   // character width
         12,  // character height
-    );
+    ));
 
     game(rand::random(), &mut app, &font);
 }
 
-fn game(seed: i32, app: &mut App, font: &BitmapFont) {
+fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
     unsafe {
         app.gl.enable(glow::DEPTH_TEST);
         app.gl.enable(glow::CULL_FACE);
@@ -142,6 +142,8 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
     let billboard_atlas_image =
         image::load_from_memory(include_bytes!("assets/billboard_atlas.png"))
             .expect("Failed to load texture");
+    let gui_atlas_image =
+        image::load_from_memory(include_bytes!("assets/gui.png")).expect("Failed to load texture");
 
     let mut view;
 
@@ -187,6 +189,9 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
 
     let billboard_atlas_image = billboard_atlas_image.to_rgba8();
     let billboard_atlas_texture = Texture::new(&app.gl, &billboard_atlas_image.into());
+
+    let gui_atlas_image = gui_atlas_image.to_rgba8();
+    let gui_atlas_texture = Texture::new(&app.gl, &gui_atlas_image.into());
 
     let mut debug_mesh;
     let mut chat_mesh = font.build(&app.gl, "", 50.0, app.window.size().1 as f32 - 150.0, 24.0);
@@ -280,7 +285,18 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
     let mut chat_open = false;
     let mut show_ui = true;
 
+    let mut mouse_pos = (0, 0);
+
     let mut vsync = true;
+
+    let mut button = Button::new(
+        font,
+        "testingly\ntesting".to_string(),
+        vec2(600.0, 600.0),
+        vec2(600.0, 200.0),
+        36.0,
+        false,
+    );
 
     let translations =
         asset::Translations::new(TRANSLATIONS_JSON).expect("Failed to load translations");
@@ -290,9 +306,10 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
 
     let resource_mgr = ResourceManager::new()
         .add("atlas", atlas_texture)
+        .add("billboard_atlas", billboard_atlas_texture)
+        .add("gui_atlas", gui_atlas_texture)
         .add("font", Texture::new(&app.gl, &font.atlas))
         .add("cloud", cloud_texture)
-        .add("billboard_atlas", billboard_atlas_texture)
         .add("block_shader", shader_program)
         .add("outline_shader", outline_shader_program)
         .add("billboard_shader", billboard_shader_program)
@@ -468,8 +485,16 @@ fn game(seed: i32, app: &mut App, font: &BitmapFont) {
                 } => {
                     mouse_down.insert(*button);
                 }
-                sdl2::event::Event::MouseMotion { xrel, yrel, .. } => {
-                    if app.window.grab() {
+                sdl2::event::Event::MouseButtonUp {
+                    mouse_btn: button, ..
+                } => {
+                    mouse_down.remove(button);
+                }
+                sdl2::event::Event::MouseMotion {
+                    x, y, xrel, yrel, ..
+                } => {
+                    mouse_pos = (*x, *y);
+                    if grab {
                         let sensitivity = 0.175;
                         world.get_player_mut().yaw += (*xrel as f32) * sensitivity;
                         world.get_player_mut().pitch -= (*yrel as f32) * sensitivity;
@@ -599,9 +624,19 @@ Current Block: {}"#,
             &app.gl,
             &chat_hist_text,
             50.0,
-            app.window.size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).1 - 150.0 - 24.0,
+            app.window.size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).y - 150.0 - 24.0,
             24.0,
         );
+        button.update(
+            (
+                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
+                mouse_down.contains(&MouseButton::Left),
+            ),
+            grab,
+        );
+        if button.pressed() {
+            chat_hist.push("[DEBUG] Button clicked".to_string());
+        }
         view = Mat4::look_at_rh(
             player.camera_pos(),
             player.camera_pos() + player.forward,
@@ -795,7 +830,7 @@ Current Block: {}"#,
                     .unwrap()
                     .bind_to_unit(0);
                 ui_shader.set_uniform("projection", ui_projection);
-                ui_shader.set_uniform("ui_color", vec4(1.0, 1.0, 1.0, 1.0));
+                ui_shader.set_uniform("ui_color", Vec4::ONE);
                 debug_mesh.draw();
                 if grab {
                     cursor.draw();
@@ -814,6 +849,14 @@ Current Block: {}"#,
                 {
                     ui_shader.set_uniform("ui_color", color);
                     block_mesh.draw();
+                }
+                if !grab {
+                    button.draw(
+                        &app.gl,
+                        world.resource_mgr.get::<Texture>("font").unwrap(),
+                        world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
+                        ui_shader,
+                    );
                 }
             }
         }
