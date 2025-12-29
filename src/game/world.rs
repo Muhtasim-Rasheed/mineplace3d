@@ -114,7 +114,13 @@ impl World {
         Arc::clone(&self.biome_noise)
     }
 
-    pub fn update(&mut self, events: &[sdl2::event::Event], dt: f64) {
+    pub fn update(
+        &mut self,
+        events: &[sdl2::event::Event],
+        dt: f64,
+        grabbed: bool,
+        chat_open: bool,
+    ) {
         let player_pos = self.get_player().position();
         self.chunks.retain(|pos, _| {
             let distance_squared = pos
@@ -131,7 +137,9 @@ impl World {
         }
         self.entities.retain(|_, e| !e.borrow().requests_removal());
         for (id, entity) in self.entities.clone() {
-            entity.borrow_mut().update(id, self, events, dt);
+            entity
+                .borrow_mut()
+                .update(id, self, events, dt, grabbed, chat_open);
         }
     }
 

@@ -57,59 +57,6 @@ fn shift_vec<T: Clone>(v: &[T], index: usize) -> Vec<T> {
         .collect()
 }
 
-fn key_to_char(key: Keycode) -> Option<char> {
-    match key {
-        Keycode::A => Some('a'),
-        Keycode::B => Some('b'),
-        Keycode::C => Some('c'),
-        Keycode::D => Some('d'),
-        Keycode::E => Some('e'),
-        Keycode::F => Some('f'),
-        Keycode::G => Some('g'),
-        Keycode::H => Some('h'),
-        Keycode::I => Some('i'),
-        Keycode::J => Some('j'),
-        Keycode::K => Some('k'),
-        Keycode::L => Some('l'),
-        Keycode::M => Some('m'),
-        Keycode::N => Some('n'),
-        Keycode::O => Some('o'),
-        Keycode::P => Some('p'),
-        Keycode::Q => Some('q'),
-        Keycode::R => Some('r'),
-        Keycode::S => Some('s'),
-        Keycode::T => Some('t'),
-        Keycode::U => Some('u'),
-        Keycode::V => Some('v'),
-        Keycode::W => Some('w'),
-        Keycode::X => Some('x'),
-        Keycode::Y => Some('y'),
-        Keycode::Z => Some('z'),
-        Keycode::Space => Some(' '),
-        Keycode::Quote => Some('\''),
-        Keycode::Comma => Some(','),
-        Keycode::Minus => Some('-'),
-        Keycode::Period => Some('.'),
-        Keycode::Slash => Some('/'),
-        Keycode::Semicolon => Some(';'),
-        Keycode::Equals => Some('='),
-        Keycode::LeftBracket => Some('['),
-        Keycode::Backslash => Some('\\'),
-        Keycode::RightBracket => Some(']'),
-        Keycode::Num0 => Some('0'),
-        Keycode::Num1 => Some('1'),
-        Keycode::Num2 => Some('2'),
-        Keycode::Num3 => Some('3'),
-        Keycode::Num4 => Some('4'),
-        Keycode::Num5 => Some('5'),
-        Keycode::Num6 => Some('6'),
-        Keycode::Num7 => Some('7'),
-        Keycode::Num8 => Some('8'),
-        Keycode::Num9 => Some('9'),
-        _ => None,
-    }
-}
-
 fn main() {
     let mut app = App::new("Mineplace3D", 1280, 720, true);
 
@@ -123,10 +70,23 @@ fn main() {
         12,  // character height
     ));
 
-    game(rand::random(), &mut app, &font);
+    let game_dir = dirs::data_dir()
+        .unwrap_or_else(|| panic!("Failed to get user data directory"))
+        .join("mineplace3d");
+    if !game_dir.exists() {
+        std::fs::create_dir_all(&game_dir)
+            .unwrap_or_else(|_| panic!("Failed to create game directory: {:?}", game_dir));
+    }
+    let saves_dir = game_dir.join("saves");
+    if !saves_dir.exists() {
+        std::fs::create_dir_all(&saves_dir)
+            .unwrap_or_else(|_| panic!("Failed to create saves directory: {:?}", saves_dir));
+    }
+
+    game(rand::random(), &mut app, &font, &saves_dir);
 }
 
-fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
+fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path::Path) {
     unsafe {
         app.gl.enable(glow::DEPTH_TEST);
         app.gl.enable(glow::CULL_FACE);
@@ -194,7 +154,14 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
     let gui_atlas_texture = Texture::new(&app.gl, &gui_atlas_image.into());
 
     let mut debug_mesh;
-    let mut chat_mesh = font.build(&app.gl, "", 50.0, app.window.size().1 as f32 - 150.0, 24.0);
+    let mut chat_mesh = font.build(
+        &app.gl,
+        "",
+        50.0,
+        app.window.size().1 as f32 - 150.0,
+        24.0,
+        false,
+    );
     let mut chat_hist_mesh;
     let mut cursor = font.build(
         &app.gl,
@@ -202,6 +169,7 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
         app.window.size().0 as f32 / 2.0 - 10.0,
         app.window.size().1 as f32 / 2.0 - 10.0,
         36.0,
+        false,
     );
     let outline_mesh = outline_mesh(&app.gl);
     let mut ui_projection = Mat4::orthographic_rh_gl(
@@ -295,6 +263,22 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
         36.0,
         false,
     );
+    let mut world_name = TextField::new(
+        font,
+        "".to_string(),
+        "World Name".to_string(),
+        vec2(50.0, 420.0),
+        vec2(800.0, 100.0),
+        36.0,
+    );
+    let mut save = Button::new(
+        font,
+        "Save".to_string(),
+        vec2(50.0, 540.0),
+        vec2(390.0, 100.0),
+        36.0,
+        true,
+    );
 
     let mut vsync = true;
 
@@ -340,6 +324,8 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
             window_events.push(event);
         }
 
+        let mut set_command = None;
+
         for event in &window_events {
             match event {
                 sdl2::event::Event::KeyDown {
@@ -365,6 +351,13 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
                         grab = true;
                     }
                 }
+                sdl2::event::Event::TextInput { text, .. } => {
+                    if chat_open {
+                        if let Some(ref mut cmd) = command {
+                            cmd.push_str(text);
+                        }
+                    }
+                }
                 sdl2::event::Event::KeyDown {
                     keycode: Some(key), ..
                 } => {
@@ -373,11 +366,11 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
                     }
                     if *key == Keycode::Slash && !chat_open && grab {
                         chat_open = true;
-                        command = Some("/".to_string());
+                        set_command = Some("/");
                         grab = false;
                     } else if *key == Keycode::T && !chat_open && grab {
                         chat_open = true;
-                        command = Some("".to_string());
+                        set_command = Some("");
                         grab = false;
                     } else if *key == Keycode::Return && chat_open {
                         if let Some(cmd) = command.take()
@@ -467,12 +460,6 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
                         if let Some(ref mut cmd) = command {
                             cmd.pop();
                         }
-                    } else if chat_open
-                        && let Some(ref mut cmd) = command
-                        && let Some(c) = key_to_char(*key)
-                        && !c.is_control()
-                    {
-                        cmd.push(c);
                     }
                 }
                 sdl2::event::Event::KeyUp {
@@ -533,10 +520,15 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>) {
                         *w as f32 / 2.0 - 10.0,
                         *h as f32 / 2.0 - 10.0,
                         36.0,
+                        false,
                     );
                 }
                 _ => {}
             }
+        }
+
+        if let Some(cmd) = set_command {
+            command = Some(cmd.to_string());
         }
 
         let player = world.get_player().clone();
@@ -600,14 +592,15 @@ Current Block: {}"#,
                 })
                 .unwrap_or(&"Unknown".to_string()),
         );
-        debug_mesh = font.build(&app.gl, &text, 50.0, 50.0, 24.0);
+        debug_mesh = font.build(&app.gl, &text, 50.0, 50.0, 24.0, false);
         if let Some(ref cmd) = command {
             chat_mesh = font.build(
                 &app.gl,
-                &cmd.to_string(),
+                &format!("{}_", cmd),
                 50.0,
                 app.window.size().1 as f32 - 150.0 - 24.0,
                 24.0,
+                false,
             );
         }
         let chat_hist_text = chat_hist
@@ -626,6 +619,7 @@ Current Block: {}"#,
             50.0,
             app.window.size().1 as f32 - font.text_metrics(&chat_hist_text, 24.0).y - 150.0 - 24.0,
             24.0,
+            false,
         );
         view = Mat4::look_at_rh(
             player.camera_pos(),
@@ -637,7 +631,7 @@ Current Block: {}"#,
             back_to_game.set_position_size(
                 vec2(
                     (app.window.size().0 as f32 - back_to_game.size.x) / 2.0,
-                    300.0,
+                    back_to_game.position.y,
                 ),
                 back_to_game.size,
             );
@@ -650,6 +644,46 @@ Current Block: {}"#,
 
             if back_to_game.pressed() {
                 grab = true;
+            }
+
+            world_name.set_position_size(
+                vec2((app.window.size().0 as f32 - world_name.size.x) / 2.0, world_name.position.y),
+                world_name.size,
+            );
+
+            world_name.update(
+                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
+                mouse_down.contains(&MouseButton::Left),
+                window_events.as_slice(),
+                grab,
+            );
+
+            save.set_position_size(
+                vec2(
+                    (app.window.size().0 as f32 - world_name.size.x) / 2.0,
+                    save.position.y,
+                ),
+                save.size,
+            );
+
+            if world_name.text.is_empty() {
+                save.disabled = true;
+            } else {
+                save.disabled = false;
+            }
+
+            save.update(
+                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
+                mouse_down.contains(&MouseButton::Left),
+                grab,
+            );
+
+            if save.pressed() {
+                let bytes = world.save();
+                let save_path = saves_dir.join(format!("{}.mp3d", world_name.text));
+                std::fs::write(&save_path, bytes)
+                    .unwrap_or_else(|_| panic!("Failed to save world to {:?}", save_path));
+                chat_hist.push(format!("World '{}' saved.", world_name.text));
             }
         }
 
@@ -671,7 +705,7 @@ Current Block: {}"#,
         {
             world.add_chunk(cx, cy, cz, chunk, outside_blocks);
         }
-        world.update(window_events.as_slice(), dt);
+        world.update(window_events.as_slice(), dt, grab, chat_open);
         let vp = player.projection * view;
         world.update_mesh_visibility(vp);
         world.generate_meshes(&app.gl);
@@ -819,7 +853,7 @@ Current Block: {}"#,
                 "screen_size",
                 vec2(app.window.size().0 as f32, app.window.size().1 as f32),
             );
-            quad_mesh(&app.gl).draw();
+            fullscreen_quad_mesh_ndc(&app.gl).draw();
 
             Framebuffer::unbind(&app.gl);
 
@@ -830,7 +864,7 @@ Current Block: {}"#,
             postprocessing_shader.set_uniform("texture_sampler", 0);
             ssao_framebuffer.texture().bind_to_unit(1);
             postprocessing_shader.set_uniform("ssao_texture", 1);
-            quad_mesh(&app.gl).draw();
+            fullscreen_quad_mesh_ndc(&app.gl).draw();
 
             if show_ui {
                 ui_shader.use_program();
@@ -878,10 +912,31 @@ Current Block: {}"#,
                 ui_shader.set_uniform("solid", false);
 
                 let text_width = font.text_metrics("Mineplace3D", 96.0).x;
-                let text = font.build(&app.gl, "Mineplace3D", app.window.size().0 as f32 / 2.0 - text_width / 2.0, 100.0, 96.0);
+                let text = font.build(
+                    &app.gl,
+                    "Mineplace3D",
+                    app.window.size().0 as f32 / 2.0 - text_width / 2.0,
+                    100.0,
+                    96.0,
+                    false,
+                );
                 text.draw();
 
                 back_to_game.draw(
+                    &app.gl,
+                    world.resource_mgr.get::<Texture>("font").unwrap(),
+                    world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
+                    &ui_shader,
+                );
+
+                world_name.draw(
+                    &app.gl,
+                    world.resource_mgr.get::<Texture>("font").unwrap(),
+                    world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
+                    &ui_shader,
+                );
+
+                save.draw(
                     &app.gl,
                     world.resource_mgr.get::<Texture>("font").unwrap(),
                     world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),

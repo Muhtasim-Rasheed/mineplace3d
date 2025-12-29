@@ -88,7 +88,7 @@ pub trait Entity: 'static {
         EntityId::new::<Self>()
     }
     fn save(&self) -> Vec<u8>;
-    fn load(data: &[u8]) -> Result<Self, String>
+    fn load(data: &[u8], window: &sdl2::video::Window) -> Result<Self, String>
     where
         Self: Sized;
     fn position(&self) -> Vec3;
@@ -99,7 +99,15 @@ pub trait Entity: 'static {
     fn requests_removal(&self) -> bool {
         false
     }
-    fn update(&mut self, id: EntityId, world: &mut World, events: &[sdl2::event::Event], dt: f64);
+    fn update(
+        &mut self,
+        id: EntityId,
+        world: &mut World,
+        events: &[sdl2::event::Event],
+        dt: f64,
+        grabbed: bool,
+        chat_open: bool,
+    );
     fn draw(&self, _gl: &Arc<glow::Context>, _world: &World, _resource_manager: &ResourceManager) {}
 }
 
@@ -121,8 +129,7 @@ pub struct Player {
     pub sneaking: bool,
     pub projection: Mat4,
     pub cloud_projection: Mat4,
-    chat_open: bool,
-    grab: bool,
+    grab_last: bool,
 }
 
 impl Player {
@@ -154,8 +161,7 @@ impl Player {
                 0.1,
                 400.0,
             ),
-            chat_open: false,
-            grab: false,
+            grab_last: false,
         }
     }
 
@@ -201,7 +207,7 @@ impl Entity for Player {
         data
     }
 
-    fn load(data: &[u8]) -> Result<Self, String> {
+    fn load(data: &[u8], window: &sdl2::video::Window) -> Result<Self, String> {
         fn read_f32(data: &[u8], offset: &mut usize) -> Result<f32, String> {
             if *offset + 4 > data.len() {
                 return Err("Unexpected end of data".to_string());
@@ -247,10 +253,19 @@ impl Entity for Player {
             selected_block: None,
             current_block: 0,
             sneaking: false,
-            projection: Mat4::IDENTITY,
-            cloud_projection: Mat4::IDENTITY,
-            chat_open: false,
-            grab: false,
+            projection: Mat4::perspective_rh_gl(
+                90f32.to_radians(),
+                window.size().0 as f32 / window.size().1 as f32,
+                0.1,
+                200.0,
+            ),
+            cloud_projection: Mat4::perspective_rh_gl(
+                90f32.to_radians(),
+                window.size().0 as f32 / window.size().1 as f32,
+                0.1,
+                400.0,
+            ),
+            grab_last: false,
         })
     }
 
@@ -274,14 +289,22 @@ impl Entity for Player {
         if self.sneaking { 1.55 } else { 1.7 }
     }
 
-    fn update(&mut self, _id: EntityId, world: &mut World, events: &[sdl2::event::Event], dt: f64) {
+    fn update(
+        &mut self,
+        _id: EntityId,
+        world: &mut World,
+        events: &[sdl2::event::Event],
+        dt: f64,
+        grabbed: bool,
+        chat_open: bool,
+    ) {
         for event in events {
             match event {
                 sdl2::event::Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
                 } => {
-                    if !self.chat_open && self.grab {
+                    if !chat_open && grabbed {
                         self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
                             % PLACABLE_BLOCKS.len();
                     }
@@ -290,43 +313,29 @@ impl Entity for Player {
                     keycode: Some(Keycode::Right),
                     ..
                 } => {
-                    if !self.chat_open && self.grab {
+                    if !chat_open && grabbed {
                         self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
                     }
                 }
                 sdl2::event::Event::KeyDown {
                     keycode: Some(key), ..
-                } => match *key {
-                    Keycode::T | Keycode::Slash => {
-                        self.chat_open = true;
-                        self.grab = false;
+                } => {
+                    if !chat_open && grabbed {
+                        self.keys_down.insert(*key);
                     }
-                    Keycode::Return | Keycode::Escape => {
-                        if !self.chat_open {
-                            self.grab = !self.grab;
-                        } else {
-                            self.chat_open = false;
-                            self.grab = true;
-                        }
-                    }
-                    _ => {
-                        if !self.chat_open && self.grab {
-                            self.keys_down.insert(*key);
-                        }
-                    }
-                },
+                }
                 sdl2::event::Event::KeyUp {
                     keycode: Some(key), ..
                 } => {
                     self.keys_down.remove(key);
                 }
                 sdl2::event::Event::MouseButtonDown { mouse_btn, .. } => {
-                    if self.grab {
+                    if grabbed && self.grab_last {
                         self.mouse_down.insert(*mouse_btn);
                     }
                 }
                 sdl2::event::Event::MouseButtonUp { mouse_btn, .. } => {
-                    if self.grab {
+                    if grabbed && self.grab_last {
                         self.mouse_down.remove(mouse_btn);
                     }
                 }
@@ -468,6 +477,8 @@ impl Entity for Player {
                 }
             }
         }
+
+        self.grab_last = grabbed;
     }
 }
 
@@ -588,7 +599,7 @@ impl Entity for Billboard {
         data
     }
 
-    fn load(data: &[u8]) -> Result<Self, String> {
+    fn load(data: &[u8], _window: &sdl2::video::Window) -> Result<Self, String> {
         fn read_f32(data: &[u8], offset: &mut usize) -> Result<f32, String> {
             if *offset + 4 > data.len() {
                 return Err("Unexpected end of data".to_string());
@@ -669,6 +680,8 @@ impl Entity for Billboard {
         world: &mut World,
         _events: &[sdl2::event::Event],
         _dt: f64,
+        _grabbed: bool,
+        _chat_open: bool,
     ) {
         if self.life > 0 {
             self.life -= 1;

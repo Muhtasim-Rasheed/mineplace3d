@@ -117,8 +117,8 @@ impl World {
                     let entity_data_len = read_u64(data, &mut offset)? as usize;
                     let entity_data = &data[offset..(offset + entity_data_len)];
                     let entity: Rc<RefCell<dyn Entity>> = match entity_id.entity_name.as_str() {
-                        "Player" => Rc::new(RefCell::new(Player::load(entity_data)?)),
-                        "Billboard" => Rc::new(RefCell::new(Billboard::load(entity_data)?)),
+                        "Player" => Rc::new(RefCell::new(Player::load(entity_data, window)?)),
+                        "Billboard" => Rc::new(RefCell::new(Billboard::load(entity_data, window)?)),
                         _ => return Err(format!("Unsupported entity: {}", entity_id.entity_name)),
                     };
                     world.entities.insert(entity_id, entity);

@@ -40,30 +40,6 @@ impl Vertex for UIVertex {
     }
 }
 
-/// Creates a quad mesh for UI rendering.
-pub fn quad_mesh(gl: &Arc<glow::Context>) -> Mesh {
-    let vertices: [UIVertex; 4] = [
-        UIVertex {
-            position: vec3(-1.0, -1.0, 0.0),
-            uv: vec2(0.0, 0.0),
-        },
-        UIVertex {
-            position: vec3(1.0, -1.0, 0.0),
-            uv: vec2(1.0, 0.0),
-        },
-        UIVertex {
-            position: vec3(1.0, 1.0, 0.0),
-            uv: vec2(1.0, 1.0),
-        },
-        UIVertex {
-            position: vec3(-1.0, 1.0, 0.0),
-            uv: vec2(0.0, 1.0),
-        },
-    ];
-    let indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
-    Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
-}
-
 /// Bitmap font structure for rendering text.
 pub struct BitmapFont {
     first_char: char,
@@ -147,6 +123,7 @@ impl BitmapFont {
         start_x: f32,
         start_y: f32,
         font_size: f32,
+        italic: bool,
     ) -> Mesh {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
@@ -154,6 +131,8 @@ impl BitmapFont {
         let mut x = start_x;
         let mut y = start_y;
         let mut i = 0;
+
+        let italic_offset = if italic { font_size * 0.125 } else { 0.0 };
 
         for ch in text.chars() {
             if ch == '\n' {
@@ -169,19 +148,19 @@ impl BitmapFont {
                 let idx = i * 4;
 
                 vertices.push(UIVertex {
-                    position: glam::vec3(x, y + h, 0.0),
+                    position: glam::vec3(x - italic_offset, y + h, 0.0),
                     uv: glam::vec2(uv0[0], uv1[1]),
                 }); // Top-left
                 vertices.push(UIVertex {
-                    position: glam::vec3(x + w, y + h, 0.0),
+                    position: glam::vec3(x + w - italic_offset, y + h, 0.0),
                     uv: glam::vec2(uv1[0], uv1[1]),
                 }); // Top-right
                 vertices.push(UIVertex {
-                    position: glam::vec3(x + w, y, 0.0),
+                    position: glam::vec3(x + w + italic_offset, y, 0.0),
                     uv: glam::vec2(uv1[0], uv0[1]),
                 }); // Bottom-right
                 vertices.push(UIVertex {
-                    position: glam::vec3(x, y, 0.0),
+                    position: glam::vec3(x + italic_offset, y, 0.0),
                     uv: glam::vec2(uv0[0], uv0[1]),
                 }); // Bottom-left
 
@@ -358,7 +337,7 @@ impl Button {
                 right: 3,
                 top: 2,
                 bottom: 7,
-                uv_top_left: if !disabled { uvec2(0, 0) } else { uvec2(7, 0) },
+                uv_top_left: if !disabled { uvec2(0, 0) } else { uvec2(8, 0) },
                 uv_size: uvec2(7, 10),
                 scale: 4,
                 atlas_size: vec2(144.0, 144.0),
@@ -380,7 +359,7 @@ impl Button {
         self.pressed_last = self.pressed;
 
         if self.disabled {
-            self.nineslice.uv_top_left = uvec2(7, 0);
+            self.nineslice.uv_top_left = uvec2(8, 0);
         } else {
             self.nineslice.uv_top_left = uvec2(0, 0);
         }
@@ -423,10 +402,11 @@ impl Button {
     pub fn build_meshes(&self, gl: &Arc<glow::Context>) -> [Mesh; 2] {
         let text_metrics = self.bitmap_font.text_metrics(&self.text, self.font_size);
         let text_x = self.position.x + (self.size.x - text_metrics.x) * 0.5;
-        let text_y = self.position.y + (self.size.y - text_metrics.y) * 0.5 - self.nineslice.scale as f32 * 2.0;
+        let text_y = self.position.y + (self.size.y - text_metrics.y) * 0.5
+            - self.nineslice.scale as f32 * 2.0;
         let text = self
             .bitmap_font
-            .build(gl, &self.text, text_x, text_y, self.font_size);
+            .build(gl, &self.text, text_x, text_y, self.font_size, false);
         let bg_mesh = self.nineslice.build(gl);
         [bg_mesh, text]
     }
@@ -448,6 +428,210 @@ impl Button {
     }
 }
 
+/// TextField structure for user text input
+pub struct TextField {
+    pub text: String,
+    pub placeholder: String,
+    pub cursor: usize,
+    pub position: Vec2,
+    pub size: Vec2,
+    pub font_size: f32,
+    pub focused: bool,
+    bitmap_font: Arc<BitmapFont>,
+    nineslice: NineSlice,
+}
+
+impl TextField {
+    /// Creates a new text field
+    pub fn new(
+        bitmap_font: &Arc<BitmapFont>,
+        text: String,
+        placeholder: String,
+        position: Vec2,
+        size: Vec2,
+        font_size: f32,
+    ) -> Self {
+        TextField {
+            text,
+            placeholder,
+            cursor: 0,
+            position,
+            size,
+            font_size,
+            focused: false,
+            bitmap_font: Arc::clone(bitmap_font),
+            nineslice: NineSlice {
+                position,
+                size,
+                left: 4,
+                right: 4,
+                top: 4,
+                bottom: 4,
+                uv_top_left: uvec2(16, 0),
+                uv_size: uvec2(9, 9),
+                scale: 4,
+                atlas_size: vec2(144.0, 144.0),
+            },
+        }
+    }
+
+    /// Updates the text field's position and size
+    pub fn set_position_size(&mut self, position: Vec2, size: Vec2) {
+        self.position = position;
+        self.size = size;
+        self.nineslice.position = position;
+        self.nineslice.size = size;
+    }
+
+    /// Updates the text field's state
+    pub fn update(
+        &mut self,
+        mouse_pos: Vec2,
+        mouse_down: bool,
+        events: &[sdl2::event::Event],
+        grabbed: bool,
+    ) {
+        if mouse_down && !grabbed {
+            if mouse_pos.x >= self.position.x
+                && mouse_pos.x <= self.position.x + self.size.x
+                && mouse_pos.y >= self.position.y
+                && mouse_pos.y <= self.position.y + self.size.y
+            {
+                self.focused = true;
+            } else {
+                self.focused = false;
+            }
+        }
+
+        if self.focused {
+            for event in events {
+                match event {
+                    sdl2::event::Event::TextInput { text, .. } => {
+                        self.text.insert_str(self.cursor, text);
+                        self.cursor += text.len();
+                    }
+                    sdl2::event::Event::KeyDown { keycode, .. } => {
+                        if let Some(key) = keycode {
+                            match *key {
+                                sdl2::keyboard::Keycode::Backspace => {
+                                    if self.cursor > 0 {
+                                        self.text.remove(self.cursor - 1);
+                                        self.cursor -= 1;
+                                    }
+                                }
+                                sdl2::keyboard::Keycode::Delete => {
+                                    if self.cursor < self.text.len() {
+                                        self.text.remove(self.cursor);
+                                    }
+                                }
+                                sdl2::keyboard::Keycode::Left => {
+                                    if self.cursor > 0 {
+                                        self.cursor -= 1;
+                                    }
+                                }
+                                sdl2::keyboard::Keycode::Right => {
+                                    if self.cursor < self.text.len() {
+                                        self.cursor += 1;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Builds the meshes for the text field (background, text, and cursor)
+    pub fn build_meshes(&self, gl: &Arc<glow::Context>) -> [Mesh; 3] {
+        let mut text = self.text.clone();
+        if text.is_empty() {
+            text = self.placeholder.clone();
+        }
+        let mut visual_cursor = self.cursor;
+        let mut text_metrics = self.bitmap_font.text_metrics(&text, self.font_size);
+        if text_metrics.x + 60.0 > self.size.x {
+            while text_metrics.x + 60.0 > self.size.x && !text.is_empty() {
+                text.remove(0);
+                if visual_cursor > 0 {
+                    visual_cursor -= 1;
+                }
+                text_metrics = self.bitmap_font.text_metrics(&text, self.font_size);
+            }
+
+            if text.len() >= 2 {
+                text.replace_range(0..2, "< ");
+            }
+        }
+        let text_x = self.position.x + 30.0;
+        let text_y = self.position.y + (self.size.y - text_metrics.y) * 0.5;
+        let text_mesh =
+            self.bitmap_font
+                .build(gl, &text, text_x, text_y, self.font_size, self.text.is_empty());
+        let bg_mesh = self.nineslice.build(gl);
+        let cursor_x = if visual_cursor == 0 {
+            text_x
+        } else {
+            text_x
+                + self
+                    .bitmap_font
+                    .text_metrics(&text[..visual_cursor], self.font_size)
+                    .x
+        };
+        let cursor_y = text_y;
+        let cursor_height = self.font_size;
+        let cursor_vertices: [UIVertex; 4] = [
+            UIVertex {
+                position: vec3(cursor_x, cursor_y + cursor_height, 0.0),
+                uv: vec2(0.0, 0.0),
+            },
+            UIVertex {
+                position: vec3(cursor_x + 2.0, cursor_y + cursor_height, 0.0),
+                uv: vec2(0.0, 0.0),
+            },
+            UIVertex {
+                position: vec3(cursor_x + 2.0, cursor_y, 0.0),
+                uv: vec2(0.0, 0.0),
+            },
+            UIVertex {
+                position: vec3(cursor_x, cursor_y, 0.0),
+                uv: vec2(0.0, 0.0),
+            },
+        ];
+        let cursor_indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
+        let cursor = Mesh::new(gl, &cursor_vertices, &cursor_indices, glow::TRIANGLES);
+        [bg_mesh, text_mesh, cursor]
+    }
+
+    /// Draws the text field on the screen
+    pub fn draw(
+        &self,
+        gl: &Arc<glow::Context>,
+        font_tex: &Texture,
+        gui_tex: &Texture,
+        ui_shader: &ShaderProgram,
+    ) {
+        let meshes = self.build_meshes(gl);
+        gui_tex.bind_to_unit(0);
+        ui_shader.set_uniform("ui_color", Vec4::ONE);
+        meshes[0].draw();
+        font_tex.bind_to_unit(0);
+        ui_shader.set_uniform("ui_color", Vec4::ONE);
+        if self.text.is_empty() {
+            ui_shader.set_uniform("ui_color", Vec4::new(0.6, 0.6, 0.6, 1.0));
+        }
+        meshes[1].draw();
+        if self.focused {
+            ui_shader.set_uniform("ui_color", Vec4::new(1.0, 1.0, 1.0, 1.0));
+            ui_shader.set_uniform("solid", true);
+            meshes[2].draw();
+        }
+        ui_shader.set_uniform("solid", false);
+    }
+}
+
 /// Creates a full screen quad mesh
 pub fn fullscreen_quad_mesh(gl: &Arc<glow::Context>, width: u32, height: u32) -> Mesh {
     let vertices: [UIVertex; 4] = [
@@ -466,6 +650,30 @@ pub fn fullscreen_quad_mesh(gl: &Arc<glow::Context>, width: u32, height: u32) ->
         UIVertex {
             position: vec3(width as f32, height as f32, 0.0),
             uv: vec2(1.0, 1.0),
+        },
+    ];
+    let indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
+    Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
+}
+
+/// Creates a fullscreen quad mesh for NDC space.
+pub fn fullscreen_quad_mesh_ndc(gl: &Arc<glow::Context>) -> Mesh {
+    let vertices: [UIVertex; 4] = [
+        UIVertex {
+            position: vec3(-1.0, -1.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        UIVertex {
+            position: vec3(1.0, -1.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        UIVertex {
+            position: vec3(1.0, 1.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        UIVertex {
+            position: vec3(-1.0, 1.0, 0.0),
+            uv: vec2(0.0, 1.0),
         },
     ];
     let indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
