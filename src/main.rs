@@ -258,7 +258,7 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
     let mut back_to_game = Button::new(
         font,
         "Return to game".to_string(),
-        vec2(50.0, 300.0),
+        vec2(0.0, 300.0),
         vec2(800.0, 100.0),
         36.0,
         false,
@@ -267,14 +267,22 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
         font,
         "".to_string(),
         "World Name".to_string(),
-        vec2(50.0, 420.0),
+        vec2(0.0, 420.0),
         vec2(800.0, 100.0),
         36.0,
     );
     let mut save = Button::new(
         font,
         "Save".to_string(),
-        vec2(50.0, 540.0),
+        vec2(0.0, 540.0),
+        vec2(390.0, 100.0),
+        36.0,
+        true,
+    );
+    let mut load = Button::new(
+        font,
+        "Load".to_string(),
+        vec2(0.0, 540.0),
         vec2(390.0, 100.0),
         36.0,
         true,
@@ -666,11 +674,7 @@ Current Block: {}"#,
                 save.size,
             );
 
-            if world_name.text.is_empty() {
-                save.disabled = true;
-            } else {
-                save.disabled = false;
-            }
+            save.disabled = world_name.text.is_empty();
 
             save.update(
                 vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
@@ -684,6 +688,31 @@ Current Block: {}"#,
                 std::fs::write(&save_path, bytes)
                     .unwrap_or_else(|_| panic!("Failed to save world to {:?}", save_path));
                 chat_hist.push(format!("World '{}' saved.", world_name.text));
+            }
+
+            load.set_position_size(
+                vec2(
+                    (app.window.size().0 as f32 - world_name.size.x) / 2.0 + 410.0,
+                    save.position.y,
+                ),
+                load.size,
+            );
+
+            load.disabled = world_name.text.is_empty()
+                || !saves_dir.join(format!("{}.mp3d", world_name.text)).exists();
+
+            load.update(
+                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
+                mouse_down.contains(&MouseButton::Left),
+                grab,
+            );
+
+            if load.pressed() {
+                let save_path = saves_dir.join(format!("{}.mp3d", world_name.text));
+                let bytes = std::fs::read(&save_path)
+                    .unwrap_or_else(|_| panic!("Failed to load world from {:?}", save_path));
+                world = World::load(&bytes, world.resource_mgr, &app.window)
+                    .unwrap_or_else(|_| panic!("Failed to load world from {:?}", save_path));
             }
         }
 
@@ -942,6 +971,37 @@ Current Block: {}"#,
                     world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
                     &ui_shader,
                 );
+
+                load.draw(
+                    &app.gl,
+                    world.resource_mgr.get::<Texture>("font").unwrap(),
+                    world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
+                    &ui_shader,
+                );
+
+                let world_path = saves_dir.join(format!("{}.mp3d", world_name.text));
+                let text_width = font.text_metrics(world_path.to_str().unwrap_or(""), 24.0).x;
+                let text = font.build(
+                    &app.gl,
+                    world_path.to_str().unwrap_or(""),
+                    app.window.size().0 as f32 / 2.0 - text_width / 2.0,
+                    load.position.y + world_name.size.y + 10.0,
+                    24.0,
+                    false,
+                );
+
+                world
+                    .resource_mgr
+                    .get::<Texture>("font")
+                    .unwrap()
+                    .bind_to_unit(0);
+                ui_shader.set_uniform("ui_color", if !world_path.exists() {
+                    vec4(1.0, 0.5, 0.5, 1.0)
+                } else {
+                    Vec4::ONE
+                });
+                ui_shader.set_uniform("solid", false);
+                text.draw();
             }
         }
 

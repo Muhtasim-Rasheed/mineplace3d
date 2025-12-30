@@ -17,7 +17,7 @@ fn read_u64(data: &[u8], offset: &mut usize) -> Result<u64, String> {
         .try_into()
         .map_err(|_| "Failed to read u64".to_string())?;
 
-    *offset += 4;
+    *offset += 8;
     Ok(u64::from_le_bytes(bytes))
 }
 
@@ -50,10 +50,13 @@ fn read_i32(data: &[u8], offset: &mut usize) -> Result<i32, String> {
 }
 
 #[inline(always)]
-fn read_u8(data: &[u8], offset: &mut usize) -> u8 {
-    let value = data[*offset];
+fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8, String> {
+    if *offset >= data.len() {
+        return Err("Unexpected end of data".to_string());
+    }
+    let v = data[*offset];
     *offset += 1;
-    value
+    Ok(v)
 }
 
 #[inline(always)]
@@ -79,11 +82,11 @@ impl World {
         }
         offset += 4;
 
-        let version = read_u8(data, &mut offset);
+        let version = read_u8(data, &mut offset)?;
 
         match version {
             0 => {
-                let chunk_size = read_u8(data, &mut offset) as i32;
+                let chunk_size = read_u8(data, &mut offset)? as i32;
                 let seed = read_i32(data, &mut offset)?;
                 let mut world = World::new(seed, resource_manager, window);
                 world.entities.clear();
@@ -94,9 +97,9 @@ impl World {
                     let chunk_y = read_i32(data, &mut offset)?;
                     let chunk_z = read_i32(data, &mut offset)?;
 
-                    let local_x = read_u8(data, &mut offset) as i32;
-                    let local_y = read_u8(data, &mut offset) as i32;
-                    let local_z = read_u8(data, &mut offset) as i32;
+                    let local_x = read_u8(data, &mut offset)? as i32;
+                    let local_y = read_u8(data, &mut offset)? as i32;
+                    let local_z = read_u8(data, &mut offset)? as i32;
 
                     let block_id = read_u32(data, &mut offset)?;
                     let block = block_id.into();
@@ -116,6 +119,7 @@ impl World {
 
                     let entity_data_len = read_u64(data, &mut offset)? as usize;
                     let entity_data = &data[offset..(offset + entity_data_len)];
+                    offset += entity_data_len;
                     let entity: Rc<RefCell<dyn Entity>> = match entity_id.entity_name.as_str() {
                         "Player" => Rc::new(RefCell::new(Player::load(entity_data, window)?)),
                         "Billboard" => Rc::new(RefCell::new(Billboard::load(entity_data, window)?)),
