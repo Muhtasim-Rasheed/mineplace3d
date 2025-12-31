@@ -70,9 +70,10 @@ fn main() {
         12,  // character height
     ));
 
-    let game_dir = dirs::data_dir()
-        .unwrap_or_else(|| panic!("Failed to get user data directory"))
-        .join("mineplace3d");
+    let game_dir = std::env::var("MINEPLACE3D_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .or(dirs::data_dir().map(|p| p.join("mineplace3d")).ok_or(()))
+        .unwrap_or_else(|_| panic!("Failed to get game directory"));
     if !game_dir.exists() {
         std::fs::create_dir_all(&game_dir)
             .unwrap_or_else(|_| panic!("Failed to create game directory: {:?}", game_dir));
@@ -655,7 +656,10 @@ Current Block: {}"#,
             }
 
             world_name.set_position_size(
-                vec2((app.window.size().0 as f32 - world_name.size.x) / 2.0, world_name.position.y),
+                vec2(
+                    (app.window.size().0 as f32 - world_name.size.x) / 2.0,
+                    world_name.position.y,
+                ),
                 world_name.size,
             );
 
@@ -995,11 +999,14 @@ Current Block: {}"#,
                     .get::<Texture>("font")
                     .unwrap()
                     .bind_to_unit(0);
-                ui_shader.set_uniform("ui_color", if !world_path.exists() {
-                    vec4(1.0, 0.5, 0.5, 1.0)
-                } else {
-                    Vec4::ONE
-                });
+                ui_shader.set_uniform(
+                    "ui_color",
+                    if !world_path.exists() {
+                        vec4(1.0, 0.5, 0.5, 1.0)
+                    } else {
+                        Vec4::ONE
+                    },
+                );
                 ui_shader.set_uniform("solid", false);
                 text.draw();
             }

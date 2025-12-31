@@ -567,9 +567,14 @@ impl TextField {
         }
         let text_x = self.position.x + 30.0;
         let text_y = self.position.y + (self.size.y - text_metrics.y) * 0.5;
-        let text_mesh =
-            self.bitmap_font
-                .build(gl, &text, text_x, text_y, self.font_size, self.text.is_empty());
+        let text_mesh = self.bitmap_font.build(
+            gl,
+            &text,
+            text_x,
+            text_y,
+            self.font_size,
+            self.text.is_empty(),
+        );
         let bg_mesh = self.nineslice.build(gl);
         let cursor_x = if visual_cursor == 0 {
             text_x
