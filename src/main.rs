@@ -70,10 +70,10 @@ fn main() {
         12,  // character height
     ));
 
-    let game_dir = std::env::var("MINEPLACE3D_GAME_DIR")
+    let game_dir = std::env::var_os("MINEPLACE3D_GAME_DIR")
         .map(std::path::PathBuf::from)
-        .or(dirs::data_dir().map(|p| p.join("mineplace3d")).ok_or(()))
-        .unwrap_or_else(|_| panic!("Failed to get game directory"));
+        .or(dirs::data_dir().map(|p| p.join("mineplace3d")))
+        .unwrap_or_else(|| panic!("Failed to get game directory"));
     if !game_dir.exists() {
         std::fs::create_dir_all(&game_dir)
             .unwrap_or_else(|_| panic!("Failed to create game directory: {:?}", game_dir));
