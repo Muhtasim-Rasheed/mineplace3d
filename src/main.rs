@@ -288,6 +288,14 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
         36.0,
         true,
     );
+    let mut quit = Button::new(
+        font,
+        "Quit".to_string(),
+        vec2(0.0, 684.0),
+        vec2(800.0, 100.0),
+        36.0,
+        false,
+    );
 
     let mut vsync = true;
 
@@ -718,6 +726,24 @@ Current Block: {}"#,
                 world = World::load(&bytes, world.resource_mgr, &app.window)
                     .unwrap_or_else(|_| panic!("Failed to load world from {:?}", save_path));
             }
+
+            quit.set_position_size(
+                vec2(
+                    (app.window.size().0 as f32 - quit.size.x) / 2.0,
+                    quit.position.y,
+                ),
+                quit.size,
+            );
+
+            quit.update(
+                vec2(mouse_pos.0 as f32, mouse_pos.1 as f32),
+                mouse_down.contains(&MouseButton::Left),
+                grab,
+            );
+
+            if quit.pressed() {
+                break 'running;
+            }
         }
 
         request_chunks_around_player(
@@ -1009,6 +1035,13 @@ Current Block: {}"#,
                 );
                 ui_shader.set_uniform("solid", false);
                 text.draw();
+
+                quit.draw(
+                    &app.gl,
+                    world.resource_mgr.get::<Texture>("font").unwrap(),
+                    world.resource_mgr.get::<Texture>("gui_atlas").unwrap(),
+                    &ui_shader,
+                );
             }
         }
 
