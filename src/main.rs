@@ -39,6 +39,7 @@ macro_rules! shader {
 const TRANSLATIONS_JSON: &str = include_str!("assets/translations.json");
 const MODEL_DEF_JSON: &str = include_str!("assets/models.json");
 
+#[inline(always)]
 fn mid<T>(v: &[T]) -> usize {
     if v.len().is_multiple_of(2) {
         v.len() / 2
@@ -47,6 +48,7 @@ fn mid<T>(v: &[T]) -> usize {
     }
 }
 
+#[inline(always)]
 fn shift_vec<T: Clone>(v: &[T], index: usize) -> Vec<T> {
     let shift = (v.len() + index - mid(v)) % v.len();
     v.iter()
@@ -55,6 +57,21 @@ fn shift_vec<T: Clone>(v: &[T], index: usize) -> Vec<T> {
         .take(v.len())
         .cloned()
         .collect()
+}
+
+#[inline(always)]
+fn parse_or_tilde(s: &str, base: f32) -> Result<f32, ()> {
+    if let Some(rest) = s.strip_prefix('~') {
+        if rest.is_empty() {
+            Ok(base)
+        } else {
+            rest.parse::<f32>()
+                .map(|offset| base + offset)
+                .map_err(|_| ())
+        }
+    } else {
+        s.parse::<f32>().map_err(|_| ())
+    }
 }
 
 fn main() {
@@ -400,7 +417,8 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                                     chat_hist.push("/help - Show this message.".to_string());
                                     chat_hist.push("/seed - Show the world seed.".to_string());
                                     chat_hist.push(
-                                        "/tp <x> <y> <z> - Teleport to coordinates.".to_string(),
+                                        "/tp <x | ~off> <y | ~off> <z | ~off> - Teleport to coordinates."
+                                            .to_string(),
                                     );
                                     chat_hist.push("/vsync <on|off> - Toggle VSync.".to_string());
                                     chat_hist.push(
@@ -414,9 +432,9 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                                     if parts.len() != 4 {
                                         chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
                                     } else {
-                                        let x = parts[1].parse::<f32>();
-                                        let y = parts[2].parse::<f32>();
-                                        let z = parts[3].parse::<f32>();
+                                        let x = parse_or_tilde(parts[1], world.get_player().position.x);
+                                        let y = parse_or_tilde(parts[2], world.get_player().position.y);
+                                        let z = parse_or_tilde(parts[3], world.get_player().position.z);
                                         if x.is_err() || y.is_err() || z.is_err() {
                                             chat_hist.push("Invalid coordinates.".to_string());
                                         } else {
