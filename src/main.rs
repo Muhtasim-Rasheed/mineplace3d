@@ -434,8 +434,6 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, game_dir: &std::path::
 
                     completion_index = Some(idx);
                     ghost_command = matched;
-
-                    dbg!(&ghost_command, completion_index);
                 }
                 sdl2::event::Event::KeyDown {
                     keycode: Some(Keycode::Down),
@@ -460,7 +458,6 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, game_dir: &std::path::
 
                     completion_index = Some(idx);
                     ghost_command = matched;
-                    dbg!(&ghost_command, completion_index);
                 }
                 sdl2::event::Event::TextInput { text, .. } => {
                     if chat_open {
