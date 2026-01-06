@@ -95,16 +95,27 @@ fn main() {
         std::fs::create_dir_all(&game_dir)
             .unwrap_or_else(|_| panic!("Failed to create game directory: {:?}", game_dir));
     }
+
+    game(rand::random(), &mut app, &font, &game_dir);
+}
+
+fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, game_dir: &std::path::Path) {
     let saves_dir = game_dir.join("saves");
     if !saves_dir.exists() {
         std::fs::create_dir_all(&saves_dir)
             .unwrap_or_else(|_| panic!("Failed to create saves directory: {:?}", saves_dir));
     }
 
-    game(rand::random(), &mut app, &font, &saves_dir);
-}
+    let chat_history_path = game_dir.join("chat_history.txt");
+    if !chat_history_path.exists() {
+        std::fs::File::create(&chat_history_path).unwrap_or_else(|_| {
+            panic!(
+                "Failed to create chat history file: {:?}",
+                chat_history_path
+            )
+        });
+    }
 
-fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path::Path) {
     unsafe {
         app.gl.enable(glow::DEPTH_TEST);
         app.gl.enable(glow::CULL_FACE);
@@ -264,12 +275,20 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
     let mut window_events = Vec::new();
 
     let mut command: Option<String> = None;
+    let mut ghost_command: Option<String> = None;
     let mut chat_hist: Vec<String> = vec![
         "Welcome to Mineplace3D!".to_string(),
         "Type /help for a list of commands.".to_string(),
     ];
     let mut chat_hist_scroll_offset = 0;
     let mut chat_open = false;
+    let previous_history = std::fs::read_to_string(&chat_history_path)
+        .unwrap_or_else(|_| panic!("Failed to read chat history file: {:?}", chat_history_path));
+    let mut previous_history: Vec<String> = previous_history
+        .lines()
+        .map(|line| line.to_string())
+        .collect();
+    let mut completion_index: Option<usize> = None;
     let mut show_ui = true;
 
     let mut mouse_pos = (0, 0);
@@ -354,6 +373,10 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
 
         for event in app.event_pump.poll_iter() {
             if matches!(event, sdl2::event::Event::Quit { .. }) {
+                let chat_history = previous_history.join("\n");
+                std::fs::write(&chat_history_path, chat_history).unwrap_or_else(|_| {
+                    panic!("Failed to write chat history file: {:?}", chat_history_path)
+                });
                 break 'running;
             }
             window_events.push(event);
@@ -384,10 +407,66 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                     } else {
                         chat_open = false;
                         grab = true;
+                        completion_index = None;
+                        ghost_command = None;
                     }
+                }
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } if chat_open => {
+                    let mut idx = match completion_index {
+                        Some(i) => i.saturating_sub(1),
+                        None => previous_history.len().saturating_sub(1),
+                    };
+
+                    let mut matched = None;
+                    while let Some(cmd) = previous_history.get(idx) {
+                        if command.as_ref().map_or(true, |c| cmd.starts_with(c)) {
+                            matched = Some(cmd.clone());
+                            break;
+                        }
+                        if idx == 0 {
+                            break;
+                        }
+                        idx -= 1;
+                    }
+
+                    completion_index = Some(idx);
+                    ghost_command = matched;
+
+                    dbg!(&ghost_command, completion_index);
+                }
+                sdl2::event::Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } if chat_open => {
+                    let mut idx = match completion_index {
+                        Some(i) => i.saturating_add(1),
+                        None => 0,
+                    };
+
+                    let mut matched = None;
+                    while let Some(cmd) = previous_history.get(idx) {
+                        if command.as_ref().map_or(true, |c| cmd.starts_with(c)) {
+                            matched = Some(cmd.clone());
+                            break;
+                        }
+                        idx += 1;
+                        if idx >= previous_history.len() {
+                            break;
+                        }
+                    }
+
+                    completion_index = Some(idx);
+                    ghost_command = matched;
+                    dbg!(&ghost_command, completion_index);
                 }
                 sdl2::event::Event::TextInput { text, .. } => {
                     if chat_open {
+                        if let Some(cmd) = ghost_command.take() {
+                            command = Some(cmd);
+                        }
                         if let Some(ref mut cmd) = command {
                             cmd.push_str(text);
                         }
@@ -408,6 +487,18 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                         set_command = Some("");
                         grab = false;
                     } else if *key == Keycode::Return && chat_open {
+                        if let Some(cmd) = ghost_command.take() {
+                            command = Some(cmd);
+                        }
+
+                        if let Some(cmd) = command.clone() {
+                            previous_history.push(cmd);
+                            if previous_history.len() > 100 {
+                                previous_history.remove(0);
+                            }
+                            completion_index = None;
+                        }
+
                         if let Some(cmd) = command.clone()
                             && cmd.starts_with('/')
                         {
@@ -490,6 +581,9 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                         chat_open = false;
                         grab = true;
                     } else if *key == Keycode::Backspace && chat_open {
+                        if let Some(cmd) = ghost_command.take() {
+                            command = Some(cmd);
+                        }
                         if let Some(ref mut cmd) = command {
                             cmd.pop();
                         }
@@ -635,10 +729,16 @@ Current Block: {}"#,
                 .unwrap_or(&"Unknown".to_string()),
         );
         debug_mesh = font.build(&app.gl, &text, 50.0, 50.0, 24.0, false);
+
         if let Some(ref cmd) = command {
+            let display_cmd = if let Some(ref ghost_cmd) = ghost_command {
+                ghost_cmd.clone()
+            } else {
+                cmd.clone()
+            };
             chat_mesh = font.build(
                 &app.gl,
-                &format!("{}_", cmd),
+                &format!("{}_", display_cmd),
                 50.0,
                 app.window.size().1 as f32 - 150.0 - 24.0,
                 24.0,
@@ -768,6 +868,10 @@ Current Block: {}"#,
             );
 
             if quit.pressed() {
+                let chat_history = previous_history.join("\n");
+                std::fs::write(&chat_history_path, chat_history).unwrap_or_else(|_| {
+                    panic!("Failed to write chat history file: {:?}", chat_history_path)
+                });
                 break 'running;
             }
         }
