@@ -340,11 +340,13 @@ impl Entity for Player {
                     }
                 }
                 sdl2::event::Event::MouseWheel { y, .. } => {
-                    if *y > 0 {
-                        self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
-                            % PLACABLE_BLOCKS.len();
-                    } else if *y < 0 {
-                        self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
+                    if !chat_open && grabbed {
+                        if *y > 0 {
+                            self.current_block = (self.current_block + PLACABLE_BLOCKS.len() - 1)
+                                % PLACABLE_BLOCKS.len();
+                        } else if *y < 0 {
+                            self.current_block = (self.current_block + 1) % PLACABLE_BLOCKS.len();
+                        }
                     }
                 }
                 sdl2::event::Event::Window {

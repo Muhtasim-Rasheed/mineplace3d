@@ -268,6 +268,7 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
         "Welcome to Mineplace3D!".to_string(),
         "Type /help for a list of commands.".to_string(),
     ];
+    let mut chat_hist_scroll_offset = 0;
     let mut chat_open = false;
     let mut show_ui = true;
 
@@ -407,7 +408,7 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                         set_command = Some("");
                         grab = false;
                     } else if *key == Keycode::Return && chat_open {
-                        if let Some(cmd) = command.take()
+                        if let Some(cmd) = command.clone()
                             && cmd.starts_with('/')
                         {
                             let parts: Vec<&str> = cmd[1..].split_whitespace().collect();
@@ -432,40 +433,35 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                                     if parts.len() != 4 {
                                         chat_hist.push("Usage: /tp <x> <y> <z>".to_string());
                                     } else {
-                                        let x = parse_or_tilde(parts[1], world.get_player().position.x);
-                                        let y = parse_or_tilde(parts[2], world.get_player().position.y);
-                                        let z = parse_or_tilde(parts[3], world.get_player().position.z);
-                                        if x.is_err() || y.is_err() || z.is_err() {
-                                            chat_hist.push("Invalid coordinates.".to_string());
-                                        } else {
-                                            world.get_player_mut().position = vec3(
-                                                x.clone().unwrap(),
-                                                y.clone().unwrap(),
-                                                z.clone().unwrap(),
-                                            );
-                                            world.get_player_mut().velocity = vec3(0.0, 0.0, 0.0);
+                                        let position = world.get_player().position;
+                                        let x = parse_or_tilde(parts[1], position.x);
+                                        let y = parse_or_tilde(parts[2], position.y);
+                                        let z = parse_or_tilde(parts[3], position.z);
+                                        if let (Ok(x), Ok(y), Ok(z)) = (x, y, z) {
+                                            world.get_player_mut().position = vec3(x, y, z);
+                                            world.get_player_mut().velocity = Vec3::ZERO;
                                             chat_hist.push(format!(
                                                 "Teleported to: {:.2} {:.2} {:.2}",
-                                                x.unwrap(),
-                                                y.unwrap(),
-                                                z.unwrap()
+                                                x, y, z
                                             ));
+                                        } else {
+                                            chat_hist.push("Invalid coordinates.".to_string());
                                         }
                                     }
                                 }
-                                Some("vsync") => {
-                                    if parts.len() != 2 {
-                                        chat_hist.push("Usage: /vsync <on|off>".to_string());
-                                    } else if parts[1] == "on" {
+                                Some("vsync") => match &parts[1..] {
+                                    ["on"] => {
                                         vsync = true;
                                         chat_hist.push("VSync enabled.".to_string());
-                                    } else if parts[1] == "off" {
+                                    }
+                                    ["off"] => {
                                         vsync = false;
                                         chat_hist.push("VSync disabled.".to_string());
-                                    } else {
+                                    }
+                                    _ => {
                                         chat_hist.push("Usage: /vsync <on|off>".to_string());
                                     }
-                                }
+                                },
                                 Some("fov") => {
                                     if parts.len() != 2 {
                                         chat_hist.push("Usage: /fov <degrees>".to_string());
@@ -488,6 +484,8 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                                 }
                                 None => {}
                             }
+                        } else if let Some(cmd) = command.take() {
+                            chat_hist.push(format!("> {}", cmd));
                         }
                         chat_open = false;
                         grab = true;
@@ -511,6 +509,15 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, saves_dir: &std::path:
                     mouse_btn: button, ..
                 } => {
                     mouse_down.remove(button);
+                }
+                sdl2::event::Event::MouseWheel { y, .. } => {
+                    if chat_open {
+                        if *y > 0 {
+                            chat_hist_scroll_offset = (chat_hist_scroll_offset - 1).max(0);
+                        } else if *y < 0 {
+                            chat_hist_scroll_offset += 1;
+                        }
+                    }
                 }
                 sdl2::event::Event::MouseMotion {
                     x, y, xrel, yrel, ..
@@ -638,16 +645,16 @@ Current Block: {}"#,
                 false,
             );
         }
-        let chat_hist_text = chat_hist
-            .join("\n")
-            .lines()
-            .rev()
-            .take(20)
-            .collect::<Vec<&str>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<&str>>()
-            .join("\n");
+
+        let chat_hist_lines = chat_hist.join("\n");
+        let chat_hist_lines: Vec<&str> = chat_hist_lines.lines().collect();
+
+        let total_lines = chat_hist_lines.len() as i32;
+        let start_line = (total_lines - 20 - chat_hist_scroll_offset).max(0);
+        let end_line = (total_lines - chat_hist_scroll_offset).max(0);
+
+        let chat_hist_text = chat_hist_lines[start_line as usize..end_line as usize].join("\n");
+
         chat_hist_mesh = font.build(
             &app.gl,
             &chat_hist_text,
@@ -656,6 +663,7 @@ Current Block: {}"#,
             24.0,
             false,
         );
+
         view = Mat4::look_at_rh(
             player.camera_pos(),
             player.camera_pos() + player.forward,
