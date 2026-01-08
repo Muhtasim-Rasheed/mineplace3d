@@ -610,31 +610,8 @@ fn game(seed: i32, app: &mut App, font: &Arc<BitmapFont>, game_dir: &std::path::
                         }
                     }
                 }
-                sdl2::event::Event::MouseMotion {
-                    x, y, xrel, yrel, ..
-                } => {
+                sdl2::event::Event::MouseMotion { x, y, .. } => {
                     mouse_pos = (*x, *y);
-                    if grab {
-                        let sensitivity = 0.175;
-                        world.get_player_mut().yaw += (*xrel as f32) * sensitivity;
-                        world.get_player_mut().pitch -= (*yrel as f32) * sensitivity;
-                        if world.get_player().pitch > 89.0 {
-                            world.get_player_mut().pitch = 89.0;
-                        }
-                        if world.get_player().pitch < -89.0 {
-                            world.get_player_mut().pitch = -89.0;
-                        }
-
-                        // Update camera front vector
-                        let yaw_rad = world.get_player().yaw.to_radians();
-                        let pitch_rad = world.get_player().pitch.to_radians();
-                        world.get_player_mut().forward = vec3(
-                            yaw_rad.cos() * pitch_rad.cos(),
-                            pitch_rad.sin(),
-                            yaw_rad.sin() * pitch_rad.cos(),
-                        )
-                        .normalize();
-                    }
                 }
                 sdl2::event::Event::Window {
                     win_event: sdl2::event::WindowEvent::Resized(w, h),

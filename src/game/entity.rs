@@ -349,6 +349,29 @@ impl Entity for Player {
                         }
                     }
                 }
+                sdl2::event::Event::MouseMotion { xrel, yrel, .. } => {
+                    if grabbed {
+                        let sensitivity = 0.175;
+                        self.yaw += (*xrel as f32) * sensitivity;
+                        self.pitch -= (*yrel as f32) * sensitivity;
+                        if self.pitch > 89.0 {
+                            self.pitch = 89.0;
+                        }
+                        if self.pitch < -89.0 {
+                            self.pitch = -89.0;
+                        }
+
+                        // Update camera front vector
+                        let yaw_rad = self.yaw.to_radians();
+                        let pitch_rad = self.pitch.to_radians();
+                        self.forward = vec3(
+                            yaw_rad.cos() * pitch_rad.cos(),
+                            pitch_rad.sin(),
+                            yaw_rad.sin() * pitch_rad.cos(),
+                        )
+                        .normalize();
+                    }
+                }
                 sdl2::event::Event::Window {
                     win_event: sdl2::event::WindowEvent::Resized(w, h),
                     ..
