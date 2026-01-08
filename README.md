@@ -1,4 +1,4 @@
-# Mineplace3D [Alpha]
+# Mineplace3D [Beta]
 
 ## Huh?
 
@@ -10,4 +10,4 @@ very cool trust try it now
 
 ## modding support when
 
-soon when beta releases 
+uhh up to you ig
