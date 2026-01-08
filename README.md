@@ -10,4 +10,4 @@ very cool trust try it now
 
 ## modding support when
 
-uhh up to you ig
+i dunno, we will add anyone to the project who wants to help with modding support
