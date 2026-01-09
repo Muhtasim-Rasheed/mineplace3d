@@ -1,4 +1,2 @@
 /target
-/Cargo.lock
-/flamegraph.svg
-/perf.data*
+/run_client.sh

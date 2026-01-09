@@ -1,17 +1,11 @@
-[package]
-name = "mineplace3d"
-version = "0.1.0-beta"
-edition = "2024"
-
-[dependencies]
+[workspace]
+resolver = "3"
+members = ["mp3d-client","mp3d-core"]
 
 [profile.dev]
-opt-level = 1
-debug = true
-debug-assertions = true
-overflow-checks = true
-incremental = true
-codegen-units = 256
-
-[profile.dev.package."*"]
-opt-level = 3
+opt-level = 3 
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = "fat"
+codegen-units = 1

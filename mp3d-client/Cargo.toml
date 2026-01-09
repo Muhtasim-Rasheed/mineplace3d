@@ -1,0 +1,12 @@
+[package]
+name = "mp3d-client"
+version = "0.1.0-beta"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+glam = "0.30.10"
+glow = "0.16.0"
+image = "0.25.9"
+mp3d-core = { path = "../mp3d-core" }
+sdl2 = "0.38.0"

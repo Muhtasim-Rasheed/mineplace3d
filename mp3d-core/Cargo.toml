@@ -1,0 +1,8 @@
+[package]
+name = "mp3d-core"
+version = "0.1.0-beta"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+glam = "0.30.10"
