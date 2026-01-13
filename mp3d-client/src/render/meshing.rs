@@ -66,12 +66,6 @@ pub fn mesh_world(gl: &Arc<glow::Context>, world: &World) -> HashMap<IVec3, Mesh
         let (chunk_vertices, chunk_indices) = mesh_chunk(chunk, *chunk_pos, world);
 
         let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
-        println!(
-            "Meshed chunk at {:?}: {} vertices, {} indices",
-            chunk_pos,
-            chunk_vertices.len(),
-            chunk_indices.len()
-        );
         meshes.insert(*chunk_pos, mesh);
     }
 
@@ -89,6 +83,30 @@ fn mesh_chunk(
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
+
+    fn get_block<'a>(
+        chunk: &'a Chunk,
+        world: &'a World,
+        chunk_pos: IVec3,
+        world_pos: IVec3,
+    ) -> Option<&'a Block> {
+        let local_x = world_pos.x - chunk_pos.x * (CHUNK_SIZE as i32);
+        let local_y = world_pos.y - chunk_pos.y * (CHUNK_SIZE as i32);
+        let local_z = world_pos.z - chunk_pos.z * (CHUNK_SIZE as i32);
+
+        if local_x >= 0
+            && local_x < CHUNK_SIZE as i32
+            && local_y >= 0
+            && local_y < CHUNK_SIZE as i32
+            && local_z >= 0
+            && local_z < CHUNK_SIZE as i32
+        {
+            let local_pos = IVec3::new(local_x, local_y, local_z);
+            Some(chunk.get_block(local_pos))
+        } else {
+            world.get_block_at(world_pos)
+        }
+    }
 
     for x in 0..(CHUNK_SIZE as i32) {
         for y in 0..(CHUNK_SIZE as i32) {
@@ -117,7 +135,8 @@ fn mesh_chunk(
                                 glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
 
                             // Create face if neighbor block is non-full or out of bounds
-                            let neighbor_block = world.get_block_at(neighbor_pos);
+                            // let neighbor_block = world.get_block_at(neighbor_pos);
+                            let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
                             if neighbor_block.is_none()
                                 || !should_occlude(block, neighbor_block.unwrap())
                             {

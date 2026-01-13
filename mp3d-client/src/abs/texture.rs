@@ -2,15 +2,31 @@
 //!
 //! The module provides the [`Texture`] struct which is a CPU representation of a GPU texture.
 
-use std::sync::Arc;
+use std::{num::NonZero, sync::Arc};
 
 use glow::HasContext;
 use image::{DynamicImage, GenericImageView};
+
+/// Represents a handle to a texture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextureHandle(pub NonZero<u32>);
+
+impl TextureHandle {
+    /// Binds the texture handle to the specified texture unit.
+    pub fn bind(&self, gl: &glow::Context, unit: u32) {
+        unsafe {
+            gl.active_texture(glow::TEXTURE0 + unit);
+            gl.bind_texture(glow::TEXTURE_2D, Some(glow::NativeTexture(self.0)));
+        }
+    }
+}
 
 /// Represents a texture stored on the GPU side.
 pub struct Texture {
     pub(super) gl: Arc<glow::Context>,
     pub(super) id: glow::Texture,
+    pub(super) width: u32,
+    pub(super) height: u32,
 }
 
 impl Texture {
@@ -49,6 +65,8 @@ impl Texture {
             Self {
                 gl: Arc::clone(gl),
                 id: texture,
+                width,
+                height,
             }
         }
     }
@@ -87,12 +105,29 @@ impl Texture {
             Self {
                 gl: Arc::clone(gl),
                 id: texture,
+                width,
+                height,
             }
         }
     }
 
+    /// Returns the width of the texture.
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    /// Returns the height of the texture.
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    /// Returns a handle to the texture.
+    pub fn handle(&self) -> TextureHandle {
+        TextureHandle(self.id.0)
+    }
+
     /// Binds the texture to the specified texture unit.
-    pub fn bind_to_unit(&self, unit: u32) {
+    pub fn bind(&self, unit: u32) {
         unsafe {
             self.gl.active_texture(glow::TEXTURE0 + unit);
             self.gl.bind_texture(glow::TEXTURE_2D, Some(self.id));
@@ -105,5 +140,11 @@ impl Drop for Texture {
         unsafe {
             self.gl.delete_texture(self.id);
         }
+    }
+}
+
+impl From<&Texture> for TextureHandle {
+    fn from(texture: &Texture) -> Self {
+        texture.handle()
     }
 }

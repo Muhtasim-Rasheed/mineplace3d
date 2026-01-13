@@ -1,6 +1,6 @@
 //! A 16x16x16 chunk in a voxel engine.
 
-use glam::{IVec3, Vec3};
+use glam::IVec3;
 
 use crate::block::Block;
 
@@ -30,23 +30,18 @@ impl Chunk {
                             * 1.5
                         + ((chunk_pos.z as f32 * CHUNK_SIZE as f32 + z as f32 / 4.0) * 0.5).sin()
                             * 1.5) as i32;
-                    if global_y < height as i32 - 3 {
+                    if global_y < height - 3 {
                         blocks[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)] = 3;
-                    } else if global_y < height as i32 - 1 {
+                    } else if global_y < height - 1 {
                         blocks[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)] = 2;
-                    } else if global_y < height as i32 {
+                    } else if global_y < height {
                         blocks[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)] = 1;
                     }
                 }
             }
         }
         Chunk {
-            block_palette: vec![
-                Block::AIR,
-                Block::GRASS,
-                Block::DIRT,
-                Block::STONE,
-            ],
+            block_palette: vec![Block::AIR, Block::GRASS, Block::DIRT, Block::STONE],
             blocks,
         }
     }

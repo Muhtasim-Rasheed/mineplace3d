@@ -4,3 +4,4 @@
 //! shaders.
 
 pub mod meshing;
+pub mod ui;

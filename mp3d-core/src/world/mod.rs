@@ -15,9 +15,17 @@ use crate::{
     world::chunk::{CHUNK_SIZE, Chunk},
 };
 
+const PRELOAD_RADIUS: i32 = 6;
+
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {
     pub chunks: HashMap<IVec3, Chunk>,
+}
+
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl World {
@@ -25,9 +33,9 @@ impl World {
     pub fn new() -> Self {
         let mut chunks = HashMap::new();
         // Preload some chunks around the origin
-        for x in -4..4 {
+        for x in -PRELOAD_RADIUS..PRELOAD_RADIUS {
             for y in -1..1 {
-                for z in -4..4 {
+                for z in -PRELOAD_RADIUS..PRELOAD_RADIUS {
                     let chunk_pos = IVec3::new(x, y, z);
                     chunks.insert(chunk_pos, Chunk::new(chunk_pos));
                 }

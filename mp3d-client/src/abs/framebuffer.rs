@@ -157,10 +157,14 @@ impl Framebuffer {
                 color_tex: Texture {
                     gl: gl.clone(),
                     id: color_tex,
+                    width: width as u32,
+                    height: height as u32,
                 },
                 depth_tex: depth_tex.map(|tex| Texture {
                     gl: gl.clone(),
                     id: tex,
+                    width: width as u32,
+                    height: height as u32,
                 }),
             }
         }

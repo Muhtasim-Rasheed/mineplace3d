@@ -8,7 +8,6 @@ pub mod shader;
 pub mod texture;
 
 pub use app::*;
-pub use framebuffer::*;
 pub use mesh::*;
 pub use shader::*;
 pub use texture::*;
