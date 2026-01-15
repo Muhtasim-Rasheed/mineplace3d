@@ -9,7 +9,7 @@ use image::{DynamicImage, GenericImageView};
 
 /// Represents a handle to a texture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct TextureHandle(pub NonZero<u32>);
+pub struct TextureHandle(pub NonZero<u32>, u32, u32);
 
 impl TextureHandle {
     /// Binds the texture handle to the specified texture unit.
@@ -18,6 +18,16 @@ impl TextureHandle {
             gl.active_texture(glow::TEXTURE0 + unit);
             gl.bind_texture(glow::TEXTURE_2D, Some(glow::NativeTexture(self.0)));
         }
+    }
+
+    /// Returns the width of the texture.
+    pub fn width(&self) -> u32 {
+        self.1
+    }
+
+    /// Returns the height of the texture.
+    pub fn height(&self) -> u32 {
+        self.2
     }
 }
 
@@ -123,7 +133,7 @@ impl Texture {
 
     /// Returns a handle to the texture.
     pub fn handle(&self) -> TextureHandle {
-        TextureHandle(self.id.0)
+        TextureHandle(self.id.0, self.width, self.height)
     }
 
     /// Binds the texture to the specified texture unit.

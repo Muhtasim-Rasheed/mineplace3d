@@ -8,6 +8,9 @@ uniform vec4 u_color;
 uniform bool u_solid;
 
 void main() {
+	if (u_color.a < 0.1) {
+		discard;
+	}
 	if (u_solid) {
 		frag_color = u_color;
 	} else {

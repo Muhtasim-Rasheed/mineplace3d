@@ -110,6 +110,14 @@ impl Label {
 }
 
 impl Widget for Label {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn size_hint(&self) -> Vec2 {
         self.font.measure_text(&self.text, self.font_size)
     }

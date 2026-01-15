@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     abs::*,
-    render::ui::{uirenderer::UIRenderer, widgets::{Column, Font, KeyboardState, Label, LayoutContext, MouseState, UpdateContext, Widget}},
+    render::ui::{uirenderer::UIRenderer, widgets::*},
 };
 
 mod abs;
@@ -60,6 +60,15 @@ fn main() {
         ' ',
     ));
 
+    let gui_tex = Texture::new(
+        &app.gl,
+        &image::load_from_memory_with_format(
+            include_bytes!("assets/gui.png"),
+            image::ImageFormat::Png,
+        )
+        .unwrap(),
+    );
+
     let label = Label::new(
         "Mineplace3D".to_string(),
         72.0,
@@ -74,9 +83,19 @@ fn main() {
         &font,
     );
 
-    let mut column = Column::new(10.0, crate::render::ui::widgets::Alignment::Center, 100.0);
-    column.add_widget(label);
-    column.add_widget(another_label);
+    let button = Button::new(
+        "gnitsetgnitsetgnitset",
+        Vec4::new(1.0, 1.0, 1.0, 1.0),
+        32.0,
+        Vec2::new(500.0, 100.0),
+        &font,
+        gui_tex.handle(),
+    );
+
+    let mut container = Column::new(10.0, crate::render::ui::widgets::Alignment::Center, 10.0);
+    container.add_widget(label);
+    container.add_widget(another_label);
+    container.add_widget(button);
 
     let mut last_frame_time = std::time::Instant::now();
 
@@ -144,8 +163,16 @@ fn main() {
 
         let update_ctx = UpdateContext::new(&keyboard_state, &mouse_state, delta_time);
 
-        column.update(&update_ctx);
-        column.layout(&LayoutContext {
+        container.update(&update_ctx);
+
+        if container
+            .get_widget::<Button>(2)
+            .map_or(false, |btn| btn.is_pressed())
+        {
+            println!("woah");
+        }
+
+        container.layout(&LayoutContext {
             max_size: Vec2::new(app.window.size().0 as f32, app.window.size().1 as f32),
             cursor: Vec3::ZERO.truncate(),
         });
@@ -155,7 +182,9 @@ fn main() {
             app.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
-            column.draw(&mut ui_renderer);
+            app.gl.disable(glow::DEPTH_TEST);
+            container.draw(&mut ui_renderer);
+            app.gl.enable(glow::DEPTH_TEST);
         }
 
         app.window.gl_swap_window();

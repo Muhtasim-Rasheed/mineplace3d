@@ -53,6 +53,9 @@ pub struct LayoutContext {
 
 /// A widget trait for building user interfaces.
 pub trait Widget {
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
     /// Gives a hint of the desired size of the widget.
     fn size_hint(&self) -> Vec2 {
         Vec2::ZERO
@@ -68,8 +71,14 @@ pub trait Widget {
     fn draw(&self, ui_renderer: &mut UIRenderer);
 }
 
-pub mod label;
+pub mod button;
 pub mod containers;
+pub mod label;
+pub mod nineslice;
+pub mod spacer;
 
-pub use label::*;
+pub use button::*;
 pub use containers::*;
+pub use label::*;
+pub use nineslice::*;
+pub use spacer::*;
