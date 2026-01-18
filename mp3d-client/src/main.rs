@@ -10,6 +10,7 @@ use crate::{
 
 mod abs;
 mod render;
+mod scenes;
 
 fn main() {
     let mut app = App::new("Mineplace3D", 1280, 720, false);
@@ -69,57 +70,9 @@ fn main() {
         .unwrap(),
     );
 
-    let header = Label::new("Mineplace3D", 72.0, Vec4::new(1.0, 1.0, 1.0, 1.0), &font);
-
-    let play = Button::new(
-        "Start Game",
-        Vec4::new(1.0, 1.0, 1.0, 1.0),
-        24.0,
-        Vec2::new(500.0, 80.0).into(),
-        &font,
-        gui_tex.handle(),
-    );
-
-    let options = Button::new(
-        "Options",
-        Vec4::new(1.0, 1.0, 1.0, 1.0),
-        24.0,
-        Vec2::new(500.0, 80.0).into(),
-        &font,
-        gui_tex.handle(),
-    );
-
-    let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
-    buttons.add_widget(play);
-    buttons.add_widget(options);
-
-    let version_label = Label::new(
-        format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
-        24.0,
-        Vec4::new(1.0, 1.0, 1.0, 0.5),
-        &font,
-    );
-
-    let license_label = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5), &font);
-
-    let mut footer = Row::new(
-        5.0,
-        Alignment::Center,
-        Vec4::ZERO,
-        Justification::SpaceBetween,
-    );
-    footer.add_widget(version_label);
-    footer.add_widget(license_label);
-
-    let mut container = Column::new(
-        50.0,
-        Alignment::Center,
-        Vec4::new(20.0, 20.0, 60.0, 20.0),
-        Justification::SpaceBetween,
-    );
-    container.add_widget(header);
-    container.add_widget(buttons);
-    container.add_widget(footer);
+    let mut scene_manager = scenes::SceneManager::new(Box::new(
+        scenes::titlescreen::TitleScreen::new(&font, &gui_tex, (1280, 720)),
+    ));
 
     let mut last_frame_time = std::time::Instant::now();
 
@@ -136,6 +89,7 @@ fn main() {
         mouse_state.released.clear();
 
         for event in app.event_pump.poll_iter() {
+            scene_manager.handle_event(&event);
             match event {
                 sdl2::event::Event::Quit { .. } => break 'running,
                 sdl2::event::Event::Window {
@@ -147,10 +101,6 @@ fn main() {
                     }
                     ui_renderer.projection_matrix =
                         Mat4::orthographic_rh_gl(0.0, width as f32, height as f32, 0.0, -1.0, 1.0);
-                    let container_padding_left_right = container.padding.x + container.padding.y;
-                    container.get_widget_mut::<Row>(2)
-                        .unwrap()
-                        .min_size = Vec2::new(width as f32 - container_padding_left_right, 0.0);
                 }
                 sdl2::event::Event::MouseMotion {
                     x, y, xrel, yrel, ..
@@ -191,37 +141,40 @@ fn main() {
 
         let update_ctx = UpdateContext::new(&keyboard_state, &mouse_state, delta_time);
 
-        container.update(&update_ctx);
+        scene_manager.update(&update_ctx, &app.window);
 
-        if container
-            .find_widget::<Button>(&[1, 0])
-            .map_or(false, |b| b.is_pressed())
-        {
-            println!("Start Game");
-        }
+        // container.update(&update_ctx);
 
-        if container
-            .find_widget::<Button>(&[1, 1])
-            .map_or(false, |b| b.is_pressed())
-        {
-            println!("Options");
-        }
+        // if container
+        //     .find_widget::<Button>(&[1, 0])
+        //     .map_or(false, |b| b.is_pressed())
+        // {
+        //     println!("Start Game");
+        // }
 
-        container.layout(&LayoutContext {
-            max_size: Vec2::new(app.window.size().0 as f32, app.window.size().1 as f32),
-            cursor: Vec3::ZERO.truncate(),
-        });
+        // if container
+        //     .find_widget::<Button>(&[1, 1])
+        //     .map_or(false, |b| b.is_pressed())
+        // {
+        //     println!("Options");
+        // }
 
-        unsafe {
-            app.gl.clear_color(0.1, 0.1, 0.2, 1.0);
-            app.gl
-                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+        // container.layout(&LayoutContext {
+        //     max_size: Vec2::new(app.window.size().0 as f32, app.window.size().1 as f32),
+        //     cursor: Vec3::ZERO.truncate(),
+        // });
 
-            app.gl.disable(glow::DEPTH_TEST);
-            container.draw(&mut ui_renderer);
-            app.gl.enable(glow::DEPTH_TEST);
-        }
+        // unsafe {
+        //     app.gl.clear_color(0.1, 0.1, 0.2, 1.0);
+        //     app.gl
+        //         .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
+        //     app.gl.disable(glow::DEPTH_TEST);
+        //     container.draw(&mut ui_renderer);
+        //     app.gl.enable(glow::DEPTH_TEST);
+        // }
+
+        scene_manager.render(&app.gl, &mut ui_renderer);
         app.window.gl_swap_window();
     }
 }

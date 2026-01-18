@@ -144,11 +144,7 @@ impl Widget for Column {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let total_height_widget = self
-            .widgets
-            .iter()
-            .map(|w| w.size_hint().y)
-            .sum::<f32>();
+        let total_height_widget = self.widgets.iter().map(|w| w.size_hint().y).sum::<f32>();
 
         let mut total_height: f32 = 0.0;
 
@@ -158,11 +154,9 @@ impl Widget for Column {
 
         let spacing = match self.justification {
             Justification::SpaceBetween if self.widgets.len() > 1 => {
-                let content_height =
-                    ctx.max_size.y - self.padding.z - self.padding.w;
+                let content_height = ctx.max_size.y - self.padding.z - self.padding.w;
 
-                ((content_height - total_height_widget)
-                    / (self.widgets.len() as f32 - 1.0))
+                ((content_height - total_height_widget) / (self.widgets.len() as f32 - 1.0))
                     .max(0.0)
             }
             _ => self.spacing,
@@ -171,12 +165,12 @@ impl Widget for Column {
         total_height += spacing * (self.widgets.len().saturating_sub(1)) as f32;
 
         let mut cursor_y = match self.justification {
-            Justification::Start => ctx.cursor.y + self.padding.z, 
+            Justification::Start => ctx.cursor.y + self.padding.z,
             Justification::Center => {
-                ctx.cursor.y + (ctx.max_size.y - total_height) / 2.0 + self.padding.z 
+                ctx.cursor.y + (ctx.max_size.y - total_height) / 2.0 + self.padding.z
             }
             Justification::End => ctx.cursor.y + ctx.max_size.y - total_height - self.padding.w,
-            Justification::SpaceBetween => ctx.cursor.y + self.padding.z, 
+            Justification::SpaceBetween => ctx.cursor.y + self.padding.z,
         };
 
         for widget in self.widgets.iter_mut() {
@@ -196,7 +190,10 @@ impl Widget for Column {
             cursor_y += widget_size.y + spacing;
         }
 
-        Vec2::new(ctx.max_size.x, total_height + self.padding.y + self.padding.w)
+        Vec2::new(
+            ctx.max_size.x,
+            total_height + self.padding.y + self.padding.w,
+        )
     }
 
     fn update(&mut self, ctx: &super::UpdateContext) {
@@ -341,11 +338,7 @@ impl Widget for Row {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let total_width_widget = self
-            .widgets
-            .iter()
-            .map(|w| w.size_hint().x)
-            .sum::<f32>();
+        let total_width_widget = self.widgets.iter().map(|w| w.size_hint().x).sum::<f32>();
 
         let mut total_width: f32 = 0.0;
 
@@ -355,12 +348,9 @@ impl Widget for Row {
 
         let spacing = match self.justification {
             Justification::SpaceBetween if self.widgets.len() > 1 => {
-                let content_width =
-                    ctx.max_size.x - self.padding.x - self.padding.y;
+                let content_width = ctx.max_size.x - self.padding.x - self.padding.y;
 
-                ((content_width - total_width_widget)
-                    / (self.widgets.len() as f32 - 1.0))
-                    .max(0.0)
+                ((content_width - total_width_widget) / (self.widgets.len() as f32 - 1.0)).max(0.0)
             }
             _ => self.spacing,
         };
@@ -368,12 +358,12 @@ impl Widget for Row {
         total_width += spacing * (self.widgets.len().saturating_sub(1)) as f32;
 
         let mut cursor_x = match self.justification {
-            Justification::Start => ctx.cursor.x + self.padding.x, 
+            Justification::Start => ctx.cursor.x + self.padding.x,
             Justification::Center => {
-                ctx.cursor.x + (ctx.max_size.x - total_width) / 2.0 + self.padding.x 
+                ctx.cursor.x + (ctx.max_size.x - total_width) / 2.0 + self.padding.x
             }
             Justification::End => ctx.cursor.x + ctx.max_size.x - total_width - self.padding.y,
-            Justification::SpaceBetween => ctx.cursor.x + self.padding.x, 
+            Justification::SpaceBetween => ctx.cursor.x + self.padding.x,
         };
 
         for widget in self.widgets.iter_mut() {
@@ -393,7 +383,10 @@ impl Widget for Row {
             cursor_x += widget_size.x + spacing;
         }
 
-        Vec2::new(total_width + self.padding.x + self.padding.z, ctx.max_size.y)
+        Vec2::new(
+            total_width + self.padding.x + self.padding.z,
+            ctx.max_size.y,
+        )
     }
 
     fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
