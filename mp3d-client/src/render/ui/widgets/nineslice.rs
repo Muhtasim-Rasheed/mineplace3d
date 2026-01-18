@@ -1,9 +1,6 @@
-use glam::{UVec2, UVec4, Vec2, vec2};
+use glam::{UVec2, UVec4, Vec2, Vec4, vec2};
 
-use crate::{
-    abs::TextureHandle,
-    render::ui::widgets::Widget,
-};
+use crate::{abs::TextureHandle, render::ui::widgets::Widget};
 
 pub struct NineSlice {
     pub texture: TextureHandle,
@@ -14,6 +11,7 @@ pub struct NineSlice {
     pub border: UVec4,
     /// Scales the borders without changing the overall size of the nine-slice and the UVs.
     pub scale: u32,
+    pub tint: Vec4,
     atlas_size: UVec2,
 }
 
@@ -25,6 +23,7 @@ impl NineSlice {
         size: Vec2,
         border: UVec4,
         scale: u32,
+        tint: Vec4,
     ) -> Self {
         Self {
             texture: texture,
@@ -34,6 +33,7 @@ impl NineSlice {
             size,
             border,
             scale,
+            tint,
             atlas_size: UVec2::new(texture.width(), texture.height()),
         }
     }
@@ -125,7 +125,7 @@ impl Widget for NineSlice {
                     uv_rect: [uv_min, uv_max],
                     mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
                         self.texture.clone(),
-                        glam::Vec4::ONE,
+                        self.tint,
                     ),
                 });
             }

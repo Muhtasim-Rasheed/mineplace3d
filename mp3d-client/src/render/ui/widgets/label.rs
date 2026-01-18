@@ -98,9 +98,9 @@ pub struct Label {
 }
 
 impl Label {
-    pub fn new(text: String, font_size: f32, color: Vec4, font: &Rc<Font>) -> Self {
+    pub fn new(text: &str, font_size: f32, color: Vec4, font: &Rc<Font>) -> Self {
         Self {
-            text,
+            text: text.to_string(),
             position: Vec2::ZERO,
             font_size,
             color,

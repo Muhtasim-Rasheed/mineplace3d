@@ -69,33 +69,57 @@ fn main() {
         .unwrap(),
     );
 
-    let label = Label::new(
-        "Mineplace3D".to_string(),
-        72.0,
-        Vec4::new(1.0, 1.0, 1.0, 1.0),
-        &font,
-    );
+    let header = Label::new("Mineplace3D", 72.0, Vec4::new(1.0, 1.0, 1.0, 1.0), &font);
 
-    let another_label = Label::new(
-        "testingtestingtesting".to_string(),
-        48.0,
-        Vec4::new(0.0, 1.0, 0.0, 1.0),
-        &font,
-    );
-
-    let button = Button::new(
-        "gnitsetgnitsetgnitset",
+    let play = Button::new(
+        "Start Game",
         Vec4::new(1.0, 1.0, 1.0, 1.0),
-        32.0,
-        Vec2::new(500.0, 100.0),
+        24.0,
+        Vec2::new(500.0, 80.0).into(),
         &font,
         gui_tex.handle(),
     );
 
-    let mut container = Column::new(10.0, crate::render::ui::widgets::Alignment::Center, 10.0);
-    container.add_widget(label);
-    container.add_widget(another_label);
-    container.add_widget(button);
+    let options = Button::new(
+        "Options",
+        Vec4::new(1.0, 1.0, 1.0, 1.0),
+        24.0,
+        Vec2::new(500.0, 80.0).into(),
+        &font,
+        gui_tex.handle(),
+    );
+
+    let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
+    buttons.add_widget(play);
+    buttons.add_widget(options);
+
+    let version_label = Label::new(
+        format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
+        24.0,
+        Vec4::new(1.0, 1.0, 1.0, 0.5),
+        &font,
+    );
+
+    let license_label = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5), &font);
+
+    let mut footer = Row::new(
+        5.0,
+        Alignment::Center,
+        Vec4::ZERO,
+        Justification::SpaceBetween,
+    );
+    footer.add_widget(version_label);
+    footer.add_widget(license_label);
+
+    let mut container = Column::new(
+        50.0,
+        Alignment::Center,
+        Vec4::new(20.0, 20.0, 60.0, 20.0),
+        Justification::SpaceBetween,
+    );
+    container.add_widget(header);
+    container.add_widget(buttons);
+    container.add_widget(footer);
 
     let mut last_frame_time = std::time::Instant::now();
 
@@ -123,6 +147,10 @@ fn main() {
                     }
                     ui_renderer.projection_matrix =
                         Mat4::orthographic_rh_gl(0.0, width as f32, height as f32, 0.0, -1.0, 1.0);
+                    let container_padding_left_right = container.padding.x + container.padding.y;
+                    container.get_widget_mut::<Row>(2)
+                        .unwrap()
+                        .min_size = Vec2::new(width as f32 - container_padding_left_right, 0.0);
                 }
                 sdl2::event::Event::MouseMotion {
                     x, y, xrel, yrel, ..
@@ -166,10 +194,17 @@ fn main() {
         container.update(&update_ctx);
 
         if container
-            .get_widget::<Button>(2)
-            .map_or(false, |btn| btn.is_pressed())
+            .find_widget::<Button>(&[1, 0])
+            .map_or(false, |b| b.is_pressed())
         {
-            println!("woah");
+            println!("Start Game");
+        }
+
+        if container
+            .find_widget::<Button>(&[1, 1])
+            .map_or(false, |b| b.is_pressed())
+        {
+            println!("Options");
         }
 
         container.layout(&LayoutContext {
