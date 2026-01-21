@@ -549,6 +549,7 @@ name = "mp3d-core"
 version = "0.1.0-beta"
 dependencies = [
  "glam",
+ "rand",
 ]
 
 [[package]]

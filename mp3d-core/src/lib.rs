@@ -3,6 +3,9 @@
 //! such as world management, entity handling, etc.
 
 pub mod block;
+pub mod entity;
+pub mod protocol;
+pub mod server;
 pub mod world;
 
 #[cfg(test)]
