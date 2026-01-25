@@ -196,7 +196,7 @@ impl Widget for Column {
         )
     }
 
-    fn update(&mut self, ctx: &super::UpdateContext) {
+    fn update(&mut self, ctx: &crate::other::UpdateContext) {
         for widget in &mut self.widgets {
             widget.update(ctx);
         }
@@ -331,7 +331,7 @@ impl Widget for Row {
         Vec2::new(width, height).max(self.min_size)
     }
 
-    fn update(&mut self, ctx: &super::UpdateContext) {
+    fn update(&mut self, ctx: &crate::other::UpdateContext) {
         for widget in &mut self.widgets {
             widget.update(ctx);
         }
@@ -507,7 +507,7 @@ impl Widget for Stack {
         Vec2::new(width, height)
     }
 
-    fn update(&mut self, ctx: &super::UpdateContext) {
+    fn update(&mut self, ctx: &crate::other::UpdateContext) {
         for widget in &mut self.widgets {
             widget.update(ctx);
         }

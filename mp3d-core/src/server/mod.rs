@@ -10,7 +10,7 @@ use glam::Vec3;
 use crate::{
     entity::{Entity, PlayerEntity},
     protocol::*,
-    world::{chunk::Chunk, World},
+    world::{World, chunk::Chunk},
 };
 
 /// Represents a connected client on the server.
@@ -23,13 +23,34 @@ pub struct PlayerSession {
 /// The main server struct that manages player sessions and world state.
 pub struct Server {
     pub sessions: HashMap<u64, PlayerSession>,
+    pub connections: HashMap<u64, u64>,
     pub world: World,
     pub tps: u8,
 }
 
 impl Server {
-    /// Handles messages received from clients, updates the world state, and prepares responses.
-    pub fn handle_message(&mut self, user_id: u64, message: C2SMessage) {
+    /// Creates a new server instance.
+    pub fn new() -> Self {
+        Self {
+            sessions: HashMap::new(),
+            connections: HashMap::new(),
+            world: World::new(),
+            tps: 48,
+        }
+    }
+
+    /// Returns the next available user ID.
+    fn next_user_id(&self) -> u64 {
+        let mut user_id = 1;
+        while self.sessions.contains_key(&user_id) {
+            user_id += 1;
+        }
+        user_id
+    }
+
+    /// Handles messages received from clients, and prepares responses. Note that this does not
+    /// tick the server, that must be done separately.
+    pub fn handle_message(&mut self, connection_id: u64, message: C2SMessage) {
         fn broadcast_message(
             sessions: &mut HashMap<u64, PlayerSession>,
             sender_id: Option<u64>,
@@ -44,20 +65,19 @@ impl Server {
 
         match message {
             C2SMessage::Connect => {
-                let entity_id = self.world.add_entity(Box::new(PlayerEntity::new(
-                    user_id,
-                    Vec3::new(0.0, 0.0, 0.0),
-                )));
+                let user_id = self.next_user_id();
+                let entity_id = self
+                    .world
+                    .add_entity(Box::new(PlayerEntity::new(user_id, Vec3::ZERO)));
                 self.sessions.insert(
                     user_id,
                     PlayerSession {
                         user_id,
                         entity_id,
-                        pending_messages: vec![
-                            S2CMessage::Connected { user_id },
-                        ],
+                        pending_messages: vec![S2CMessage::Connected { user_id }],
                     },
                 );
+                self.connections.insert(connection_id, user_id);
                 broadcast_message(
                     &mut self.sessions,
                     Some(user_id),
@@ -73,6 +93,10 @@ impl Server {
                 );
             }
             C2SMessage::Disconnect => {
+                let user_id = match self.connections.remove(&connection_id) {
+                    Some(uid) => uid,
+                    None => return,
+                };
                 let session = self.sessions.remove(&user_id);
                 self.world.remove_entity(session.unwrap().entity_id);
                 broadcast_message(
@@ -81,46 +105,41 @@ impl Server {
                     S2CMessage::Disconnected { user_id },
                 );
             }
-            C2SMessage::Move {
+            C2SMessage::Move(MoveInstructions {
                 forward,
                 strafe,
                 jump,
                 yaw,
                 pitch,
-            } => {
-                if let Some(session) = self.sessions.get_mut(&user_id) {
-                    if let Some(entity) = self.world.get_entity_mut::<PlayerEntity>(session.entity_id) {
-                        entity.yaw = yaw;
-                        entity.pitch = pitch;
-                        let forward_vec = Vec3::new(
-                            yaw.to_radians().sin(),
-                            0.0,
-                            yaw.to_radians().cos(),
-                        );
-                        let right_vec = Vec3::new(
-                            yaw.to_radians().cos(),
-                            0.0,
-                            -yaw.to_radians().sin(),
-                        );
-                        let mut movement = Vec3::ZERO;
-                        movement += forward_vec * (forward as f32);
-                        movement += right_vec * (strafe as f32);
-                        if jump {
-                            movement.y += 1.0;
-                        }
-                        let dt = 1.0 / (self.tps as f32);
-                        entity.apply_velocity(movement * dt * 5.0);
-                        broadcast_message(
-                            &mut self.sessions,
-                            None,
-                            S2CMessage::PlayerMoved {
-                                user_id,
-                                position: entity.position,
-                                yaw: entity.yaw,
-                                pitch: entity.pitch,
-                            },
-                        );
+            }) => {
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get(user_id)
+                    && let Some(entity) =
+                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                {
+                    entity.yaw = yaw;
+                    entity.pitch = pitch;
+                    let forward_vec =
+                        Vec3::new(yaw.to_radians().sin(), 0.0, yaw.to_radians().cos());
+                    let right_vec = Vec3::new(yaw.to_radians().cos(), 0.0, -yaw.to_radians().sin());
+                    let mut movement = Vec3::ZERO;
+                    movement += forward_vec * (forward as f32);
+                    movement += right_vec * (strafe as f32);
+                    if jump {
+                        movement.y += 1.0;
                     }
+                    let dt = 1.0 / (self.tps as f32);
+                    entity.apply_velocity(movement * dt * 5.0);
+                    broadcast_message(
+                        &mut self.sessions,
+                        None,
+                        S2CMessage::PlayerMoved {
+                            user_id: *user_id,
+                            position: entity.position,
+                            yaw: entity.yaw,
+                            pitch: entity.pitch,
+                        },
+                    );
                 }
             }
             C2SMessage::SetBlock { position, block } => {
@@ -138,7 +157,9 @@ impl Server {
                         .chunks
                         .entry(chunk_position)
                         .or_insert_with(|| Chunk::new(chunk_position));
-                    if let Some(session) = self.sessions.get_mut(&user_id) {
+                    if let Some(user_id) = self.connections.get(&connection_id)
+                        && let Some(session) = self.sessions.get_mut(user_id)
+                    {
                         session.pending_messages.push(S2CMessage::ChunkData {
                             chunk_position,
                             chunk: chunk.clone(),

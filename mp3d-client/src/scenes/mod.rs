@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::render::ui::{uirenderer::UIRenderer, widgets::UpdateContext};
+use crate::render::ui::uirenderer::UIRenderer;
 
 pub enum SceneSwitch {
     None,
@@ -17,10 +17,16 @@ pub enum SceneSwitch {
 /// The Scene trait defines the common interface for all scenes in the game client.
 pub trait Scene {
     /// Handles an event.
-    fn handle_event(&mut self, event: &sdl2::event::Event);
+    fn handle_event(&mut self, _event: &sdl2::event::Event) {}
 
     /// Updates the scene state.
-    fn update(&mut self, ctx: &UpdateContext, window: &sdl2::video::Window) -> SceneSwitch;
+    fn update(
+        &mut self,
+        ctx: &crate::other::UpdateContext,
+        window: &sdl2::video::Window,
+    ) -> SceneSwitch {
+        SceneSwitch::None
+    }
 
     /// Renders the scene.
     fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer);
@@ -47,7 +53,11 @@ impl SceneManager {
     }
 
     /// Updates the current scene and manages scene transitions.
-    pub fn update(&mut self, ctx: &UpdateContext, window: &sdl2::video::Window) -> bool {
+    pub fn update(
+        &mut self,
+        ctx: &crate::other::UpdateContext,
+        window: &sdl2::video::Window,
+    ) -> bool {
         if let Some(current_scene) = self.scenes.last_mut() {
             match current_scene.update(ctx, window) {
                 SceneSwitch::None => {}
@@ -73,4 +83,5 @@ impl SceneManager {
     }
 }
 
+pub mod singleplayer;
 pub mod titlescreen;

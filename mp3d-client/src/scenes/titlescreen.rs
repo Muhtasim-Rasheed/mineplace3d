@@ -92,7 +92,11 @@ impl super::Scene for TitleScreen {
         }
     }
 
-    fn update(&mut self, ctx: &UpdateContext, window: &sdl2::video::Window) -> super::SceneSwitch {
+    fn update(
+        &mut self,
+        ctx: &crate::other::UpdateContext,
+        window: &sdl2::video::Window,
+    ) -> super::SceneSwitch {
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),

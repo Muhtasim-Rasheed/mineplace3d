@@ -52,7 +52,7 @@ impl Widget for NineSlice {
         self.size
     }
 
-    fn update(&mut self, _ctx: &super::UpdateContext) {
+    fn update(&mut self, _ctx: &crate::other::UpdateContext) {
         // NineSlice is static; no update logic needed.
     }
 

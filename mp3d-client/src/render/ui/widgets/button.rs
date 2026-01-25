@@ -123,7 +123,7 @@ impl Widget for Button {
         self.size
     }
 
-    fn update(&mut self, ctx: &super::UpdateContext) {
+    fn update(&mut self, ctx: &crate::other::UpdateContext) {
         self.is_down_last = self.is_down;
         self.hover_last = self.hovered;
         let mouse_pos = ctx.mouse.position;

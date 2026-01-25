@@ -9,8 +9,29 @@ use crate::{
 };
 
 mod abs;
+mod client;
+mod clientplayer;
+mod other;
 mod render;
 mod scenes;
+
+macro_rules! shader_program {
+    ($name:ident, $gl:expr) => {{
+        let vert = Shader::new(
+            &$gl,
+            glow::VERTEX_SHADER,
+            include_str!(concat!("render/shaders/", stringify!($name), "/vert.glsl")),
+        )
+        .unwrap();
+        let frag = Shader::new(
+            &$gl,
+            glow::FRAGMENT_SHADER,
+            include_str!(concat!("render/shaders/", stringify!($name), "/frag.glsl")),
+        )
+        .unwrap();
+        ShaderProgram::new(&$gl, &[&vert, &frag]).unwrap()
+    }};
+}
 
 fn main() {
     let mut app = App::new("Mineplace3D", 1280, 720, false);
@@ -25,22 +46,10 @@ fn main() {
             .blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
     }
 
-    let vert = Shader::new(
-        &app.gl,
-        glow::VERTEX_SHADER,
-        include_str!("render/shaders/ui/vert.glsl"),
-    )
-    .unwrap();
-    let frag = Shader::new(
-        &app.gl,
-        glow::FRAGMENT_SHADER,
-        include_str!("render/shaders/ui/frag.glsl"),
-    )
-    .unwrap();
-    let shader_program = ShaderProgram::new(&app.gl, &[&vert, &frag]).unwrap();
+    let shader_program = shader_program!(ui, app.gl);
 
-    let mut keyboard_state = KeyboardState::default();
-    let mut mouse_state = MouseState::default();
+    let mut keyboard_state = other::KeyboardState::default();
+    let mut mouse_state = other::MouseState::default();
 
     let mut ui_renderer = UIRenderer::new(
         &app.gl,
@@ -139,40 +148,8 @@ fn main() {
             }
         }
 
-        let update_ctx = UpdateContext::new(&keyboard_state, &mouse_state, delta_time);
-
+        let update_ctx = other::UpdateContext::new(&keyboard_state, &mouse_state, delta_time);
         scene_manager.update(&update_ctx, &app.window);
-
-        // container.update(&update_ctx);
-
-        // if container
-        //     .find_widget::<Button>(&[1, 0])
-        //     .map_or(false, |b| b.is_pressed())
-        // {
-        //     println!("Start Game");
-        // }
-
-        // if container
-        //     .find_widget::<Button>(&[1, 1])
-        //     .map_or(false, |b| b.is_pressed())
-        // {
-        //     println!("Options");
-        // }
-
-        // container.layout(&LayoutContext {
-        //     max_size: Vec2::new(app.window.size().0 as f32, app.window.size().1 as f32),
-        //     cursor: Vec3::ZERO.truncate(),
-        // });
-
-        // unsafe {
-        //     app.gl.clear_color(0.1, 0.1, 0.2, 1.0);
-        //     app.gl
-        //         .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-
-        //     app.gl.disable(glow::DEPTH_TEST);
-        //     container.draw(&mut ui_renderer);
-        //     app.gl.enable(glow::DEPTH_TEST);
-        // }
 
         scene_manager.render(&app.gl, &mut ui_renderer);
         app.window.gl_swap_window();

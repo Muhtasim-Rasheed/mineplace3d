@@ -122,7 +122,7 @@ impl Widget for Label {
         self.font.measure_text(&self.text, self.font_size)
     }
 
-    fn update(&mut self, _ctx: &super::UpdateContext) {
+    fn update(&mut self, _ctx: &crate::other::UpdateContext) {
         // Labels are static; no update logic needed.
     }
 

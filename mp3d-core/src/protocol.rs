@@ -7,6 +7,21 @@ use glam::{IVec3, Vec3};
 
 use crate::{block::Block, world::chunk::Chunk};
 
+/// Move instructions for the player.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MoveInstructions {
+    /// Forward movement: -1 (backward), 0 (none), 1 (forward), 2 (sprint).
+    pub forward: i8,
+    /// Strafe movement: -1 (left), 0 (none), 1 (right).
+    pub strafe: i8,
+    /// Whether the player is jumping.
+    pub jump: bool,
+    /// Yaw angle in degrees.
+    pub yaw: f32,
+    /// Pitch angle in degrees.
+    pub pitch: f32,
+}
+
 /// Messages sent from the client to the server.
 pub enum C2SMessage {
     /// Request to join a world.
@@ -14,13 +29,7 @@ pub enum C2SMessage {
     /// Request to leave a world.
     Disconnect,
     /// Request to move the player.
-    Move {
-        forward: i8,
-        strafe: i8,
-        jump: bool,
-        yaw: f32,
-        pitch: f32,
-    },
+    Move(MoveInstructions),
     /// Request to set a block at a specified position with a given block.
     SetBlock { position: IVec3, block: Block },
     /// Request for chunk data.
