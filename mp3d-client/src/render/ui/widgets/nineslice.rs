@@ -26,7 +26,7 @@ impl NineSlice {
         tint: Vec4,
     ) -> Self {
         Self {
-            texture: texture,
+            texture,
             uv_top_left,
             uv_size,
             position: Vec2::ZERO,
@@ -124,7 +124,7 @@ impl Widget for NineSlice {
                     rect: [pos_min, pos_max],
                     uv_rect: [uv_min, uv_max],
                     mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
-                        self.texture.clone(),
+                        self.texture,
                         self.tint,
                     ),
                 });

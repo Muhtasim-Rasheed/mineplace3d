@@ -17,13 +17,15 @@ pub enum SceneSwitch {
 /// The Scene trait defines the common interface for all scenes in the game client.
 pub trait Scene {
     /// Handles an event.
-    fn handle_event(&mut self, _event: &sdl2::event::Event) {}
+    fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, _event: &sdl2::event::Event) {}
 
     /// Updates the scene state.
     fn update(
         &mut self,
-        ctx: &crate::other::UpdateContext,
-        window: &sdl2::video::Window,
+        _gl: &Arc<glow::Context>,
+        _ctx: &crate::other::UpdateContext,
+        _window: &mut sdl2::video::Window,
+        _sdl_ctx: &sdl2::Sdl,
     ) -> SceneSwitch {
         SceneSwitch::None
     }
@@ -46,20 +48,22 @@ impl SceneManager {
     }
 
     /// Handles an event by passing it to the current scene.
-    pub fn handle_event(&mut self, event: &sdl2::event::Event) {
+    pub fn handle_event(&mut self, gl: &std::sync::Arc<glow::Context>, event: &sdl2::event::Event) {
         if let Some(current_scene) = self.scenes.last_mut() {
-            current_scene.handle_event(event);
+            current_scene.handle_event(gl, event);
         }
     }
 
     /// Updates the current scene and manages scene transitions.
     pub fn update(
         &mut self,
+        gl: &Arc<glow::Context>,
         ctx: &crate::other::UpdateContext,
-        window: &sdl2::video::Window,
+        window: &mut sdl2::video::Window,
+        sdl_ctx: &sdl2::Sdl,
     ) -> bool {
         if let Some(current_scene) = self.scenes.last_mut() {
-            match current_scene.update(ctx, window) {
+            match current_scene.update(gl, ctx, window, sdl_ctx) {
                 SceneSwitch::None => {}
                 SceneSwitch::Push(new_scene) => self.scenes.push(new_scene),
                 SceneSwitch::Pop => {

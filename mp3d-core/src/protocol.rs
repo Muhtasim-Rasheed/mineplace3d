@@ -16,6 +16,8 @@ pub struct MoveInstructions {
     pub strafe: i8,
     /// Whether the player is jumping.
     pub jump: bool,
+    /// Whether the player is sneaking or going down if flying.
+    pub sneak: bool,
     /// Yaw angle in degrees.
     pub yaw: f32,
     /// Pitch angle in degrees.
@@ -59,5 +61,5 @@ pub enum S2CMessage {
     /// Update of a block at a specified position with a given block.
     BlockUpdated { position: IVec3, block: Block },
     /// Delivery of chunk data.
-    ChunkData { chunk_position: IVec3, chunk: Chunk },
+    ChunkData { chunk_position: IVec3, chunk: Box<Chunk> },
 }

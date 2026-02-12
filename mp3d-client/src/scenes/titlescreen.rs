@@ -18,14 +18,14 @@ pub struct TitleScreen {
 impl TitleScreen {
     /// Creates a new [`TitleScreen`] instance.
     pub fn new(font: &Rc<Font>, gui_tex: &Texture, window_size: (u32, u32)) -> Self {
-        let header = Label::new("Mineplace3D", 72.0, Vec4::ONE, &font);
+        let header = Label::new("Mineplace3D", 72.0, Vec4::ONE, font);
 
         let play = Button::new(
             "Start Game",
             Vec4::ONE,
             24.0,
-            Vec2::new(500.0, 80.0).into(),
-            &font,
+            Vec2::new(500.0, 80.0),
+            font,
             gui_tex.handle(),
         );
 
@@ -33,8 +33,8 @@ impl TitleScreen {
             "Options",
             Vec4::ONE,
             24.0,
-            Vec2::new(500.0, 80.0).into(),
-            &font,
+            Vec2::new(500.0, 80.0),
+            font,
             gui_tex.handle(),
         );
 
@@ -46,10 +46,10 @@ impl TitleScreen {
             format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
             24.0,
             Vec4::new(1.0, 1.0, 1.0, 0.5),
-            &font,
+            font,
         );
 
-        let license = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5), &font);
+        let license = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5), font);
 
         let mut footer = Row::new(
             5.0,
@@ -81,22 +81,25 @@ impl TitleScreen {
 }
 
 impl super::Scene for TitleScreen {
-    fn handle_event(&mut self, event: &sdl2::event::Event) {
-        if let sdl2::event::Event::Window { win_event, .. } = event {
-            if let sdl2::event::WindowEvent::Resized(width, _) = win_event {
+    fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, event: &sdl2::event::Event) {
+        if let sdl2::event::Event::Window { win_event, .. } = event
+            && let sdl2::event::WindowEvent::Resized(width, _) = win_event {
                 let container_padding_left_right =
                     self.container.padding.x + self.container.padding.y;
                 self.container.get_widget_mut::<Row>(2).unwrap().min_size =
                     Vec2::new(*width as f32 - container_padding_left_right, 0.0);
             }
-        }
     }
 
     fn update(
         &mut self,
+        gl: &Arc<glow::Context>,
         ctx: &crate::other::UpdateContext,
-        window: &sdl2::video::Window,
+        window: &mut sdl2::video::Window,
+        sdl_ctx: &sdl2::Sdl,
     ) -> super::SceneSwitch {
+        window.set_title("Mineplace3D").unwrap();
+        sdl_ctx.mouse().set_relative_mouse_mode(false);
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
@@ -106,16 +109,17 @@ impl super::Scene for TitleScreen {
         if self
             .container
             .find_widget::<Button>(&[1, 0])
-            .map_or(false, |btn| btn.is_pressed())
+            .is_some_and(|btn| btn.is_pressed())
         {
-            // Start Game button pressed
-            // Right now we do nothing
-            println!("Start Game");
+            return super::SceneSwitch::Push(Box::new(
+                crate::scenes::singleplayer::SinglePlayer::new(gl),
+            ));
         }
+
         if self
             .container
             .find_widget::<Button>(&[1, 1])
-            .map_or(false, |btn| btn.is_pressed())
+            .is_some_and(|btn| btn.is_pressed())
         {
             // Options button pressed
             // Right now we do nothing

@@ -57,7 +57,7 @@ impl Server {
             message: S2CMessage,
         ) {
             for (uid, session) in sessions.iter_mut() {
-                if sender_id.map_or(true, |sid| sid != *uid) {
+                if sender_id != Some(*uid) {
                     session.pending_messages.push(message.clone());
                 }
             }
@@ -109,6 +109,7 @@ impl Server {
                 forward,
                 strafe,
                 jump,
+                sneak,
                 yaw,
                 pitch,
             }) => {
@@ -123,10 +124,13 @@ impl Server {
                         Vec3::new(yaw.to_radians().sin(), 0.0, yaw.to_radians().cos());
                     let right_vec = Vec3::new(yaw.to_radians().cos(), 0.0, -yaw.to_radians().sin());
                     let mut movement = Vec3::ZERO;
-                    movement += forward_vec * (forward as f32);
-                    movement += right_vec * (strafe as f32);
+                    movement += forward_vec * (forward as f32) * 7.5;
+                    movement += right_vec * (strafe as f32) * 7.5;
                     if jump {
-                        movement.y += 1.0;
+                        movement.y += 6.0;
+                    }
+                    if sneak {
+                        movement.y -= 6.0;
                     }
                     let dt = 1.0 / (self.tps as f32);
                     entity.apply_velocity(movement * dt * 5.0);
@@ -162,7 +166,7 @@ impl Server {
                     {
                         session.pending_messages.push(S2CMessage::ChunkData {
                             chunk_position,
-                            chunk: chunk.clone(),
+                            chunk: Box::new(chunk.clone()),
                         });
                     }
                 }

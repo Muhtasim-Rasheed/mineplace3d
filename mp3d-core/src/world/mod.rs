@@ -51,32 +51,16 @@ impl World {
 
     /// Gets a block at the given world position.
     pub fn get_block_at(&self, world_pos: IVec3) -> Option<&Block> {
-        let chunk_pos = IVec3::new(
-            world_pos.x.div_euclid(CHUNK_SIZE as i32),
-            world_pos.y.div_euclid(CHUNK_SIZE as i32),
-            world_pos.z.div_euclid(CHUNK_SIZE as i32),
-        );
-        let local_pos = IVec3::new(
-            world_pos.x.rem_euclid(CHUNK_SIZE as i32),
-            world_pos.y.rem_euclid(CHUNK_SIZE as i32),
-            world_pos.z.rem_euclid(CHUNK_SIZE as i32),
-        );
+        let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+        let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
         self.chunks.get(&chunk_pos).map(|c| c.get_block(local_pos))
     }
 
     /// Sets a block at the given world position.
     pub fn set_block_at(&mut self, world_pos: IVec3, block: Block) {
-        let chunk_pos = IVec3::new(
-            world_pos.x.div_euclid(CHUNK_SIZE as i32),
-            world_pos.y.div_euclid(CHUNK_SIZE as i32),
-            world_pos.z.div_euclid(CHUNK_SIZE as i32),
-        );
-        let local_pos = IVec3::new(
-            world_pos.x.rem_euclid(CHUNK_SIZE as i32),
-            world_pos.y.rem_euclid(CHUNK_SIZE as i32),
-            world_pos.z.rem_euclid(CHUNK_SIZE as i32),
-        );
+        let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+        let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
         let chunk = self.chunks.get_mut(&chunk_pos);
 

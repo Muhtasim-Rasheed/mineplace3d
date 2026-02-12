@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use glam::{Mat4, Vec2};
 use glow::HasContext;
 
 use crate::{
@@ -10,23 +10,33 @@ use crate::{
 
 mod abs;
 mod client;
-mod clientplayer;
 mod other;
 mod render;
 mod scenes;
 
+#[macro_export]
 macro_rules! shader_program {
-    ($name:ident, $gl:expr) => {{
-        let vert = Shader::new(
+    ($name:ident, $gl:expr, $path_prefix:literal) => {{
+        let vert = $crate::abs::Shader::new(
             &$gl,
             glow::VERTEX_SHADER,
-            include_str!(concat!("render/shaders/", stringify!($name), "/vert.glsl")),
+            include_str!(concat!(
+                $path_prefix,
+                "/render/shaders/",
+                stringify!($name),
+                "/vert.glsl"
+            )),
         )
         .unwrap();
-        let frag = Shader::new(
+        let frag = $crate::abs::Shader::new(
             &$gl,
             glow::FRAGMENT_SHADER,
-            include_str!(concat!("render/shaders/", stringify!($name), "/frag.glsl")),
+            include_str!(concat!(
+                $path_prefix,
+                "/render/shaders/",
+                stringify!($name),
+                "/frag.glsl"
+            )),
         )
         .unwrap();
         ShaderProgram::new(&$gl, &[&vert, &frag]).unwrap()
@@ -46,7 +56,7 @@ fn main() {
             .blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
     }
 
-    let shader_program = shader_program!(ui, app.gl);
+    let shader_program = shader_program!(ui, app.gl, ".");
 
     let mut keyboard_state = other::KeyboardState::default();
     let mut mouse_state = other::MouseState::default();
@@ -90,15 +100,15 @@ fn main() {
         let delta_time = now.duration_since(last_frame_time).as_secs_f32();
         last_frame_time = now;
 
-        mouse_state.delta = Vec3::ZERO.truncate();
-        mouse_state.scroll_delta = Vec3::ZERO.truncate();
+        mouse_state.delta = Vec2::ZERO;
+        mouse_state.scroll_delta = Vec2::ZERO;
         keyboard_state.pressed.clear();
         keyboard_state.released.clear();
         mouse_state.pressed.clear();
         mouse_state.released.clear();
 
         for event in app.event_pump.poll_iter() {
-            scene_manager.handle_event(&event);
+            scene_manager.handle_event(&app.gl, &event);
             match event {
                 sdl2::event::Event::Quit { .. } => break 'running,
                 sdl2::event::Event::Window {
@@ -114,11 +124,11 @@ fn main() {
                 sdl2::event::Event::MouseMotion {
                     x, y, xrel, yrel, ..
                 } => {
-                    mouse_state.position = Vec3::new(x as f32, y as f32, 0.0).truncate();
-                    mouse_state.delta = Vec3::new(xrel as f32, yrel as f32, 0.0).truncate();
+                    mouse_state.position = Vec2::new(x as f32, y as f32);
+                    mouse_state.delta = Vec2::new(xrel as f32, yrel as f32);
                 }
                 sdl2::event::Event::MouseWheel { x, y, .. } => {
-                    mouse_state.scroll_delta = Vec3::new(x as f32, y as f32, 0.0).truncate();
+                    mouse_state.scroll_delta = Vec2::new(x as f32, y as f32);
                 }
                 sdl2::event::Event::MouseButtonDown { mouse_btn, .. } => {
                     mouse_state.down.insert(mouse_btn);
@@ -149,7 +159,7 @@ fn main() {
         }
 
         let update_ctx = other::UpdateContext::new(&keyboard_state, &mouse_state, delta_time);
-        scene_manager.update(&update_ctx, &app.window);
+        scene_manager.update(&app.gl, &update_ctx, &mut app.window, &app.sdl);
 
         scene_manager.render(&app.gl, &mut ui_renderer);
         app.window.gl_swap_window();

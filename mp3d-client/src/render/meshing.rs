@@ -4,15 +4,12 @@ use std::{collections::HashMap, sync::Arc};
 
 use glam::{IVec3, Vec3};
 use glow::HasContext;
-use mp3d_core::{
-    block::Block,
-    world::{
-        World,
-        chunk::{CHUNK_SIZE, Chunk},
-    },
-};
+use mp3d_core::{block::Block, world::chunk::CHUNK_SIZE};
 
-use crate::abs::{Mesh, Vertex};
+use crate::{
+    abs::{Mesh, Vertex},
+    client::{chunk::ClientChunk, world::ClientWorld},
+};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
@@ -55,38 +52,42 @@ fn should_occlude(a: &Block, b: &Block) -> bool {
     a.full && b.full
 }
 
-/// Generates meshes for all chunks in the given world.
-/// Returns a hashmap mapping chunk positions to their corresponding meshes.
-pub fn mesh_world(gl: &Arc<glow::Context>, world: &World) -> HashMap<IVec3, Mesh> {
-    let start = std::time::Instant::now();
-
-    let mut meshes = HashMap::with_capacity(world.chunks.len());
-
+/// Generates meshes for all chunks that require being meshed again.
+pub fn mesh_world(
+    gl: &Arc<glow::Context>,
+    world: &mut ClientWorld,
+    chunk_meshes: &mut HashMap<IVec3, Mesh>,
+) {
+    let mut dirty_chunks: Vec<IVec3> = Vec::new();
     for (chunk_pos, chunk) in &world.chunks {
-        let (chunk_vertices, chunk_indices) = mesh_chunk(chunk, *chunk_pos, world);
-
-        let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
-        meshes.insert(*chunk_pos, mesh);
+        if chunk.dirty {
+            dirty_chunks.push(*chunk_pos);
+        }
     }
 
-    println!("Generated world mesh in {:?}", start.elapsed());
+    for chunk_pos in dirty_chunks {
+        let chunk = world.chunks.get(&chunk_pos).unwrap();
+        let (chunk_vertices, chunk_indices) = mesh_chunk(chunk, chunk_pos, world);
+        world.chunks.get_mut(&chunk_pos).unwrap().dirty = false;
 
-    meshes
+        let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
+        chunk_meshes.insert(chunk_pos, mesh);
+    }
 }
 
 /// Generates the mesh for a single chunk at the given position in the world.
 /// Returns a tuple containing the list of vertices and the list of indices.
 fn mesh_chunk(
-    chunk: &Chunk,
+    chunk: &ClientChunk,
     chunk_pos: glam::IVec3,
-    world: &World,
+    world: &ClientWorld,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
 
     fn get_block<'a>(
-        chunk: &'a Chunk,
-        world: &'a World,
+        chunk: &'a ClientChunk,
+        world: &'a ClientWorld,
         chunk_pos: IVec3,
         world_pos: IVec3,
     ) -> Option<&'a Block> {
