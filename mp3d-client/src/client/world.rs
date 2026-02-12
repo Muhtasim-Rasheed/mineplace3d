@@ -17,6 +17,8 @@ const RENDER_DISTANCE: i32 = 8;
 pub struct ClientWorld {
     /// A mapping of chunk positions to their corresponding client-side chunk data.
     pub chunks: HashMap<IVec3, ClientChunk>,
+    /// Changes done to the world that haven't been sent to the server yet.
+    pub pending_changes: Vec<(IVec3, Block)>,
 }
 
 impl ClientWorld {
@@ -24,6 +26,7 @@ impl ClientWorld {
     pub fn new() -> Self {
         Self {
             chunks: HashMap::new(),
+            pending_changes: Vec::new(),
         }
     }
 
@@ -44,6 +47,38 @@ impl ClientWorld {
 
         if let Some(chunk) = chunk {
             chunk.set_block(local_pos, block);
+        }
+        self.pending_changes.push((world_pos, block));
+
+        // Mark neighboring chunks as dirty if the block is on the edge of the chunk
+        if local_pos.x == 0 {
+            if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(-1, 0, 0))) {
+                neighbor.dirty = true;
+            }
+        } else if local_pos.x == CHUNK_SIZE as i32 - 1 {
+            if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(1, 0, 0))) {
+                neighbor.dirty = true;
+            }
+        }
+
+        if local_pos.y == 0 {
+            if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, -1, 0))) {
+                neighbor.dirty = true;
+            }
+        } else if local_pos.y == CHUNK_SIZE as i32 - 1 {
+            if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 1, 0))) {
+                neighbor.dirty = true;
+            }
+        }
+
+        if local_pos.z == 0 {
+            if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, -1))) {
+                neighbor.dirty = true;
+            }
+        } else if local_pos.z == CHUNK_SIZE as i32 - 1 {
+            if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, 1))) {
+                neighbor.dirty = true;
+            }
         }
     }
 
@@ -72,7 +107,7 @@ impl ClientWorld {
     }
 
     /// Unloads chunks that are outside the render distance.
-    pub fn unload_chunks(&mut self, player_pos: IVec3) {
+    pub fn unload_chunks(&mut self, player_pos: IVec3) -> Vec<IVec3> {
         let chunk_pos = player_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let mut to_remove = Vec::new();
 
@@ -83,8 +118,10 @@ impl ClientWorld {
             }
         }
 
-        for pos in to_remove {
-            self.chunks.remove(&pos);
+        for pos in &to_remove {
+            self.chunks.remove(pos);
         }
+
+        to_remove
     }
 }

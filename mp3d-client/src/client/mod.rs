@@ -11,7 +11,7 @@ pub mod chunk;
 pub mod player;
 pub mod world;
 
-use glam::Vec3;
+use glam::{IVec3, Vec3};
 use mp3d_core::{
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
@@ -165,6 +165,29 @@ impl<C: Connection> Client<C> {
             self.player.input.sneak = false;
         }
 
+        if update_context
+            .mouse
+            .pressed
+            .contains(&sdl2::mouse::MouseButton::Left)
+        {
+            let raycast_result = cast_ray(&self.world, &self.player, 5.0);
+            if let Some((block_pos, _)) = raycast_result {
+                self.world.set_block_at(block_pos, mp3d_core::block::Block::AIR);
+            }
+        }
+
+        if update_context
+            .mouse
+            .pressed
+            .contains(&sdl2::mouse::MouseButton::Right)
+        {
+            let raycast_result = cast_ray(&self.world, &self.player, 5.0);
+            if let Some((block_pos, normal)) = raycast_result {
+                let place_pos = block_pos + normal;
+                self.world.set_block_at(place_pos, mp3d_core::block::Block::STONE);
+            }
+        }
+
         self.player.optimistic(tps);
 
         self.connection.send(C2SMessage::Move(self.player.input));
@@ -173,12 +196,15 @@ impl<C: Connection> Client<C> {
         self.connection.send(C2SMessage::RequestChunks {
             chunk_positions: needed_chunks,
         });
+
+        let block_changes = std::mem::take(&mut self.world.pending_changes);
+        for (position, block) in block_changes {
+            self.connection.send(C2SMessage::SetBlock { position, block });
+        }
     }
 
     /// Updates any state on the client side from all recieved messages from the server
     pub fn recieve_state(&mut self) {
-        self.world.unload_chunks(self.player.position.as_ivec3());
-
         let messages = self.connection.receive();
         for message in messages {
             match message {
@@ -221,5 +247,67 @@ impl<C: Connection> Client<C> {
                 _ => {}
             }
         }
+    }
+}
+
+/// Performs a raycast from the player's position in the direction they are looking, returning the
+/// position and normal of the first block hit within the specified range, or `None` if no block is
+/// hit.
+pub fn cast_ray(
+    world: &ClientWorld,
+    player: &player::ClientPlayer,
+    max_distance: f32,
+) -> Option<(IVec3, IVec3)> {
+    let mut pos = player.position;
+    let yaw_rad = player.yaw.to_radians();
+    let pitch_rad = player.pitch.to_radians();
+    let direction = Vec3::new(
+        yaw_rad.sin() * pitch_rad.cos(),
+        -pitch_rad.sin(),
+        yaw_rad.cos() * pitch_rad.cos(),
+    ).normalize();
+    let step = 0.01;
+
+    for _ in 0..(max_distance / step) as usize {
+        let block_pos = pos.floor().as_ivec3();
+        let block = world.get_block_at(block_pos)?;
+
+        if block.full {
+            let normal = calc_face_normal(pos, block_pos.as_vec3());
+            return Some((block_pos, normal));
+        }
+
+        pos += direction * step;
+    }
+
+    None
+}
+
+fn calc_face_normal(hit: Vec3, block: Vec3) -> IVec3 {
+    let rel = hit - block;
+
+    // Distances to faces
+    let dx = rel.x.min(1.0 - rel.x).abs();
+    let dy = rel.y.min(1.0 - rel.y).abs();
+    let dz = rel.z.min(1.0 - rel.z).abs();
+
+    let min = dx.min(dy.min(dz));
+
+    if min == dx {
+        if rel.x < 0.5 {
+            glam::ivec3(-1, 0, 0)
+        } else {
+            glam::ivec3(1, 0, 0)
+        }
+    } else if min == dy {
+        if rel.y < 0.5 {
+            glam::ivec3(0, -1, 0)
+        } else {
+            glam::ivec3(0, 1, 0)
+        }
+    } else if rel.z < 0.5 {
+        glam::ivec3(0, 0, -1)
+    } else {
+        glam::ivec3(0, 0, 1)
     }
 }

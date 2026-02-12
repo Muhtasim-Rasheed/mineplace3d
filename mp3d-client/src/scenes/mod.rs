@@ -37,6 +37,7 @@ pub trait Scene {
 /// Manages the stack of scenes.
 pub struct SceneManager {
     scenes: Vec<Box<dyn Scene>>,
+    just_switched: bool,
 }
 
 impl SceneManager {
@@ -44,6 +45,7 @@ impl SceneManager {
     pub fn new(initial_scene: Box<dyn Scene>) -> Self {
         Self {
             scenes: vec![initial_scene],
+            just_switched: false,
         }
     }
 
@@ -62,8 +64,14 @@ impl SceneManager {
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
     ) -> bool {
+        if self.just_switched {
+            self.just_switched = false;
+            return true;
+        }
         if let Some(current_scene) = self.scenes.last_mut() {
-            match current_scene.update(gl, ctx, window, sdl_ctx) {
+            let switch = current_scene.update(gl, ctx, window, sdl_ctx);
+            let is_switching = !matches!(switch, SceneSwitch::None);
+            match switch {
                 SceneSwitch::None => {}
                 SceneSwitch::Push(new_scene) => self.scenes.push(new_scene),
                 SceneSwitch::Pop => {
@@ -74,6 +82,9 @@ impl SceneManager {
                     self.scenes.push(new_scene);
                 }
                 SceneSwitch::Quit => return false,
+            }
+            if is_switching {
+                self.just_switched = true;
             }
         }
         true

@@ -90,7 +90,7 @@ fn main() {
     );
 
     let mut scene_manager = scenes::SceneManager::new(Box::new(
-        scenes::titlescreen::TitleScreen::new(&font, &gui_tex, (1280, 720)),
+        scenes::titlescreen::TitleScreen::new(&font, gui_tex.handle(), (1280, 720)),
     ));
 
     let mut last_frame_time = std::time::Instant::now();
@@ -159,7 +159,9 @@ fn main() {
         }
 
         let update_ctx = other::UpdateContext::new(&keyboard_state, &mouse_state, delta_time);
-        scene_manager.update(&app.gl, &update_ctx, &mut app.window, &app.sdl);
+        if !scene_manager.update(&app.gl, &update_ctx, &mut app.window, &app.sdl) {
+            break 'running;
+        }
 
         scene_manager.render(&app.gl, &mut ui_renderer);
         app.window.gl_swap_window();

@@ -6,18 +6,20 @@ use glam::{Vec2, Vec4};
 use glow::HasContext;
 
 use crate::{
-    abs::Texture,
+    abs::TextureHandle,
     render::ui::{uirenderer::UIRenderer, widgets::*},
 };
 
 /// The [`TitleScreen`] struct represents the title screen scene.
 pub struct TitleScreen {
     container: Column,
+    font: Rc<Font>,
+    texture: TextureHandle,
 }
 
 impl TitleScreen {
     /// Creates a new [`TitleScreen`] instance.
-    pub fn new(font: &Rc<Font>, gui_tex: &Texture, window_size: (u32, u32)) -> Self {
+    pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
         let header = Label::new("Mineplace3D", 72.0, Vec4::ONE, font);
 
         let play = Button::new(
@@ -26,7 +28,7 @@ impl TitleScreen {
             24.0,
             Vec2::new(500.0, 80.0),
             font,
-            gui_tex.handle(),
+            gui_tex,
         );
 
         let options = Button::new(
@@ -35,12 +37,22 @@ impl TitleScreen {
             24.0,
             Vec2::new(500.0, 80.0),
             font,
-            gui_tex.handle(),
+            gui_tex,
+        );
+
+        let quit = Button::new(
+            "Quit",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(500.0, 80.0),
+            font,
+            gui_tex,
         );
 
         let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
         buttons.add_widget(play);
         buttons.add_widget(options);
+        buttons.add_widget(quit);
 
         let version = Label::new(
             format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
@@ -76,7 +88,11 @@ impl TitleScreen {
             cursor: Vec2::ZERO,
         });
 
-        Self { container }
+        Self {
+            container,
+            font: Rc::clone(font),
+            texture: gui_tex,
+        }
     }
 }
 
@@ -106,24 +122,27 @@ impl super::Scene for TitleScreen {
             cursor: Vec2::ZERO,
         });
 
-        if self
-            .container
-            .find_widget::<Button>(&[1, 0])
-            .is_some_and(|btn| btn.is_pressed())
+        if self.container.find_widget::<Button>(&[1, 0])
+            .is_some_and(|btn| btn.is_released())
         {
             return super::SceneSwitch::Push(Box::new(
-                crate::scenes::singleplayer::SinglePlayer::new(gl),
+                crate::scenes::singleplayer::SinglePlayer::new(gl, &self.font, self.texture),
             ));
         }
 
-        if self
-            .container
-            .find_widget::<Button>(&[1, 1])
-            .is_some_and(|btn| btn.is_pressed())
+        if self.container.find_widget::<Button>(&[1, 1])
+            .is_some_and(|btn| btn.is_released())
         {
             // Options button pressed
             // Right now we do nothing
             println!("Options");
+        }
+
+        if self.container.find_widget::<Button>(&[1, 2])
+            .is_some_and(|btn| btn.is_released())
+        {
+            // Quit button pressed
+            return super::SceneSwitch::Quit;
         }
         super::SceneSwitch::None
     }
