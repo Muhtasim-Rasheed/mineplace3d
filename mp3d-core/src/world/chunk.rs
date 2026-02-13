@@ -14,22 +14,35 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    /// Creates a new empty chunk with all blocks set to non-full blocks, except for blocks below
-    /// y=3 which are full.
-    pub fn new(chunk_pos: IVec3) -> Self {
+    /// Creates a new chunk.
+    pub fn new(chunk_pos: IVec3, noise: &fastnoise_lite::FastNoiseLite) -> Self {
         let mut blocks = [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
+                    let global_x = chunk_pos.x * CHUNK_SIZE as i32 + x as i32;
                     let global_y = chunk_pos.y * CHUNK_SIZE as i32 + y as i32;
-                    // use a lot of sine waves to create a wavy terrain for now
-                    let height = (5.0
-                        + (chunk_pos.x as f32 * CHUNK_SIZE as f32 + x as f32 / 4.0).sin() * 2.0
-                        + (chunk_pos.z as f32 * CHUNK_SIZE as f32 + z as f32 / 4.0).sin() * 2.0
-                        + ((chunk_pos.x as f32 * CHUNK_SIZE as f32 + x as f32 / 4.0) * 0.5).sin()
-                            * 1.5
-                        + ((chunk_pos.z as f32 * CHUNK_SIZE as f32 + z as f32 / 4.0) * 0.5).sin()
-                            * 1.5) as i32;
+                    let global_z = chunk_pos.z * CHUNK_SIZE as i32 + z as i32;
+                    // let height = (5.0
+                    //     + (chunk_pos.x as f32 * CHUNK_SIZE as f32 + x as f32 / 4.0).sin() * 2.0
+                    //     + (chunk_pos.z as f32 * CHUNK_SIZE as f32 + z as f32 / 4.0).sin() * 2.0
+                    //     + ((chunk_pos.x as f32 * CHUNK_SIZE as f32 + x as f32 / 4.0) * 0.5).sin()
+                    //         * 1.5
+                    //     + ((chunk_pos.z as f32 * CHUNK_SIZE as f32 + z as f32 / 4.0) * 0.5).sin()
+                    //         * 1.5) as i32;
+                    let height = noise.get_noise_2d(
+                        global_x as f32 * 5.0,
+                        global_z as f32 * 5.0,
+                    ).powi(2) * 60.0 + 15.0;
+                    let is_cave = noise.get_noise_3d(
+                        global_x as f32 * 10.0,
+                        global_y as f32 * 10.0,
+                        global_z as f32 * 10.0,
+                    ) > 0.4;
+                    let height = height as i32;
+                    if is_cave {
+                        continue;
+                    }
                     if global_y < height - 3 {
                         blocks[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)] = 3;
                     } else if global_y < height - 1 {

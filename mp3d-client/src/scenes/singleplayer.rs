@@ -27,7 +27,7 @@ pub struct SinglePlayer {
 
 impl SinglePlayer {
     /// Creates a new [`SinglePlayer`] instance.
-    pub fn new(gl: &Arc<glow::Context>, font: &Rc<Font>, gui_tex: TextureHandle) -> Self {
+    pub fn new(gl: &Arc<glow::Context>, font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
         let server = mp3d_core::server::Server::new();
         let connection = LocalConnection::new(server);
         let client = Client::new(connection);
@@ -56,8 +56,8 @@ impl SinglePlayer {
             client,
             chunk_meshes: HashMap::new(),
             chunk_shader,
-            width: 1280,
-            height: 720,
+            width: window_size.0,
+            height: window_size.1,
             tick_acc: 0.0,
             tick_rate: 48.0,
             playing: true,

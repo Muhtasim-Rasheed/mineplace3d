@@ -22,37 +22,72 @@ impl TitleScreen {
     pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
         let header = Label::new("Mineplace3D", 72.0, Vec4::ONE, font);
 
-        let play = Button::new(
-            "Start Game",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let play;
+        let options;
+        let quit;
+        if window_size.0 >= 1050 {
+            play = Button::new(
+                "Start Game",
+                Vec4::ONE,
+                24.0,
+                Vec2::new(1010.0, 80.0),
+                font,
+                gui_tex,
+            );
 
-        let options = Button::new(
-            "Options",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+            options = Button::new(
+                "Options",
+                Vec4::ONE,
+                24.0,
+                Vec2::new(500.0, 80.0),
+                font,
+                gui_tex,
+            );
 
-        let quit = Button::new(
-            "Quit",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+            quit = Button::new(
+                "Quit",
+                Vec4::ONE,
+                24.0,
+                Vec2::new(500.0, 80.0),
+                font,
+                gui_tex,
+            );
+        } else {
+            play = Button::new(
+                "Start Game",
+                Vec4::ONE,
+                24.0,
+                Vec2::new(window_size.0 as f32 - 40.0, 80.0),
+                font,
+                gui_tex,
+            );
+
+            options = Button::new(
+                "Options",
+                Vec4::ONE,
+                24.0,
+                Vec2::new((window_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0),
+                font,
+                gui_tex,
+            );
+
+            quit = Button::new(
+                "Quit",
+                Vec4::ONE,
+                24.0,
+                Vec2::new((window_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0),
+                font,
+                gui_tex,
+            );
+        }
+
+        let mut buttons_inner = Row::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
+        buttons_inner.add_widget(options);
+        buttons_inner.add_widget(quit);
 
         let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
         buttons.add_widget(play);
-        buttons.add_widget(options);
-        buttons.add_widget(quit);
+        buttons.add_widget(buttons_inner);
 
         let version = Label::new(
             format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
@@ -104,6 +139,34 @@ impl super::Scene for TitleScreen {
                     self.container.padding.x + self.container.padding.y;
                 self.container.get_widget_mut::<Row>(2).unwrap().min_size =
                     Vec2::new(*width as f32 - container_padding_left_right, 0.0);
+
+                if *width >= 1050 {
+                    self.container
+                        .find_widget_mut::<Button>(&[1, 0])
+                        .unwrap()
+                        .set_size(Vec2::new(1010.0, 80.0));
+                    self.container
+                        .find_widget_mut::<Button>(&[1, 1, 0])
+                        .unwrap()
+                        .set_size(Vec2::new(500.0, 80.0));
+                    self.container
+                        .find_widget_mut::<Button>(&[1, 1, 1])
+                        .unwrap()
+                        .set_size(Vec2::new(500.0, 80.0));
+                } else {
+                    self.container
+                        .find_widget_mut::<Button>(&[1, 0])
+                        .unwrap()
+                        .set_size(Vec2::new(*width as f32 - 40.0, 80.0));
+                    self.container
+                        .find_widget_mut::<Button>(&[1, 1, 0])
+                        .unwrap()
+                        .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
+                    self.container
+                        .find_widget_mut::<Button>(&[1, 1, 1])
+                        .unwrap()
+                        .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
+                }
             }
     }
 
@@ -126,11 +189,11 @@ impl super::Scene for TitleScreen {
             .is_some_and(|btn| btn.is_released())
         {
             return super::SceneSwitch::Push(Box::new(
-                crate::scenes::singleplayer::SinglePlayer::new(gl, &self.font, self.texture),
+                crate::scenes::singleplayer::SinglePlayer::new(gl, &self.font, self.texture, window.size()),
             ));
         }
 
-        if self.container.find_widget::<Button>(&[1, 1])
+        if self.container.find_widget::<Button>(&[1, 1, 0])
             .is_some_and(|btn| btn.is_released())
         {
             // Options button pressed
@@ -138,10 +201,9 @@ impl super::Scene for TitleScreen {
             println!("Options");
         }
 
-        if self.container.find_widget::<Button>(&[1, 2])
+        if self.container.find_widget::<Button>(&[1, 1, 1])
             .is_some_and(|btn| btn.is_released())
         {
-            // Quit button pressed
             return super::SceneSwitch::Quit;
         }
         super::SceneSwitch::None

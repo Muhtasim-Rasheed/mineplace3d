@@ -22,6 +22,7 @@ const PRELOAD_RADIUS: i32 = 8;
 pub struct World {
     pub chunks: HashMap<IVec3, Chunk>,
     pub entities: HashMap<u64, Box<dyn Entity>>,
+    pub noise: fastnoise_lite::FastNoiseLite,
 }
 
 impl Default for World {
@@ -33,19 +34,22 @@ impl Default for World {
 impl World {
     /// Creates a new empty world.
     pub fn new() -> Self {
+        let mut noise = fastnoise_lite::FastNoiseLite::new();
+        noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
         let mut chunks = HashMap::new();
         // Preload some chunks around the origin
         for x in -PRELOAD_RADIUS..PRELOAD_RADIUS {
             for y in -1..1 {
                 for z in -PRELOAD_RADIUS..PRELOAD_RADIUS {
                     let chunk_pos = IVec3::new(x, y, z);
-                    chunks.insert(chunk_pos, Chunk::new(chunk_pos));
+                    chunks.insert(chunk_pos, Chunk::new(chunk_pos, &noise));
                 }
             }
         }
         World {
             chunks,
             entities: HashMap::new(),
+            noise,
         }
     }
 
@@ -67,7 +71,7 @@ impl World {
         if let Some(chunk) = chunk {
             chunk.set_block(local_pos, block);
         } else {
-            let mut new_chunk = Chunk::new(chunk_pos);
+            let mut new_chunk = Chunk::new(chunk_pos, &self.noise);
             new_chunk.set_block(local_pos, block);
             self.chunks.insert(chunk_pos, new_chunk);
         }

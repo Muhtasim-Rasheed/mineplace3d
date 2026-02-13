@@ -160,7 +160,7 @@ impl Server {
                         .world
                         .chunks
                         .entry(chunk_position)
-                        .or_insert_with(|| Chunk::new(chunk_position));
+                        .or_insert_with(|| Chunk::new(chunk_position, &self.world.noise));
                     if let Some(user_id) = self.connections.get(&connection_id)
                         && let Some(session) = self.sessions.get_mut(user_id)
                     {
