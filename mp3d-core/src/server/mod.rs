@@ -180,3 +180,9 @@ impl Server {
         self.world.tick(tps);
     }
 }
+
+impl Default for Server {
+    fn default() -> Self {
+        Self::new()
+    }
+}

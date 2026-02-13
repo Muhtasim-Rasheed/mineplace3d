@@ -16,7 +16,7 @@ use crate::{
     world::chunk::{CHUNK_SIZE, Chunk},
 };
 
-const PRELOAD_RADIUS: i32 = 6;
+const PRELOAD_RADIUS: i32 = 8;
 
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {

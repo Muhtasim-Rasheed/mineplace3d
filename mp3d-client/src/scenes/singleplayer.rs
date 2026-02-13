@@ -6,7 +6,7 @@ use glam::{IVec3, Vec2, Vec4};
 use glow::HasContext;
 
 use crate::{
-    abs::{Mesh, ShaderProgram, Texture, TextureHandle},
+    abs::{Mesh, ShaderProgram, TextureHandle},
     client::{Client, Connection, LocalConnection},
     render::{meshing::mesh_world, ui::widgets::{Button, Column, Font, Widget}},
     shader_program,

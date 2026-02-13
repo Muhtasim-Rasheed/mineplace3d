@@ -145,25 +145,15 @@ impl<C: Connection> Client<C> {
             self.player.input.strafe = 0;
         }
 
-        if update_context
+        self.player.input.jump = update_context
             .keyboard
             .down
-            .contains(&sdl2::keyboard::Keycode::Space)
-        {
-            self.player.input.jump = true;
-        } else {
-            self.player.input.jump = false;
-        }
+            .contains(&sdl2::keyboard::Keycode::Space);
 
-        if update_context
+        self.player.input.sneak = update_context
             .keyboard
             .down
-            .contains(&sdl2::keyboard::Keycode::LShift)
-        {
-            self.player.input.sneak = true;
-        } else {
-            self.player.input.sneak = false;
-        }
+            .contains(&sdl2::keyboard::Keycode::LShift);
 
         if update_context
             .mouse
