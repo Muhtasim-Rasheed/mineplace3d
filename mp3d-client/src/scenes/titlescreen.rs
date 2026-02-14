@@ -134,40 +134,40 @@ impl TitleScreen {
 impl super::Scene for TitleScreen {
     fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, event: &sdl2::event::Event) {
         if let sdl2::event::Event::Window { win_event, .. } = event
-            && let sdl2::event::WindowEvent::Resized(width, _) = win_event {
-                let container_padding_left_right =
-                    self.container.padding.x + self.container.padding.y;
-                self.container.get_widget_mut::<Row>(2).unwrap().min_size =
-                    Vec2::new(*width as f32 - container_padding_left_right, 0.0);
+            && let sdl2::event::WindowEvent::Resized(width, _) = win_event
+        {
+            let container_padding_left_right = self.container.padding.x + self.container.padding.y;
+            self.container.get_widget_mut::<Row>(2).unwrap().min_size =
+                Vec2::new(*width as f32 - container_padding_left_right, 0.0);
 
-                if *width >= 1050 {
-                    self.container
-                        .find_widget_mut::<Button>(&[1, 0])
-                        .unwrap()
-                        .set_size(Vec2::new(1010.0, 80.0));
-                    self.container
-                        .find_widget_mut::<Button>(&[1, 1, 0])
-                        .unwrap()
-                        .set_size(Vec2::new(500.0, 80.0));
-                    self.container
-                        .find_widget_mut::<Button>(&[1, 1, 1])
-                        .unwrap()
-                        .set_size(Vec2::new(500.0, 80.0));
-                } else {
-                    self.container
-                        .find_widget_mut::<Button>(&[1, 0])
-                        .unwrap()
-                        .set_size(Vec2::new(*width as f32 - 40.0, 80.0));
-                    self.container
-                        .find_widget_mut::<Button>(&[1, 1, 0])
-                        .unwrap()
-                        .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
-                    self.container
-                        .find_widget_mut::<Button>(&[1, 1, 1])
-                        .unwrap()
-                        .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
-                }
+            if *width >= 1050 {
+                self.container
+                    .find_widget_mut::<Button>(&[1, 0])
+                    .unwrap()
+                    .set_size(Vec2::new(1010.0, 80.0));
+                self.container
+                    .find_widget_mut::<Button>(&[1, 1, 0])
+                    .unwrap()
+                    .set_size(Vec2::new(500.0, 80.0));
+                self.container
+                    .find_widget_mut::<Button>(&[1, 1, 1])
+                    .unwrap()
+                    .set_size(Vec2::new(500.0, 80.0));
+            } else {
+                self.container
+                    .find_widget_mut::<Button>(&[1, 0])
+                    .unwrap()
+                    .set_size(Vec2::new(*width as f32 - 40.0, 80.0));
+                self.container
+                    .find_widget_mut::<Button>(&[1, 1, 0])
+                    .unwrap()
+                    .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
+                self.container
+                    .find_widget_mut::<Button>(&[1, 1, 1])
+                    .unwrap()
+                    .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
             }
+        }
     }
 
     fn update(
@@ -185,15 +185,24 @@ impl super::Scene for TitleScreen {
             cursor: Vec2::ZERO,
         });
 
-        if self.container.find_widget::<Button>(&[1, 0])
+        if self
+            .container
+            .find_widget::<Button>(&[1, 0])
             .is_some_and(|btn| btn.is_released())
         {
             return super::SceneSwitch::Push(Box::new(
-                crate::scenes::singleplayer::SinglePlayer::new(gl, &self.font, self.texture, window.size()),
+                crate::scenes::singleplayer::SinglePlayer::new(
+                    gl,
+                    &self.font,
+                    self.texture,
+                    window.size(),
+                ),
             ));
         }
 
-        if self.container.find_widget::<Button>(&[1, 1, 0])
+        if self
+            .container
+            .find_widget::<Button>(&[1, 1, 0])
             .is_some_and(|btn| btn.is_released())
         {
             // Options button pressed
@@ -201,7 +210,9 @@ impl super::Scene for TitleScreen {
             println!("Options");
         }
 
-        if self.container.find_widget::<Button>(&[1, 1, 1])
+        if self
+            .container
+            .find_widget::<Button>(&[1, 1, 1])
             .is_some_and(|btn| btn.is_released())
         {
             return super::SceneSwitch::Quit;

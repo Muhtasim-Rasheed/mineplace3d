@@ -56,27 +56,30 @@ impl ClientWorld {
                 neighbor.dirty = true;
             }
         } else if local_pos.x == CHUNK_SIZE as i32 - 1
-            && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(1, 0, 0))) {
-                neighbor.dirty = true;
-            }
+            && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(1, 0, 0)))
+        {
+            neighbor.dirty = true;
+        }
 
         if local_pos.y == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, -1, 0))) {
                 neighbor.dirty = true;
             }
         } else if local_pos.y == CHUNK_SIZE as i32 - 1
-            && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 1, 0))) {
-                neighbor.dirty = true;
-            }
+            && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 1, 0)))
+        {
+            neighbor.dirty = true;
+        }
 
         if local_pos.z == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, -1))) {
                 neighbor.dirty = true;
             }
         } else if local_pos.z == CHUNK_SIZE as i32 - 1
-            && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, 1))) {
-                neighbor.dirty = true;
-            }
+            && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, 1)))
+        {
+            neighbor.dirty = true;
+        }
     }
 
     /// Checks if the client-side world requires more chunks, and if so returns their coordinates.

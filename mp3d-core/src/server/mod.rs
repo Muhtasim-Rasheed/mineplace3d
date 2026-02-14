@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use glam::Vec3;
 
 use crate::{
+    TextComponent,
     entity::{Entity, PlayerEntity},
     protocol::*,
     world::{World, chunk::Chunk},
@@ -17,6 +18,7 @@ use crate::{
 pub struct PlayerSession {
     pub user_id: u64,
     pub entity_id: u64,
+    pub nickname: Option<String>,
     pub pending_messages: Vec<S2CMessage>,
 }
 
@@ -74,6 +76,7 @@ impl Server {
                     PlayerSession {
                         user_id,
                         entity_id,
+                        nickname: None,
                         pending_messages: vec![S2CMessage::Connected { user_id }],
                     },
                 );
@@ -171,6 +174,83 @@ impl Server {
                     }
                 }
             }
+            C2SMessage::SendMessage { message } => {
+                let user_id = match self.connections.get(&connection_id) {
+                    Some(uid) => *uid,
+                    None => return,
+                };
+                let status = self.execute_command(&message, connection_id);
+                if let Err(err) = status {
+                    if let Some(user_id) = self.connections.get(&connection_id)
+                        && let Some(session) = self.sessions.get_mut(user_id)
+                    {
+                        session.pending_messages.push(S2CMessage::ChatMessage {
+                            message: format!("%bC3Error executing command: %bD3{}%r", err)
+                                .parse()
+                                .unwrap(),
+                        });
+                    }
+                    return;
+                } else if let Some(success) = status.unwrap() {
+                    if let Some(user_id) = self.connections.get(&connection_id)
+                        && let Some(session) = self.sessions.get_mut(user_id)
+                    {
+                        session
+                            .pending_messages
+                            .push(S2CMessage::ChatMessage { message: success });
+                    }
+                    return;
+                }
+                let nickname = self.connections.get(&connection_id).and_then(|user_id| {
+                    self.sessions
+                        .get(user_id)
+                        .and_then(|session| session.nickname.clone())
+                });
+                if let Some(nickname) = nickname {
+                    broadcast_message(
+                        &mut self.sessions,
+                        None,
+                        S2CMessage::ChatMessage {
+                            message: format!("{}: {}", nickname, message).parse().unwrap(),
+                        },
+                    );
+                } else {
+                    if let Some(session) = self.sessions.get_mut(&user_id) {
+                        session.pending_messages.push(S2CMessage::ChatMessage {
+                            message: "%bC3Please set a nickname before chatting! To do so, use the command %bD3/nick <nickname>%r.".parse().unwrap(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    /// Executes a server command, which may modify the world or player sessions.
+    pub fn execute_command(
+        &mut self,
+        command: &str,
+        connection_id: u64,
+    ) -> Result<Option<TextComponent>, String> {
+        if !command.starts_with('/') {
+            return Ok(None);
+        }
+        let mut parts = command.split_whitespace();
+        let cmd = parts.next().ok_or("No command provided")?;
+        match cmd {
+            "/nick" => {
+                let nickname = parts.next().ok_or("No nickname provided")?;
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                {
+                    session.nickname = Some(nickname.to_string());
+                    Ok(Some(
+                        format!("Nickname set to '{}'", nickname).parse().unwrap(),
+                    ))
+                } else {
+                    Err("You must be connected to set a nickname".to_string())
+                }
+            }
+            _ => Err("Unknown command".to_string()),
         }
     }
 

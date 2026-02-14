@@ -36,6 +36,8 @@ pub enum C2SMessage {
     SetBlock { position: IVec3, block: Block },
     /// Request for chunk data.
     RequestChunks { chunk_positions: Vec<IVec3> },
+    /// Request to send a chat message or execute a command.
+    SendMessage { message: String },
 }
 
 /// Messages sent from the server to the client.
@@ -61,5 +63,10 @@ pub enum S2CMessage {
     /// Update of a block at a specified position with a given block.
     BlockUpdated { position: IVec3, block: Block },
     /// Delivery of chunk data.
-    ChunkData { chunk_position: IVec3, chunk: Box<Chunk> },
+    ChunkData {
+        chunk_position: IVec3,
+        chunk: Box<Chunk>,
+    },
+    /// Delivery of a chat message or command output.
+    ChatMessage { message: crate::TextComponent },
 }

@@ -104,6 +104,7 @@ fn main() {
         mouse_state.scroll_delta = Vec2::ZERO;
         keyboard_state.pressed.clear();
         keyboard_state.released.clear();
+        keyboard_state.text_input.clear();
         mouse_state.pressed.clear();
         mouse_state.released.clear();
 
@@ -153,6 +154,9 @@ fn main() {
                 } => {
                     keyboard_state.down.remove(&keycode);
                     keyboard_state.released.insert(keycode);
+                }
+                sdl2::event::Event::TextInput { text, .. } => {
+                    keyboard_state.text_input = text;
                 }
                 _ => {}
             }

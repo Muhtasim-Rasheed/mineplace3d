@@ -13,6 +13,7 @@ pub mod world;
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
+    TextComponent,
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
 };
@@ -72,6 +73,9 @@ pub struct Client<C: Connection> {
     pub connection: C,
     pub player: player::ClientPlayer,
     pub user_id: Option<u64>,
+    pub chat_message: Option<String>,
+    pub chat_open: bool,
+    pub messages: Vec<TextComponent>,
     pub world: ClientWorld,
 }
 
@@ -91,90 +95,153 @@ impl<C: Connection> Client<C> {
                 input: MoveInstructions::default(),
             },
             user_id: None,
+            chat_message: None,
+            chat_open: false,
+            messages: vec![],
             world: ClientWorld::new(),
         }
     }
 
     /// Takes in player input and sends it to the server through the connection.
     pub fn send_input(&mut self, update_context: &UpdateContext, tps: u8) {
-        let mouse_delta = update_context.mouse.delta;
-        self.player.yaw -= mouse_delta.x * 0.1;
-        self.player.pitch += mouse_delta.y * 0.1;
-        self.player.pitch = self.player.pitch.clamp(-89.0, 89.0);
-        self.player.yaw = self.player.yaw.rem_euclid(360.0);
-        self.player.input.yaw = self.player.yaw;
-        self.player.input.pitch = self.player.pitch;
+        if !self.chat_open {
+            let mouse_delta = update_context.mouse.delta;
+            self.player.yaw -= mouse_delta.x * 0.1;
+            self.player.pitch += mouse_delta.y * 0.1;
+            self.player.pitch = self.player.pitch.clamp(-89.0, 89.0);
+            self.player.yaw = self.player.yaw.rem_euclid(360.0);
+            self.player.input.yaw = self.player.yaw;
+            self.player.input.pitch = self.player.pitch;
 
-        if update_context
-            .keyboard
-            .down
-            .contains(&sdl2::keyboard::Keycode::W)
-        {
             if update_context
                 .keyboard
                 .down
-                .contains(&sdl2::keyboard::Keycode::LCtrl)
+                .contains(&sdl2::keyboard::Keycode::W)
             {
-                self.player.input.forward = 2;
+                if update_context
+                    .keyboard
+                    .down
+                    .contains(&sdl2::keyboard::Keycode::LCtrl)
+                {
+                    self.player.input.forward = 2;
+                } else {
+                    self.player.input.forward = 1;
+                }
+            } else if update_context
+                .keyboard
+                .down
+                .contains(&sdl2::keyboard::Keycode::S)
+            {
+                self.player.input.forward = -1;
             } else {
-                self.player.input.forward = 1;
+                self.player.input.forward = 0;
             }
-        } else if update_context
-            .keyboard
-            .down
-            .contains(&sdl2::keyboard::Keycode::S)
-        {
-            self.player.input.forward = -1;
-        } else {
-            self.player.input.forward = 0;
-        }
 
-        if update_context
-            .keyboard
-            .down
-            .contains(&sdl2::keyboard::Keycode::A)
-        {
-            self.player.input.strafe = 1;
-        } else if update_context
-            .keyboard
-            .down
-            .contains(&sdl2::keyboard::Keycode::D)
-        {
-            self.player.input.strafe = -1;
-        } else {
-            self.player.input.strafe = 0;
-        }
-
-        self.player.input.jump = update_context
-            .keyboard
-            .down
-            .contains(&sdl2::keyboard::Keycode::Space);
-
-        self.player.input.sneak = update_context
-            .keyboard
-            .down
-            .contains(&sdl2::keyboard::Keycode::LShift);
-
-        if update_context
-            .mouse
-            .pressed
-            .contains(&sdl2::mouse::MouseButton::Left)
-        {
-            let raycast_result = cast_ray(&self.world, &self.player, 5.0);
-            if let Some((block_pos, _)) = raycast_result {
-                self.world.set_block_at(block_pos, mp3d_core::block::Block::AIR);
+            if update_context
+                .keyboard
+                .down
+                .contains(&sdl2::keyboard::Keycode::A)
+            {
+                self.player.input.strafe = 1;
+            } else if update_context
+                .keyboard
+                .down
+                .contains(&sdl2::keyboard::Keycode::D)
+            {
+                self.player.input.strafe = -1;
+            } else {
+                self.player.input.strafe = 0;
             }
-        }
 
-        if update_context
-            .mouse
-            .pressed
-            .contains(&sdl2::mouse::MouseButton::Right)
-        {
-            let raycast_result = cast_ray(&self.world, &self.player, 5.0);
-            if let Some((block_pos, normal)) = raycast_result {
-                let place_pos = block_pos + normal;
-                self.world.set_block_at(place_pos, mp3d_core::block::Block::STONE);
+            self.player.input.jump = update_context
+                .keyboard
+                .down
+                .contains(&sdl2::keyboard::Keycode::Space);
+
+            self.player.input.sneak = update_context
+                .keyboard
+                .down
+                .contains(&sdl2::keyboard::Keycode::LShift);
+
+            if update_context
+                .mouse
+                .pressed
+                .contains(&sdl2::mouse::MouseButton::Left)
+            {
+                let raycast_result = cast_ray(&self.world, &self.player, 5.0);
+                if let Some((block_pos, _)) = raycast_result {
+                    self.world
+                        .set_block_at(block_pos, mp3d_core::block::Block::AIR);
+                }
+            }
+
+            if update_context
+                .mouse
+                .pressed
+                .contains(&sdl2::mouse::MouseButton::Right)
+            {
+                let raycast_result = cast_ray(&self.world, &self.player, 5.0);
+                if let Some((block_pos, normal)) = raycast_result {
+                    let place_pos = block_pos + normal;
+                    self.world
+                        .set_block_at(place_pos, mp3d_core::block::Block::STONE);
+                }
+            }
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::T)
+            {
+                self.chat_open = true;
+            }
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::Slash)
+            {
+                self.chat_open = true;
+                self.chat_message = Some("/".to_string());
+            }
+        } else {
+            self.chat_message
+                .get_or_insert_with(String::new)
+                .push_str(&update_context.keyboard.text_input);
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::Return)
+            {
+                if let Some(message) = self.chat_message.take()
+                    && !message.trim().is_empty()
+                {
+                    self.connection.send(C2SMessage::SendMessage {
+                        message: message.trim().to_string(),
+                    });
+                    self.chat_open = false;
+                    self.chat_message = None;
+                }
+            }
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::Escape)
+            {
+                self.chat_open = false;
+                self.chat_message = None;
+            }
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::Backspace)
+            {
+                if let Some(message) = self.chat_message.as_mut() {
+                    message.pop();
+                }
             }
         }
 
@@ -189,7 +256,8 @@ impl<C: Connection> Client<C> {
 
         let block_changes = std::mem::take(&mut self.world.pending_changes);
         for (position, block) in block_changes {
-            self.connection.send(C2SMessage::SetBlock { position, block });
+            self.connection
+                .send(C2SMessage::SetBlock { position, block });
         }
     }
 
@@ -234,6 +302,9 @@ impl<C: Connection> Client<C> {
                 } => {
                     self.world.chunks.insert(chunk_position, (*chunk).into());
                 }
+                S2CMessage::ChatMessage { message } => {
+                    self.messages.push(message);
+                }
                 _ => {}
             }
         }
@@ -255,7 +326,8 @@ pub fn cast_ray(
         yaw_rad.sin() * pitch_rad.cos(),
         -pitch_rad.sin(),
         yaw_rad.cos() * pitch_rad.cos(),
-    ).normalize();
+    )
+    .normalize();
     let step = 0.01;
 
     for _ in 0..(max_distance / step) as usize {

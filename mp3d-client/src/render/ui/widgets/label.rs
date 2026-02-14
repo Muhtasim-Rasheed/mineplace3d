@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use glam::{Vec2, Vec4};
+use mp3d_core::TextComponent;
 
 use crate::{
     abs::Texture,
@@ -85,6 +86,32 @@ impl Font {
             cursor.y += char_size.y;
         }
 
+        commands
+    }
+
+    pub fn measure_component(&self, component: &TextComponent, font_size: f32) -> Vec2 {
+        let mut size = Vec2::ZERO;
+        for part in &component.parts {
+            let part_size = self.measure_text(&part.text, font_size);
+            size.x += part_size.x;
+            size.y = size.y.max(part_size.y);
+        }
+        size
+    }
+
+    pub fn text_component(&self, component: &TextComponent, font_size: f32) -> Vec<DrawCommand> {
+        let mut commands = Vec::new();
+        let mut cursor = Vec2::ZERO;
+        for part in &component.parts {
+            let part_commands = self.text(&part.text, font_size, part.color.into());
+            for mut cmd in part_commands {
+                cmd.rect[0] += cursor;
+                cmd.rect[1] += cursor;
+                commands.push(cmd);
+            }
+            let part_size = self.measure_text(&part.text, font_size);
+            cursor.x += part_size.x;
+        }
         commands
     }
 }
