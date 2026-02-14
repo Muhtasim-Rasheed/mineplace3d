@@ -207,13 +207,21 @@ impl Server {
                         .and_then(|session| session.nickname.clone())
                 });
                 if let Some(nickname) = nickname {
-                    broadcast_message(
-                        &mut self.sessions,
-                        None,
-                        S2CMessage::ChatMessage {
-                            message: format!("{}: {}", nickname, message).parse().unwrap(),
-                        },
-                    );
+                    if let Ok(c) = format!("{}%r: {}", nickname, message).parse() {
+                        broadcast_message(
+                            &mut self.sessions,
+                            None,
+                            S2CMessage::ChatMessage {
+                                message: c,
+                            },
+                        );
+                    } else {
+                        if let Some(session) = self.sessions.get_mut(&user_id) {
+                            session.pending_messages.push(S2CMessage::ChatMessage {
+                                message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
+                            });
+                        }
+                    }
                 } else {
                     if let Some(session) = self.sessions.get_mut(&user_id) {
                         session.pending_messages.push(S2CMessage::ChatMessage {
@@ -242,10 +250,12 @@ impl Server {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
                 {
-                    session.nickname = Some(nickname.to_string());
-                    Ok(Some(
-                        format!("Nickname set to '{}'", nickname).parse().unwrap(),
-                    ))
+                    if let Ok(c) = format!("Your nickname has been set to '{}%r'", nickname).parse() {
+                        session.nickname = Some(nickname.to_string());
+                        Ok(Some(c))
+                    } else {
+                        Err("Invalid nickname. Make sure it contains valid formatting codes.".to_string())
+                    }
                 } else {
                     Err("You must be connected to set a nickname".to_string())
                 }
