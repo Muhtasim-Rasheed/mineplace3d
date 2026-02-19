@@ -113,7 +113,9 @@ impl super::Scene for SinglePlayer {
         sdl_ctx: &sdl2::Sdl,
     ) -> super::SceneSwitch {
         window.set_title("Mineplace3D - Single Player").unwrap();
-        sdl_ctx.mouse().set_relative_mouse_mode(self.playing && !self.client.chat_open);
+        sdl_ctx
+            .mouse()
+            .set_relative_mouse_mode(self.playing && !self.client.chat_open);
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
             self.client.send_input(ctx, self.tick_rate as u8);
@@ -244,12 +246,22 @@ impl super::Scene for SinglePlayer {
             ui.add_command(crate::render::ui::uirenderer::DrawCommand {
                 rect: [
                     Vec2::new(5.0, messages_start_y - 5.0),
-                    Vec2::new(5.0 + message_size.x + 10.0, messages_start_y + message_size.y + 5.0),
+                    Vec2::new(
+                        5.0 + message_size.x + 10.0,
+                        messages_start_y + message_size.y + 5.0,
+                    ),
                 ],
                 uv_rect: [Vec2::ZERO, Vec2::ONE],
-                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(0.0, 0.0, 0.0, 0.5)),
+                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
+                    0.0, 0.0, 0.0, 0.5,
+                )),
             });
-            for cmd in text_messages(&self.font, &messages, 24.0, Vec2::new(10.0, messages_start_y)) {
+            for cmd in text_messages(
+                &self.font,
+                &messages,
+                24.0,
+                Vec2::new(10.0, messages_start_y),
+            ) {
                 ui.add_command(cmd);
             }
             ui.finish();
@@ -283,7 +295,12 @@ fn measure_messages(font: &Font, messages: &[TextComponent], font_size: f32) -> 
     size
 }
 
-fn text_messages(font: &Font, messages: &[TextComponent], font_size: f32, pos: Vec2) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
+fn text_messages(
+    font: &Font,
+    messages: &[TextComponent],
+    font_size: f32,
+    pos: Vec2,
+) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
     let mut commands = Vec::new();
     let mut cursor = pos;
     for message in messages {

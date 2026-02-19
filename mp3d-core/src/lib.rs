@@ -29,8 +29,13 @@ impl From<TextComponentColor> for Vec4 {
                 let r = (code & 0xC0) >> 6;
                 let g = (code & 0x30) >> 4;
                 let b = (code & 0x0C) >> 2;
-                let a = code & 0x03;                
-                Vec4::new(r as f32 / 3.0, g as f32 / 3.0, b as f32 / 3.0, (a as f32 + 1.0) / 4.0)
+                let a = code & 0x03;
+                Vec4::new(
+                    r as f32 / 3.0,
+                    g as f32 / 3.0,
+                    b as f32 / 3.0,
+                    (a as f32 + 1.0) / 4.0,
+                )
             }
             TextComponentColor::Hex(rgba) => rgba,
             TextComponentColor::None => Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -99,7 +104,12 @@ impl std::str::FromStr for TextComponent {
                             .map_err(|_| "Invalid color code for blue channel".to_string())?;
                         let a = u8::from_str_radix(&color_str[6..8], 16)
                             .map_err(|_| "Invalid color code for alpha channel".to_string())?;
-                        current_color = TextComponentColor::Hex(Vec4::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0));
+                        current_color = TextComponentColor::Hex(Vec4::new(
+                            r as f32 / 255.0,
+                            g as f32 / 255.0,
+                            b as f32 / 255.0,
+                            a as f32 / 255.0,
+                        ));
                     }
                     // Reset color
                     Some('r') => {

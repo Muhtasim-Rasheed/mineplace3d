@@ -21,6 +21,9 @@ const PRELOAD_RADIUS: i32 = 8;
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {
     pub chunks: HashMap<IVec3, Chunk>,
+    /// A map of chunk positions to a map of local block positions to the new block state. This is
+    /// used to track changes to chunks that have been modified by the player or other entities.
+    changes: HashMap<IVec3, HashMap<IVec3, Block>>,
     pub entities: HashMap<u64, Box<dyn Entity>>,
     pub noise: fastnoise_lite::FastNoiseLite,
 }
@@ -48,6 +51,7 @@ impl World {
         }
         World {
             chunks,
+            changes: HashMap::new(),
             entities: HashMap::new(),
             noise,
         }
@@ -61,20 +65,53 @@ impl World {
         self.chunks.get(&chunk_pos).map(|c| c.get_block(local_pos))
     }
 
+    /// Gets a block at the given world position, or generates a new chunk and returns the block if
+    /// it doesn't exist.
+    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> &Block {
+        let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+        let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+
+        self.get_chunk_or_new(chunk_pos).get_block(local_pos)
+    }
+
     /// Sets a block at the given world position.
     pub fn set_block_at(&mut self, world_pos: IVec3, block: Block) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
-        let chunk = self.chunks.get_mut(&chunk_pos);
+        self.changes
+            .entry(chunk_pos)
+            .or_insert_with(HashMap::new)
+            .insert(local_pos, block);
+        let chunk = self.get_chunk_mut_or_new(chunk_pos);
+        chunk.set_block(local_pos, block);
+    }
 
-        if let Some(chunk) = chunk {
-            chunk.set_block(local_pos, block);
-        } else {
-            let mut new_chunk = Chunk::new(chunk_pos, &self.noise);
-            new_chunk.set_block(local_pos, block);
-            self.chunks.insert(chunk_pos, new_chunk);
-        }
+    /// Gets a reference to a chunk at the given chunk position, or loads it if it doesn't exist.
+    pub fn get_chunk_or_new(&mut self, chunk_pos: IVec3) -> &Chunk {
+        self.chunks.entry(chunk_pos).or_insert_with(|| {
+            let mut chunk = Chunk::new(chunk_pos, &self.noise);
+            if let Some(changes) = self.changes.get(&chunk_pos) {
+                for (local_pos, block) in changes {
+                    chunk.set_block(*local_pos, *block);
+                }
+            }
+            chunk
+        })
+    }
+
+    /// Gets a mutable reference to a chunk at the given chunk position, or loads it if it doesn't
+    /// exist.
+    pub fn get_chunk_mut_or_new(&mut self, chunk_pos: IVec3) -> &mut Chunk {
+        self.chunks.entry(chunk_pos).or_insert_with(|| {
+            let mut chunk = Chunk::new(chunk_pos, &self.noise);
+            if let Some(changes) = self.changes.get(&chunk_pos) {
+                for (local_pos, block) in changes {
+                    chunk.set_block(*local_pos, *block);
+                }
+            }
+            chunk
+        })
     }
 
     /// Gets the ID of the next available entity.

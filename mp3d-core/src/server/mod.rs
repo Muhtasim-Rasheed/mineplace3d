@@ -5,14 +5,24 @@
 
 use std::collections::HashMap;
 
-use glam::Vec3;
+use glam::{IVec3, Vec3};
 
 use crate::{
     TextComponent,
     entity::{Entity, PlayerEntity},
     protocol::*,
-    world::{World, chunk::Chunk},
+    world::{
+        World,
+        chunk::{CHUNK_SIZE, Chunk},
+    },
 };
+
+/// The maximum distance (in chunks) that the server will keep loaded around players.
+pub const MAX_RENDER_DIST: i32 = 12;
+
+/// [`MAX_RENDER_DIST`] squared, used for distance checks without needing to calculate square
+/// roots.
+pub const MAX_RENDER_DIST_SQ: i32 = MAX_RENDER_DIST * MAX_RENDER_DIST;
 
 /// Represents a connected client on the server.
 pub struct PlayerSession {
@@ -158,15 +168,21 @@ impl Server {
                 );
             }
             C2SMessage::RequestChunks { chunk_positions } => {
-                for chunk_position in chunk_positions {
-                    let chunk = self
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                    && let Some(pos) = self
                         .world
-                        .chunks
-                        .entry(chunk_position)
-                        .or_insert_with(|| Chunk::new(chunk_position, &self.world.noise));
-                    if let Some(user_id) = self.connections.get(&connection_id)
-                        && let Some(session) = self.sessions.get_mut(user_id)
-                    {
+                        .get_entity::<PlayerEntity>(session.entity_id)
+                        .map(|e| (e.position / CHUNK_SIZE as f32).floor().as_ivec3())
+                {
+                    for chunk_position in chunk_positions {
+                        if chunk_position.distance_squared(pos) > MAX_RENDER_DIST_SQ
+                        {
+                            continue;
+                        }
+                        let chunk = self
+                            .world
+                            .get_chunk_or_new(chunk_position);
                         session.pending_messages.push(S2CMessage::ChunkData {
                             chunk_position,
                             chunk: Box::new(chunk.clone()),
@@ -211,9 +227,7 @@ impl Server {
                         broadcast_message(
                             &mut self.sessions,
                             None,
-                            S2CMessage::ChatMessage {
-                                message: c,
-                            },
+                            S2CMessage::ChatMessage { message: c },
                         );
                     } else {
                         if let Some(session) = self.sessions.get_mut(&user_id) {
@@ -250,11 +264,15 @@ impl Server {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
                 {
-                    if let Ok(c) = format!("Your nickname has been set to '{}%r'", nickname).parse() {
+                    if let Ok(c) = format!("Your nickname has been set to '{}%r'", nickname).parse()
+                    {
                         session.nickname = Some(nickname.to_string());
                         Ok(Some(c))
                     } else {
-                        Err("Invalid nickname. Make sure it contains valid formatting codes.".to_string())
+                        Err(
+                            "Invalid nickname. Make sure it contains valid formatting codes."
+                                .to_string(),
+                        )
                     }
                 } else {
                     Err("You must be connected to set a nickname".to_string())
@@ -266,6 +284,22 @@ impl Server {
 
     /// Ticks the server.
     pub fn tick(&mut self, tps: u8) {
+        // Unload chunks that have no players nearby
+        let player_positions: Vec<_> = self
+            .sessions
+            .values()
+            .filter_map(|session| {
+                self.world
+                    .get_entity::<PlayerEntity>(session.entity_id)
+                    .map(|entity| (entity.position / CHUNK_SIZE as f32).floor().as_ivec3())
+            })
+            .collect();
+        self.world.chunks.retain(|&pos, _| {
+            player_positions.iter().any(|player_pos| {
+                pos.distance_squared(*player_pos) <= MAX_RENDER_DIST_SQ
+            })
+        });
+
         self.tps = tps;
         self.world.tick(tps);
     }
