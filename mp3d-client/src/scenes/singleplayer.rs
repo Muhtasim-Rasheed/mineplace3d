@@ -1,6 +1,6 @@
 //! The single player scene implementation.
 
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use glam::{IVec3, Vec2, Vec4};
 use glow::HasContext;
@@ -29,6 +29,7 @@ pub struct SinglePlayer {
     chat_input_label: Option<Label>,
     pause_screen: Column,
     font: Rc<Font>,
+    world_path: PathBuf,
 }
 
 impl SinglePlayer {
@@ -38,6 +39,7 @@ impl SinglePlayer {
         font: &Rc<Font>,
         gui_tex: TextureHandle,
         window_size: (u32, u32),
+        world_path: PathBuf,
     ) -> Self {
         let server = mp3d_core::server::Server::new();
         let connection = LocalConnection::new(server);
@@ -52,8 +54,16 @@ impl SinglePlayer {
             font,
             gui_tex,
         );
-        let main_menu = Button::new(
-            "Main Menu",
+        let save = Button::new(
+            "Save and Quit",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(500.0, 80.0),
+            font,
+            gui_tex,
+        );
+        let quit = Button::new(
+            "Quit",
             Vec4::ONE,
             24.0,
             Vec2::new(500.0, 80.0),
@@ -67,7 +77,8 @@ impl SinglePlayer {
             crate::render::ui::widgets::Justification::Center,
         );
         pause_screen.add_widget(return_to_game);
-        pause_screen.add_widget(main_menu);
+        pause_screen.add_widget(save);
+        pause_screen.add_widget(quit);
         Self {
             client,
             chunk_meshes: HashMap::new(),
@@ -80,6 +91,7 @@ impl SinglePlayer {
             chat_input_label: None,
             pause_screen,
             font: font.clone(),
+            world_path,
         }
     }
 }
@@ -147,6 +159,21 @@ impl super::Scene for SinglePlayer {
             if self
                 .pause_screen
                 .get_widget::<Button>(1)
+                .is_some_and(|btn| btn.is_released())
+            {
+                std::fs::create_dir_all(&self.world_path).expect("Failed to create world directory");
+                self.client
+                    .connection
+                    .server
+                    .world
+                    .save(&self.world_path)
+                    .expect("Failed to save world");
+
+                return super::SceneSwitch::Pop;
+            }
+            if self
+                .pause_screen
+                .get_widget::<Button>(2)
                 .is_some_and(|btn| btn.is_released())
             {
                 return super::SceneSwitch::Pop;

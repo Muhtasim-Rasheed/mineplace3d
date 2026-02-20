@@ -32,10 +32,12 @@ pub trait Widget {
 
 pub mod button;
 pub mod containers;
+pub mod inputfield;
 pub mod label;
 pub mod nineslice;
 
 pub use button::*;
 pub use containers::*;
+pub use inputfield::*;
 pub use label::*;
 pub use nineslice::*;

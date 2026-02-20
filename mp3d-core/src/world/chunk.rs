@@ -1,5 +1,7 @@
 //! A 16x16x16 chunk in a voxel engine.
 
+use std::io::Write;
+
 use glam::IVec3;
 
 use crate::block::Block;
@@ -71,5 +73,33 @@ impl Chunk {
             self.block_palette.push(block);
             self.blocks[index] = (self.block_palette.len() - 1) as u16;
         }
+    }
+}
+
+impl Chunk {
+    /// Saves the chunk to a file.
+    ///
+    /// The file format is as follows:
+    /// - 1 byte: number of blocks in the palette (N)
+    /// - N * 13 bytes: block data (1 byte for block shape, 12 bytes for block color)
+    /// - 4096 * 2 bytes: block indices (u16) for each block in the chunk
+    pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut file = std::fs::File::create(path)?;
+        file.write_all(&[self.block_palette.len() as u8])?;
+        for block in &self.block_palette {
+            file.write_all(&[block.full as u8])?;
+            file.write_all(
+                &block
+                    .color
+                    .to_array()
+                    .iter()
+                    .flat_map(|c| c.to_le_bytes())
+                    .collect::<Vec<u8>>(),
+            )?;
+        }
+        for block_index in &self.blocks {
+            file.write_all(&block_index.to_le_bytes())?;
+        }
+        Ok(())
     }
 }

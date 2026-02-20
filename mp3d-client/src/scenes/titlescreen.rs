@@ -144,35 +144,35 @@ impl super::Scene for TitleScreen {
                 self.container
                     .find_widget_mut::<Button>(&[1, 0])
                     .unwrap()
-                    .set_size(Vec2::new(1010.0, 80.0));
+                    .size = Vec2::new(1010.0, 80.0);
                 self.container
                     .find_widget_mut::<Button>(&[1, 1, 0])
                     .unwrap()
-                    .set_size(Vec2::new(500.0, 80.0));
+                    .size = Vec2::new(500.0, 80.0);
                 self.container
                     .find_widget_mut::<Button>(&[1, 1, 1])
                     .unwrap()
-                    .set_size(Vec2::new(500.0, 80.0));
+                    .size = Vec2::new(500.0, 80.0);
             } else {
                 self.container
                     .find_widget_mut::<Button>(&[1, 0])
                     .unwrap()
-                    .set_size(Vec2::new(*width as f32 - 40.0, 80.0));
+                    .size = Vec2::new(*width as f32 - 40.0, 80.0);
                 self.container
                     .find_widget_mut::<Button>(&[1, 1, 0])
                     .unwrap()
-                    .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
+                    .size = Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0);
                 self.container
                     .find_widget_mut::<Button>(&[1, 1, 1])
                     .unwrap()
-                    .set_size(Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0));
+                    .size = Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0);
             }
         }
     }
 
     fn update(
         &mut self,
-        gl: &Arc<glow::Context>,
+        _gl: &Arc<glow::Context>,
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
@@ -191,8 +191,7 @@ impl super::Scene for TitleScreen {
             .is_some_and(|btn| btn.is_released())
         {
             return super::SceneSwitch::Push(Box::new(
-                crate::scenes::singleplayer::SinglePlayer::new(
-                    gl,
+                crate::scenes::worldcreation::WorldCreation::new(
                     &self.font,
                     self.texture,
                     window.size(),
