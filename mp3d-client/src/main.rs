@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{path::PathBuf, rc::Rc, sync::OnceLock};
 
 use glam::{Mat4, Vec2};
 use glow::HasContext;
@@ -46,6 +46,31 @@ macro_rules! shader_program {
 
 pub static ASSETS: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/src/assets");
+static GAME_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn get_game_dir() -> &'static PathBuf {
+    GAME_DIR.get_or_init(|| {
+        let dir = std::env::var_os("MINEPLACE3D_GAME_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                dirs::data_dir()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap())
+                    .join("mineplace3d")
+            });
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir).expect("Failed to create game directory");
+        }
+        dir
+    })
+}
+
+pub fn get_saves_dir() -> PathBuf {
+    let saves_dir = get_game_dir().join("saves");
+    if !saves_dir.exists() {
+        std::fs::create_dir_all(&saves_dir).expect("Failed to create saves directory");
+    }
+    saves_dir
+}
 
 fn main() {
     let mut app = App::new("Mineplace3D", 1280, 720, false);
@@ -115,6 +140,7 @@ fn main() {
 
         mouse_state.delta = Vec2::ZERO;
         mouse_state.scroll_delta = Vec2::ZERO;
+        keyboard_state.repeated.clear();
         keyboard_state.pressed.clear();
         keyboard_state.released.clear();
         keyboard_state.text_input.clear();
@@ -154,15 +180,19 @@ fn main() {
                 }
                 sdl2::event::Event::KeyDown {
                     keycode: Some(keycode),
-                    repeat: false,
+                    repeat,
                     ..
                 } => {
-                    keyboard_state.down.insert(keycode);
+                    if repeat {
+                        keyboard_state.repeated.insert(keycode);
+                    } else {
+                        keyboard_state.repeated.insert(keycode);
+                        keyboard_state.down.insert(keycode);
+                    }
                     keyboard_state.pressed.insert(keycode);
                 }
                 sdl2::event::Event::KeyUp {
                     keycode: Some(keycode),
-                    repeat: false,
                     ..
                 } => {
                     keyboard_state.down.remove(&keycode);

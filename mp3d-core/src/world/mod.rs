@@ -164,3 +164,49 @@ impl World {
         }
     }
 }
+
+/// The current version of the world save format (in beta).
+pub const SAVE_VERSION: u8 = 0;
+
+impl World {
+    /// Saves the world to a folder.
+    ///
+    /// All modified chunks are saved to the "chunks" subfolder, with filenames in the format
+    /// "chunk_x_y_z.bin". The entity data is saved to "entities.bin" and player data is separately
+    /// saved to "players.bin". The folder also contains a "save.bin" file with metadata about the
+    /// world, such as the seed, generation settings, and also the version of the save format, so
+    /// that future versions of the game can maintain compatibility with older saves. The entity
+    /// IDs aren't stored in the world save, since they can be generated on load anyways.
+    ///
+    /// Please check [`Chunk::save`] for the chunk file format.
+    ///
+    /// entities.bin:
+    /// - 8 bytes: number of entities (N)
+    /// - N times
+    ///   - 1 byte: entity type (u8)
+    ///   - 4 bytes: length of entity data (M)
+    ///   - M bytes: entity data (format defined by each entity type)
+    pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut save_file = std::fs::File::create(path.join("save.bin"))?;
+        std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
+        std::io::Write::write_all(&mut save_file, &self.noise.seed.to_le_bytes())?;
+
+        std::fs::create_dir_all(path.join("chunks"))?;
+
+        for (chunk_pos, changes) in &self.changes {
+            let mut chunk = Chunk::new(*chunk_pos, &self.noise);
+            for (local_pos, block) in changes {
+                chunk.set_block(*local_pos, *block);
+            }
+            let chunk_path = path.join("chunks").join(format!(
+                "chunk_{}_{}_{}.bin",
+                chunk_pos.x, chunk_pos.y, chunk_pos.z
+            ));
+            chunk.save(&chunk_path)?;
+        }
+
+        // TODO: finish writing this function
+
+        Ok(())
+    }
+}

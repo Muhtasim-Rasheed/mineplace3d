@@ -38,7 +38,7 @@ pub trait Connection {
 /// will use a connection ID of `0` for all interactions since it is the only connection, and the
 /// server does not need to differentiate between multiple clients.
 pub struct LocalConnection {
-    server: Server,
+    pub server: Server,
 }
 
 impl LocalConnection {

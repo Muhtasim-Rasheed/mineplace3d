@@ -7,6 +7,7 @@ use sdl2::{keyboard::Keycode, mouse::MouseButton};
 #[derive(Default)]
 pub struct KeyboardState {
     pub down: HashSet<Keycode>,
+    pub repeated: HashSet<Keycode>,
     pub pressed: HashSet<Keycode>,
     pub released: HashSet<Keycode>,
     pub text_input: String,

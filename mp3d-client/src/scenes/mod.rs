@@ -133,3 +133,4 @@ impl SceneManager {
 
 pub mod singleplayer;
 pub mod titlescreen;
+pub mod worldcreation;

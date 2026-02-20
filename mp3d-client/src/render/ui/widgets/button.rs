@@ -8,15 +8,16 @@ use crate::{
 };
 
 pub struct Button {
-    position: Vec2,
-    size: Vec2,
-    label: String,
-    label_color: Vec4,
-    label_font_size: f32,
+    pub position: Vec2,
+    pub size: Vec2,
+    pub label: String,
+    pub label_color: Vec4,
+    pub label_font_size: f32,
     is_down: bool,
     is_down_last: bool,
     hovered: bool,
     hover_last: bool,
+    pub disabled: bool,
     stack: Stack,
     texture: TextureHandle,
     font: Rc<Font>,
@@ -44,6 +45,7 @@ impl Button {
             hover_last: false,
             stack,
             texture,
+            disabled: false,
             font: Rc::clone(font),
         };
 
@@ -83,30 +85,51 @@ impl Button {
         ));
     }
 
+    fn update_stack(&mut self) {
+        if let Some(nine_slice) = self.stack.get_widget_mut::<NineSlice>(0) {
+            nine_slice.uv_top_left = if self.is_down || self.disabled {
+                glam::uvec2(16, 0)
+            } else {
+                glam::uvec2(0, 0)
+            };
+            nine_slice.border = if self.is_down || self.disabled {
+                glam::uvec4(5, 5, 6, 4)
+            } else {
+                glam::uvec4(5, 5, 4, 6)
+            };
+            nine_slice.tint = if self.hovered && !self.is_down && !self.disabled {
+                Vec4::ONE * 1.2
+            } else {
+                Vec4::ONE
+            };
+            nine_slice.position = self.position;
+            nine_slice.size = self.size;
+        } else {
+            self.setup_stack();
+        }
+        if let Some(label) = self.stack.get_widget_mut::<Label>(1) {
+            label.text = self.label.clone();
+            label.color = self.label_color;
+            label.font_size = self.label_font_size;
+        } else {
+            self.setup_stack();
+        }
+    }
+
     pub fn is_down(&self) -> bool {
-        self.is_down
+        self.is_down && !self.disabled
     }
 
     pub fn is_pressed(&self) -> bool {
-        self.is_down && !self.is_down_last
+        self.is_down && !self.is_down_last && !self.disabled
     }
 
     pub fn is_released(&self) -> bool {
-        !self.is_down && self.is_down_last
+        !self.is_down && self.is_down_last && !self.disabled
     }
 
     pub fn is_hovered(&self) -> bool {
         self.hovered
-    }
-
-    pub fn set_label(&mut self, label: &str) {
-        self.label = label.to_string();
-        self.setup_stack();
-    }
-
-    pub fn set_size(&mut self, size: Vec2) {
-        self.size = size;
-        self.setup_stack();
     }
 }
 
@@ -133,9 +156,7 @@ impl Widget for Button {
             && mouse_pos.y >= self.position.y
             && mouse_pos.y <= self.position.y + self.size.y;
         self.is_down = mouse_pressed && self.hovered;
-        if self.is_down != self.is_down_last || self.hovered != self.hover_last {
-            self.setup_stack();
-        }
+        self.update_stack();
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
