@@ -111,6 +111,7 @@ impl super::Scene for SinglePlayer {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
+        assets: &Arc<super::Assets>,
     ) -> super::SceneSwitch {
         window.set_title("Mineplace3D - Single Player").unwrap();
         sdl_ctx
@@ -175,7 +176,13 @@ impl super::Scene for SinglePlayer {
         for pos in unloaded {
             self.chunk_meshes.remove(&pos);
         }
-        mesh_world(gl, &mut self.client.world, &mut self.chunk_meshes);
+        mesh_world(
+            gl,
+            &mut self.client.world,
+            &mut self.chunk_meshes,
+            &assets.block_textures,
+            &assets.block_models,
+        );
         super::SceneSwitch::None
     }
 
@@ -183,6 +190,7 @@ impl super::Scene for SinglePlayer {
         &mut self,
         gl: &Arc<glow::Context>,
         ui: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &Arc<super::Assets>,
     ) {
         unsafe {
             gl.enable(glow::DEPTH_TEST);
@@ -204,6 +212,8 @@ impl super::Scene for SinglePlayer {
                     .player
                     .projection(self.width as f32 / self.height as f32),
             );
+            self.chunk_shader.set_uniform("u_texture", 0);
+            assets.block_textures.upload(gl).bind(0);
             for mesh in self.chunk_meshes.values() {
                 mesh.draw();
             }

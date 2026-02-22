@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use glam::{IVec3, Vec3};
+use glam::{IVec3, Vec2, Vec3};
 use glow::HasContext;
 use mp3d_core::{block::Block, world::chunk::CHUNK_SIZE};
 
@@ -16,7 +16,7 @@ use crate::{
 pub struct ChunkVertex {
     pub position: Vec3,
     pub normal: IVec3,
-    pub color: Vec3,
+    pub uv: Vec2,
 }
 
 impl Vertex for ChunkVertex {
@@ -32,11 +32,22 @@ impl Vertex for ChunkVertex {
             gl.enable_vertex_attrib_array(1);
             gl.vertex_attrib_pointer_i32(1, 3, glow::INT, stride, size_of::<Vec3>() as i32);
 
-            // Color attribute
+            // // Color attribute
+            // gl.enable_vertex_attrib_array(2);
+            // gl.vertex_attrib_pointer_f32(
+            //     2,
+            //     3,
+            //     glow::FLOAT,
+            //     false,
+            //     stride,
+            //     (size_of::<Vec3>() + size_of::<IVec3>()) as i32,
+            // );
+
+            // UV attribute
             gl.enable_vertex_attrib_array(2);
             gl.vertex_attrib_pointer_f32(
                 2,
-                3,
+                2,
                 glow::FLOAT,
                 false,
                 stride,
@@ -57,6 +68,8 @@ pub fn mesh_world(
     gl: &Arc<glow::Context>,
     world: &mut ClientWorld,
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
+    block_textures: &crate::resource::block::TextureAtlas,
+    block_models: &HashMap<&'static str, crate::resource::block::BlockModel>,
 ) {
     let mut dirty_chunks: Vec<IVec3> = Vec::new();
     for (chunk_pos, chunk) in &world.chunks {
@@ -67,7 +80,8 @@ pub fn mesh_world(
 
     for chunk_pos in dirty_chunks {
         let chunk = world.chunks.get(&chunk_pos).unwrap();
-        let (chunk_vertices, chunk_indices) = mesh_chunk(chunk, chunk_pos, world);
+        let (chunk_vertices, chunk_indices) =
+            mesh_chunk(chunk, chunk_pos, world, block_textures, block_models);
         world.chunks.get_mut(&chunk_pos).unwrap().dirty = false;
 
         let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
@@ -81,6 +95,8 @@ fn mesh_chunk(
     chunk: &ClientChunk,
     chunk_pos: glam::IVec3,
     world: &ClientWorld,
+    block_textures: &crate::resource::block::TextureAtlas,
+    block_models: &HashMap<&'static str, crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
@@ -125,267 +141,309 @@ fn mesh_chunk(
                 let world_z = chunk_pos.z * (CHUNK_SIZE as i32) + z;
 
                 // Create faces for each non-occluded side
-                for dx in -1_i32..=1 {
-                    for dy in -1_i32..=1 {
-                        for dz in -1_i32..=1 {
-                            if (dx.abs() + dy.abs() + dz.abs()) != 1 {
-                                continue;
+                // for dx in -1_i32..=1 {
+                //     for dy in -1_i32..=1 {
+                //         for dz in -1_i32..=1 {
+                for (dx, dy, dz) in NORMALS.iter().map(|n| (n.x, n.y, n.z)) {
+                    if (dx.abs() + dy.abs() + dz.abs()) != 1 {
+                        continue;
+                    }
+
+                    let neighbor_pos =
+                        glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
+
+                    // Create face if neighbor block is non-full or out of bounds
+                    // let neighbor_block = world.get_block_at(neighbor_pos);
+                    let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
+                    if neighbor_block.is_none()
+                        || !should_occlude(block, neighbor_block.unwrap())
+                    {
+                        // // Add face
+                        // let face_vertices = match (dx, dy, dz) {
+                        //     (1, 0, 0) => vec![
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //     ],
+                        //     (-1, 0, 0) => vec![
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(-1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(-1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(-1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(-1, 0, 0),
+                        //             color: block.color,
+                        //         },
+                        //     ],
+                        //     (0, 1, 0) => vec![
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, 1, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, 1, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, 1, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, 1, 0),
+                        //             color: block.color,
+                        //         },
+                        //     ],
+                        //     (0, -1, 0) => vec![
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, -1, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, -1, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, -1, 0),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, -1, 0),
+                        //             color: block.color,
+                        //         },
+                        //     ],
+                        //     (0, 0, 1) => vec![
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, 1),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, 1),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, 1),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32,
+                        //                 world_z as f32 + 1.0,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, 1),
+                        //             color: block.color,
+                        //         },
+                        //     ],
+                        //     (0, 0, -1) => vec![
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, -1),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, -1),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32 + 1.0,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, -1),
+                        //             color: block.color,
+                        //         },
+                        //         ChunkVertex {
+                        //             position: Vec3::new(
+                        //                 world_x as f32 + 1.0,
+                        //                 world_y as f32,
+                        //                 world_z as f32,
+                        //             ),
+                        //             normal: IVec3::new(0, 0, -1),
+                        //             color: block.color,
+                        //         },
+                        //     ],
+                        //     _ => vec![],
+                        // };
+
+                        // let base_index = vertices.len() as u32;
+                        // vertices.extend(face_vertices);
+
+                        // indices.extend_from_slice(&[
+                        //     base_index,
+                        //     base_index + 1,
+                        //     base_index + 2,
+                        //     base_index,
+                        //     base_index + 2,
+                        //     base_index + 3,
+                        // ]);
+
+                        let model = block_models.get(block.ident).unwrap();
+
+                        for el in &model.elements {
+                            // The elements' faces are ordered as NSEWUD and we are using a
+                            // right handed coordinate system with +X = east, +Y = up, +Z =
+                            // south.
+                            let face = match (dx, dy, dz) {
+                                (0, 0, -1) => &el.faces[0], // North
+                                (0, 0, 1) => &el.faces[1],  // South
+                                (1, 0, 0) => &el.faces[2],  // East
+                                (-1, 0, 0) => &el.faces[3], // West
+                                (0, 1, 0) => &el.faces[4],  // Up
+                                (0, -1, 0) => &el.faces[5], // Down
+                                _ => unreachable!(),
+                            };
+
+                            let model_uv = face.uv;
+                            let [uv_min, uv_max] = block_textures
+                                .get_uv(&face.texture_name, model_uv)
+                                .unwrap();
+
+                            let base_index = vertices.len() as u32;
+                            for vert in &FACE_VERTS[face_index(dx, dy, dz)] {
+                                vertices.push(ChunkVertex {
+                                    position: *vert * (el.to - el.from) + el.from + Vec3::new(world_x as f32, world_y as f32, world_z as f32),
+                                    normal: IVec3::new(dx, dy, dz),
+                                    uv: Vec2::new(
+                                        uv_min.x + vert.x * (uv_max.x - uv_min.x),
+                                        uv_min.y + vert.y * (uv_max.y - uv_min.y),
+                                    ),
+                                });
                             }
 
-                            let neighbor_pos =
-                                glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
-
-                            // Create face if neighbor block is non-full or out of bounds
-                            // let neighbor_block = world.get_block_at(neighbor_pos);
-                            let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
-                            if neighbor_block.is_none()
-                                || !should_occlude(block, neighbor_block.unwrap())
-                            {
-                                // Add face
-                                let face_vertices = match (dx, dy, dz) {
-                                    (1, 0, 0) => vec![
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(1, 0, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(1, 0, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(1, 0, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(1, 0, 0),
-                                            color: block.color,
-                                        },
-                                    ],
-                                    (-1, 0, 0) => vec![
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(-1, 0, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(-1, 0, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(-1, 0, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(-1, 0, 0),
-                                            color: block.color,
-                                        },
-                                    ],
-                                    (0, 1, 0) => vec![
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, 1, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, 1, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, 1, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, 1, 0),
-                                            color: block.color,
-                                        },
-                                    ],
-                                    (0, -1, 0) => vec![
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, -1, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, -1, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, -1, 0),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, -1, 0),
-                                            color: block.color,
-                                        },
-                                    ],
-                                    (0, 0, 1) => vec![
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, 0, 1),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, 0, 1),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, 0, 1),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32,
-                                                world_z as f32 + 1.0,
-                                            ),
-                                            normal: IVec3::new(0, 0, 1),
-                                            color: block.color,
-                                        },
-                                    ],
-                                    (0, 0, -1) => vec![
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, 0, -1),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, 0, -1),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32 + 1.0,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, 0, -1),
-                                            color: block.color,
-                                        },
-                                        ChunkVertex {
-                                            position: Vec3::new(
-                                                world_x as f32 + 1.0,
-                                                world_y as f32,
-                                                world_z as f32,
-                                            ),
-                                            normal: IVec3::new(0, 0, -1),
-                                            color: block.color,
-                                        },
-                                    ],
-                                    _ => vec![],
-                                };
-
-                                let base_index = vertices.len() as u32;
-                                vertices.extend(face_vertices);
-
-                                indices.extend_from_slice(&[
-                                    base_index,
-                                    base_index + 1,
-                                    base_index + 2,
-                                    base_index,
-                                    base_index + 2,
-                                    base_index + 3,
-                                ]);
-                            }
+                            indices.extend_from_slice(&[
+                                base_index,
+                                base_index + 1,
+                                base_index + 2,
+                                base_index,
+                                base_index + 2,
+                                base_index + 3,
+                            ]);
                         }
                     }
                 }
@@ -395,3 +453,70 @@ fn mesh_chunk(
 
     (vertices, indices)
 }
+
+#[inline]
+fn face_index(dx: i32, dy: i32, dz: i32) -> usize {
+    match (dx, dy, dz) {
+        (0, 0, -1) => 0, // North
+        (0, 0, 1) => 1,  // South
+        (1, 0, 0) => 2,  // East
+        (-1, 0, 0) => 3, // West
+        (0, 1, 0) => 4,  // Up
+        (0, -1, 0) => 5, // Down
+        _ => unreachable!(),
+    }
+}
+
+const FACE_VERTS: [[Vec3; 4]; 6] = [
+    // North (-Z)
+    [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+    ],
+    // South (+Z)
+    [
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(1.0, 1.0, 1.0),
+        Vec3::new(0.0, 1.0, 1.0),
+    ],
+    // East (+X)
+    [
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(1.0, 1.0, 1.0),
+    ],
+    // West (-X)
+    [
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 1.0, 1.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ],
+    // Up (+Y)
+    [
+        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 1.0),
+        Vec3::new(1.0, 1.0, 1.0),
+    ],
+    // Down (-Y)
+    [
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+    ],
+];
+
+const NORMALS: [IVec3; 6] = [
+    IVec3::new(0, 0, -1), // North
+    IVec3::new(0, 0, 1),  // South
+    IVec3::new(1, 0, 0),  // East
+    IVec3::new(-1, 0, 0), // West
+    IVec3::new(0, 1, 0),  // Up
+    IVec3::new(0, -1, 0), // Down
+];

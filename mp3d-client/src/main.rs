@@ -12,6 +12,7 @@ mod abs;
 mod client;
 mod other;
 mod render;
+mod resource;
 mod scenes;
 
 #[macro_export]
@@ -43,6 +44,9 @@ macro_rules! shader_program {
     }};
 }
 
+pub static ASSETS: include_dir::Dir<'_> =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/src/assets");
+
 fn main() {
     let mut app = App::new("Mineplace3D", 1280, 720, false);
 
@@ -71,7 +75,7 @@ fn main() {
         Texture::new(
             &app.gl,
             &image::load_from_memory_with_format(
-                include_bytes!("assets/font.png"),
+                ASSETS.get_file("font.png").unwrap().contents(),
                 image::ImageFormat::Png,
             )
             .unwrap(),
@@ -83,15 +87,24 @@ fn main() {
     let gui_tex = Texture::new(
         &app.gl,
         &image::load_from_memory_with_format(
-            include_bytes!("assets/gui.png"),
+            ASSETS.get_file("gui.png").unwrap().contents(),
             image::ImageFormat::Png,
         )
         .unwrap(),
     );
 
-    let mut scene_manager = scenes::SceneManager::new(Box::new(
-        scenes::titlescreen::TitleScreen::new(&font, gui_tex.handle(), (1280, 720)),
-    ));
+    let assets = scenes::Assets::load(&app.gl).unwrap_or_else(|e| {
+        panic!("Failed to load assets: {}", e);
+    });
+
+    let mut scene_manager = scenes::SceneManager::new(
+        Box::new(scenes::titlescreen::TitleScreen::new(
+            &font,
+            gui_tex.handle(),
+            (1280, 720),
+        )),
+        assets,
+    );
 
     let mut last_frame_time = std::time::Instant::now();
 

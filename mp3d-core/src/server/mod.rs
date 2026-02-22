@@ -176,13 +176,10 @@ impl Server {
                         .map(|e| (e.position / CHUNK_SIZE as f32).floor().as_ivec3())
                 {
                     for chunk_position in chunk_positions {
-                        if chunk_position.distance_squared(pos) > MAX_RENDER_DIST_SQ
-                        {
+                        if chunk_position.distance_squared(pos) > MAX_RENDER_DIST_SQ {
                             continue;
                         }
-                        let chunk = self
-                            .world
-                            .get_chunk_or_new(chunk_position);
+                        let chunk = self.world.get_chunk_or_new(chunk_position);
                         session.pending_messages.push(S2CMessage::ChunkData {
                             chunk_position,
                             chunk: Box::new(chunk.clone()),
@@ -295,9 +292,9 @@ impl Server {
             })
             .collect();
         self.world.chunks.retain(|&pos, _| {
-            player_positions.iter().any(|player_pos| {
-                pos.distance_squared(*player_pos) <= MAX_RENDER_DIST_SQ
-            })
+            player_positions
+                .iter()
+                .any(|player_pos| pos.distance_squared(*player_pos) <= MAX_RENDER_DIST_SQ)
         });
 
         self.tps = tps;

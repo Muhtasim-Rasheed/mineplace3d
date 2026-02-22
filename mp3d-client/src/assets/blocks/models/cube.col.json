@@ -1,0 +1,9 @@
+{
+	"parent": "cube",
+	"textures": {
+		"$n": "$side",
+		"$s": "$side",
+		"$e": "$side",
+		"$w": "$side"
+	}
+}

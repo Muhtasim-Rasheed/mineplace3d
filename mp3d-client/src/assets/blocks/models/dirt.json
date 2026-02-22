@@ -1,0 +1,6 @@
+{
+	"parent": "cube.all",
+	"textures": {
+		"$a": "dirt"
+	}
+}
