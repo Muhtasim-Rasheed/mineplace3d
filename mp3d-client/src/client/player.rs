@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec3, Vec4};
 use mp3d_core::protocol::MoveInstructions;
 
 pub struct ClientPlayer {
@@ -27,6 +27,34 @@ impl ClientPlayer {
 
     pub fn projection(&self, aspect_ratio: f32) -> Mat4 {
         Mat4::perspective_rh_gl(self.fov.to_radians(), aspect_ratio, 0.1, 1000.0)
+    }
+
+    /// Returns the frustum planes, which can be used for frustum culling of chunks.
+    pub fn frustum_planes(&self, aspect_ratio: f32) -> [Vec4; 6] {
+        let vp = self.projection(aspect_ratio) * self.view();
+        let m = vp.to_cols_array_2d();
+
+        let row0 = Vec4::new(m[0][0], m[1][0], m[2][0], m[3][0]);
+        let row1 = Vec4::new(m[0][1], m[1][1], m[2][1], m[3][1]);
+        let row2 = Vec4::new(m[0][2], m[1][2], m[2][2], m[3][2]);
+        let row3 = Vec4::new(m[0][3], m[1][3], m[2][3], m[3][3]);
+
+        let mut planes = [
+            row3 + row0, // left
+            row3 - row0, // right
+            row3 + row1, // bottom
+            row3 - row1, // top
+            row3 + row2, // near
+            row3 - row2, // far
+        ];
+
+        // normalize planes
+        for plane in planes.iter_mut() {
+            let n = plane.truncate().length();
+            *plane /= n;
+        }
+
+        planes
     }
 
     pub fn optimistic(&mut self, tps: u8) {
