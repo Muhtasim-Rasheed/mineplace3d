@@ -100,6 +100,7 @@ impl super::Scene for WorldCreation {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         _sdl_ctx: &sdl2::Sdl,
+        _assets: &Arc<super::Assets>,
     ) -> super::SceneSwitch {
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
@@ -162,7 +163,7 @@ impl super::Scene for WorldCreation {
         super::SceneSwitch::None
     }
 
-    fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer) {
+    fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer, _assets: &Arc<super::Assets>) {
         unsafe {
             gl.clear_color(0.1, 0.1, 0.2, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);

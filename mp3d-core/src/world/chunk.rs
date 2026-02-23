@@ -87,15 +87,9 @@ impl Chunk {
         let mut file = std::fs::File::create(path)?;
         file.write_all(&[self.block_palette.len() as u8])?;
         for block in &self.block_palette {
-            file.write_all(&[block.full as u8])?;
-            file.write_all(
-                &block
-                    .color
-                    .to_array()
-                    .iter()
-                    .flat_map(|c| c.to_le_bytes())
-                    .collect::<Vec<u8>>(),
-            )?;
+            let ident_len = block.ident.len() as u8;
+            file.write_all(&[block.visible as u8, ident_len])?;
+            file.write_all(block.ident.as_bytes())?;
         }
         for block_index in &self.blocks {
             file.write_all(&block_index.to_le_bytes())?;
