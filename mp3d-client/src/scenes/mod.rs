@@ -36,6 +36,8 @@ impl Assets {
             block_models.insert(block.ident, model);
         }
         block_textures.upload(gl);
+        // save the atlas to a file for debugging purposes
+        block_textures.image.save("block_texture_atlas.png").map_err(|e| format!("Failed to save block texture atlas: {}", e))?;
         block_textures.free_cpu_memory();
         Ok(Self {
             block_textures,

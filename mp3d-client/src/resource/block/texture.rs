@@ -59,7 +59,7 @@ impl TextureRef {
 
 /// A texture atlas, both creating a texture and providing UV coordinates for it.
 pub struct TextureAtlas {
-    image: image::RgbaImage,
+    pub image: image::RgbaImage,
     width: u32,
     height: u32,
     uv_coords: HashMap<String, [UVec2; 2]>,
@@ -82,16 +82,16 @@ impl TextureAtlas {
         }
     }
 
-    /// Returns the width and height of the atlas in pixels.
-    pub fn size(&self) -> UVec2 {
-        UVec2::new(self.width, self.height)
-    }
-
     /// Adds a texture to the atlas, returning its UV coordinates in the atlas. Returns `None` if
-    /// the atlas is full.
+    /// the atlas is full or has already been uploaded to the GPU. If the texture is already added,
+    /// returns the existing UV coordinates.
     pub fn add_texture(&mut self, name: String, texture: image::RgbaImage) -> Option<[UVec2; 2]> {
         if self.cursor.y >= self.height || self.is_finished() {
             return None;
+        }
+
+        if let Some(uv) = self.uv_coords.get(&name) {
+            return Some(*uv);
         }
 
         let x = self.cursor.x;
@@ -99,15 +99,18 @@ impl TextureAtlas {
 
         image::imageops::replace(&mut self.image, &texture, x as i64, y as i64);
 
-        let uv_bottom_left = UVec2::new(x, y + TEXTURE_SIZE);
-        let uv_top_right = UVec2::new(x + TEXTURE_SIZE, y);
-        self.uv_coords.insert(name, [uv_bottom_left, uv_top_right]);
-
         self.cursor.x += TEXTURE_SIZE;
         if self.cursor.x >= self.width {
             self.cursor.x = 0;
             self.cursor.y += TEXTURE_SIZE;
         }
+
+        let x = self.cursor.x;
+        let y = self.cursor.y;
+
+        let uv_bottom_left = UVec2::new(x, y + TEXTURE_SIZE);
+        let uv_top_right = UVec2::new(x + TEXTURE_SIZE, y);
+        self.uv_coords.insert(name, [uv_bottom_left, uv_top_right]);
 
         Some([uv_bottom_left, uv_top_right])
     }
