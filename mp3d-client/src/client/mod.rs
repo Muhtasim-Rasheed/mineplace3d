@@ -334,7 +334,7 @@ pub fn cast_ray(
         let block_pos = pos.floor().as_ivec3();
         let block = world.get_block_at(block_pos)?;
 
-        if block.full {
+        if block.visible {
             let normal = calc_face_normal(pos, block_pos.as_vec3());
             return Some((block_pos, normal));
         }

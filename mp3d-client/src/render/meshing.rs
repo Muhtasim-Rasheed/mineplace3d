@@ -48,8 +48,152 @@ impl Vertex for ChunkVertex {
 
 /// Determines if a certain face of block `a` should be occluded by block `b`.
 #[inline]
-fn should_occlude(a: &Block, b: &Block) -> bool {
-    a.full && b.full
+fn should_occlude(
+    a: &Block,
+    b: &Block,
+    face_idx: usize,
+    a_model: &crate::resource::block::BlockModel,
+    b_model: &crate::resource::block::BlockModel,
+    // block_models: &HashMap<&'static str, crate::resource::block::BlockModel>
+) -> bool {
+    if !a.visible {
+        unreachable!("Invisible blocks have no faces");
+    }
+    if !b.visible {
+        return false;
+    }
+
+    // let a_model = block_models.get(a.ident).unwrap();
+    // let b_model = block_models.get(b.ident).unwrap();
+
+    for a_el in &a_model.elements {
+        if !a_el.faces[face_idx].occludes {
+            continue;
+        }
+        for b_el in &b_model.elements {
+            if b_el.faces[face_idx ^ 1].cullable {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Returns the index of the face corresponding to the given normal direction (dx, dy, dz).
+#[inline]
+fn face_index(dx: i32, dy: i32, dz: i32) -> usize {
+    match (dx, dy, dz) {
+        (0, 0, -1) => 0, // North
+        (0, 0, 1) => 1,  // South
+        (1, 0, 0) => 2,  // East
+        (-1, 0, 0) => 3, // West
+        (0, 1, 0) => 4,  // Up
+        (0, -1, 0) => 5, // Down
+        _ => unreachable!(),
+    }
+}
+
+/// The vertex positions for each face of a cube, in the order of NSEWUD.
+const FACE_VERTS: [[Vec3; 4]; 6] = [
+    // North (-Z)
+    [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+    ],
+    // South (+Z)
+    [
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(1.0, 1.0, 1.0),
+        Vec3::new(0.0, 1.0, 1.0),
+    ],
+    // East (+X)
+    [
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(1.0, 1.0, 1.0),
+    ],
+    // West (-X)
+    [
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 1.0, 1.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ],
+    // Up (+Y)
+    [
+        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 1.0),
+        Vec3::new(1.0, 1.0, 1.0),
+    ],
+    // Down (-Y)
+    [
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+    ],
+];
+
+/// The normal vectors for each face of a cube, in the order of NSEWUD.
+const NORMALS: [IVec3; 6] = [
+    IVec3::new(0, 0, -1), // North
+    IVec3::new(0, 0, 1),  // South
+    IVec3::new(1, 0, 0),  // East
+    IVec3::new(-1, 0, 0), // West
+    IVec3::new(0, 1, 0),  // Up
+    IVec3::new(0, -1, 0), // Down
+];
+
+/// Returns the UV coordinates for the vertices of a face in the given direction, based on the
+/// provided minimum and maximum UV coordinates for the face. The order of the returned UVs
+/// corresponds to the vertex order in `FACE_VERTS` for the given face direction.
+#[inline]
+fn face_uvs(dir: IVec3, min: Vec2, max: Vec2) -> [Vec2; 4] {
+    match dir {
+        IVec3 { x: 0, y: 0, z: -1 } => [
+            Vec2::new(max.x, min.y),
+            Vec2::new(min.x, min.y),
+            Vec2::new(min.x, max.y),
+            Vec2::new(max.x, max.y),
+        ], // North
+        IVec3 { x: 0, y: 0, z: 1 } => [
+            Vec2::new(min.x, min.y),
+            Vec2::new(max.x, min.y),
+            Vec2::new(max.x, max.y),
+            Vec2::new(min.x, max.y),
+        ], // South
+        IVec3 { x: 1, y: 0, z: 0 } => [
+            Vec2::new(max.x, min.y),
+            Vec2::new(min.x, min.y),
+            Vec2::new(min.x, max.y),
+            Vec2::new(max.x, max.y),
+        ], // East
+        IVec3 { x: -1, y: 0, z: 0 } => [
+            Vec2::new(min.x, min.y),
+            Vec2::new(max.x, min.y),
+            Vec2::new(max.x, max.y),
+            Vec2::new(min.x, max.y),
+        ], // West
+        IVec3 { x: 0, y: 1, z: 0 } => [
+            Vec2::new(max.x, max.y),
+            Vec2::new(min.x, max.y),
+            Vec2::new(min.x, min.y),
+            Vec2::new(max.x, min.y),
+        ], // Up
+        IVec3 { x: 0, y: -1, z: 0 } => [
+            Vec2::new(max.x, min.y),
+            Vec2::new(min.x, min.y),
+            Vec2::new(min.x, max.y),
+            Vec2::new(max.x, max.y),
+        ], // Down
+        _ => unreachable!(),
+    }
 }
 
 /// Generates meshes for all chunks that require being meshed again.
@@ -117,12 +261,14 @@ fn mesh_chunk(
     for x in 0..(CHUNK_SIZE as i32) {
         for y in 0..(CHUNK_SIZE as i32) {
             for z in 0..(CHUNK_SIZE as i32) {
-                // Check if the block is full
+                // Check if the block is visible
                 let block_local_pos = glam::IVec3::new(x, y, z);
                 let block = chunk.get_block(block_local_pos);
-                if !block.full {
+                if !block.visible {
                     continue;
                 }
+
+                let model = block_models.get(block.ident).unwrap();
 
                 // Calculate world position of the block
                 let world_x = chunk_pos.x * (CHUNK_SIZE as i32) + x;
@@ -138,14 +284,13 @@ fn mesh_chunk(
                     let neighbor_pos =
                         glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
 
-                    // Create face if neighbor block is non-full or out of bounds
-                    // let neighbor_block = world.get_block_at(neighbor_pos);
+                    // Create face the neighboring block is air or doesn't occlude this face.
                     let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
+                    let neighbor_model = neighbor_block
+                        .and_then(|b| block_models.get(b.ident));
                     if neighbor_block.is_none()
-                        || !should_occlude(block, neighbor_block.unwrap())
+                        || !should_occlude(block, neighbor_block.unwrap(), face_index(dx, dy, dz), model, neighbor_model.unwrap())
                     {
-                        let model = block_models.get(block.ident).unwrap();
-
                         for el in &model.elements {
                             // The elements' faces are ordered as NSEWUD and we are using a
                             // right handed coordinate system with +X = east, +Y = up, +Z =
@@ -166,16 +311,6 @@ fn mesh_chunk(
                                 .unwrap();
 
                             let base_index = vertices.len() as u32;
-                            // for vert in &FACE_VERTS[face_index(dx, dy, dz)] {
-                            //     vertices.push(ChunkVertex {
-                            //         position: *vert * (el.to - el.from) + el.from + Vec3::new(world_x as f32, world_y as f32, world_z as f32),
-                            //         normal: IVec3::new(dx, dy, dz),
-                            //         uv: Vec2::new(
-                            //             uv_min.x + vert.x * (uv_max.x - uv_min.x),
-                            //             uv_min.y + vert.y * (uv_max.y - uv_min.y),
-                            //         ),
-                            //     });
-                            // }
                             let uvs = face_uvs(IVec3::new(dx, dy, dz), uv_min, uv_max);
                             for (vert, uv) in FACE_VERTS[face_index(dx, dy, dz)]
                                 .iter()
@@ -206,112 +341,3 @@ fn mesh_chunk(
     (vertices, indices)
 }
 
-#[inline]
-fn face_index(dx: i32, dy: i32, dz: i32) -> usize {
-    match (dx, dy, dz) {
-        (0, 0, -1) => 0, // North
-        (0, 0, 1) => 1,  // South
-        (1, 0, 0) => 2,  // East
-        (-1, 0, 0) => 3, // West
-        (0, 1, 0) => 4,  // Up
-        (0, -1, 0) => 5, // Down
-        _ => unreachable!(),
-    }
-}
-
-const FACE_VERTS: [[Vec3; 4]; 6] = [
-    // North (-Z)
-    [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(1.0, 1.0, 0.0),
-    ],
-    // South (+Z)
-    [
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 1.0),
-        Vec3::new(1.0, 1.0, 1.0),
-        Vec3::new(0.0, 1.0, 1.0),
-    ],
-    // East (+X)
-    [
-        Vec3::new(1.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(1.0, 1.0, 0.0),
-        Vec3::new(1.0, 1.0, 1.0),
-    ],
-    // West (-X)
-    [
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 1.0, 1.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    ],
-    // Up (+Y)
-    [
-        Vec3::new(1.0, 1.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 1.0, 1.0),
-        Vec3::new(1.0, 1.0, 1.0),
-    ],
-    // Down (-Y)
-    [
-        Vec3::new(1.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-    ],
-];
-
-const NORMALS: [IVec3; 6] = [
-    IVec3::new(0, 0, -1), // North
-    IVec3::new(0, 0, 1),  // South
-    IVec3::new(1, 0, 0),  // East
-    IVec3::new(-1, 0, 0), // West
-    IVec3::new(0, 1, 0),  // Up
-    IVec3::new(0, -1, 0), // Down
-];
-
-#[inline]
-fn face_uvs(dir: IVec3, min: Vec2, max: Vec2) -> [Vec2; 4] {
-    match dir {
-        IVec3 { x: 0, y: 0, z: -1 } => [
-            Vec2::new(max.x, min.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, max.y),
-        ], // North
-        IVec3 { x: 0, y: 0, z: 1 } => [
-            Vec2::new(min.x, min.y),
-            Vec2::new(max.x, min.y),
-            Vec2::new(max.x, max.y),
-            Vec2::new(min.x, max.y),
-        ], // South
-        IVec3 { x: 1, y: 0, z: 0 } => [
-            Vec2::new(max.x, min.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, max.y),
-        ], // East
-        IVec3 { x: -1, y: 0, z: 0 } => [
-            Vec2::new(min.x, min.y), // top right
-            Vec2::new(max.x, min.y), // bottom right
-            Vec2::new(max.x, max.y), // bottom left
-            Vec2::new(min.x, max.y), // top left
-        ], // West
-        IVec3 { x: 0, y: 1, z: 0 } => [
-            Vec2::new(max.x, max.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(max.x, min.y),
-        ], // Up
-        IVec3 { x: 0, y: -1, z: 0 } => [
-            Vec2::new(max.x, min.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, max.y),
-        ], // Down
-        _ => unreachable!(),
-    }
-}

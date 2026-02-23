@@ -170,6 +170,8 @@ pub struct BlockFace {
     pub uv: [Vec2; 2],
     pub texture: PathBuf,
     pub texture_name: String,
+    pub occludes: bool,
+    pub cullable: bool,
 }
 
 impl BlockFace {
@@ -202,6 +204,8 @@ impl BlockFace {
             ],
             texture: texture_path.0,
             texture_name: texture_path.1,
+            occludes: raw.occludes.unwrap_or(true),
+            cullable: raw.cullable.unwrap_or(true),
         })
     }
 }

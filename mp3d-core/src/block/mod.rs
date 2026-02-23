@@ -4,28 +4,28 @@
 /// already defined blocks and an array of the already defined blocks.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Block {
-    pub full: bool,
+    pub visible: bool,
     pub ident: &'static str,
 }
 
 impl Block {
     pub const AIR: Block = Block {
-        full: false,
+        visible: false,
         ident: "air",
     };
 
     pub const GRASS: Block = Block {
-        full: true,
+        visible: true,
         ident: "grass",
     };
 
     pub const DIRT: Block = Block {
-        full: true,
+        visible: true,
         ident: "dirt",
     };
 
     pub const STONE: Block = Block {
-        full: true,
+        visible: true,
         ident: "stone",
     };
 

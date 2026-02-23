@@ -97,7 +97,18 @@ impl TextureAtlas {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
-        image::imageops::replace(&mut self.image, &texture, x as i64, y as i64);
+        
+        image::imageops::replace(
+            &mut self.image,
+            &image::imageops::resize(
+                &texture,
+                TEXTURE_SIZE,
+                TEXTURE_SIZE,
+                image::imageops::FilterType::Nearest,
+            ),
+            x as i64,
+            y as i64
+        );
 
         self.cursor.x += TEXTURE_SIZE;
         if self.cursor.x >= self.width {

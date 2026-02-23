@@ -25,4 +25,6 @@ pub struct RawBlockElement {
 pub struct RawBlockFace {
     pub uv: [f32; 4],
     pub texture: TextureRef,
+    pub occludes: Option<bool>,
+    pub cullable: Option<bool>,
 }
