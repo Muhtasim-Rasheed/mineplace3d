@@ -305,6 +305,9 @@ impl<C: Connection> Client<C> {
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
                 }
+                S2CMessage::BlockUpdated { position, block } => {
+                    self.world.set_block_at(position, block);
+                }
                 _ => {}
             }
         }
@@ -319,7 +322,7 @@ pub fn cast_ray(
     player: &player::ClientPlayer,
     max_distance: f32,
 ) -> Option<(IVec3, IVec3)> {
-    let mut pos = player.position;
+    let mut pos = player.eye();
     let yaw_rad = player.yaw.to_radians();
     let pitch_rad = player.pitch.to_radians();
     let direction = Vec3::new(

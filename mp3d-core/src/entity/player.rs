@@ -141,11 +141,11 @@ impl Entity for PlayerEntity {
         self.velocity += velocity;
     }
 
-    fn width(&self) -> f32 {
-        0.6
+    fn width() -> f32 {
+        0.8
     }
 
-    fn height(&self) -> f32 {
+    fn height() -> f32 {
         1.8
     }
 
@@ -153,14 +153,29 @@ impl Entity for PlayerEntity {
         false
     }
 
-    fn tick(&mut self, _world: &mut World, tps: u8) {
+    fn tick(&mut self, world: &mut World, tps: u8) {
         let delta_time = 1.0 / tps as f32;
 
         self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw = self.yaw.rem_euclid(360.0);
 
-        self.position += self.velocity * delta_time;
-        self.velocity *= 0.9_f32.powf(delta_time * 48.0);
+        self.position.x += self.velocity.x * delta_time;
+        if world.collides(self.position, Self::width(), Self::height()) {
+            self.position.x -= self.velocity.x * delta_time;
+            self.velocity.x = 0.0;
+        }
+        self.position.y += self.velocity.y * delta_time;
+        if world.collides(self.position, Self::width(), Self::height()) {
+            self.position.y -= self.velocity.y * delta_time;
+            self.velocity.y = 0.0;
+        }
+        self.position.z += self.velocity.z * delta_time;
+        if world.collides(self.position, Self::width(), Self::height()) {
+            self.position.z -= self.velocity.z * delta_time;
+            self.velocity.z = 0.0;
+        }
+
+        self.velocity *= 0.75_f32.powf(delta_time * 48.0);
 
         // nothing much right now
     }

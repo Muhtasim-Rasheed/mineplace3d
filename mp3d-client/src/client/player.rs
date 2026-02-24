@@ -11,7 +11,13 @@ pub struct ClientPlayer {
 }
 
 impl ClientPlayer {
+    pub fn eye(&self) -> Vec3 {
+        self.position + Vec3::new(0.0, 1.62, 0.0)
+    }
+
     pub fn view(&self) -> Mat4 {
+        let eye = self.eye();
+
         let pitch_rad = self.pitch.to_radians();
         let yaw_rad = self.yaw.to_radians();
 
@@ -22,7 +28,7 @@ impl ClientPlayer {
         )
         .normalize();
 
-        Mat4::look_at_rh(self.position, self.position + forward, Vec3::Y)
+        Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
     }
 
     pub fn projection(&self, aspect_ratio: f32) -> Mat4 {
@@ -62,16 +68,18 @@ impl ClientPlayer {
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
         let mut movement = Vec3::ZERO;
-        movement += forward_vec * (self.input.forward as f32) * 7.5;
-        movement += right_vec * (self.input.strafe as f32) * 7.5;
+        movement += forward_vec * (self.input.forward as f32) * 1.0;
+        movement += right_vec * (self.input.strafe as f32) * 1.0;
         if self.input.jump {
-            movement.y += 6.0;
+            movement.y += 0.8;
         }
         if self.input.sneak {
-            movement.y -= 6.0;
+            movement.y -= 0.8;
         }
-        self.velocity += movement * (1.0 / tps as f32) * 5.0;
+        // Note: this 48 is not actually tps, but rather a constant that makes the
+        // movement feel good.
+        self.velocity += movement * (1.0 / tps as f32) * 48.0;
         self.position += self.velocity * (1.0 / tps as f32);
-        self.velocity *= 0.9_f32.powf(1.0 / tps as f32 * 48.0);
+        self.velocity *= 0.75_f32.powf(1.0 / tps as f32 * 48.0);
     }
 }

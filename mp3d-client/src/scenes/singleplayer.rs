@@ -4,7 +4,7 @@ use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use glam::{IVec3, Vec2, Vec3, Vec4};
 use glow::HasContext;
-use mp3d_core::{world::chunk::CHUNK_SIZE, TextComponent};
+use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
     abs::{Mesh, ShaderProgram, TextureHandle},
@@ -222,7 +222,10 @@ impl super::Scene for SinglePlayer {
                 if !is_aabb_in_frustum(
                     aabb_min,
                     aabb_max,
-                    &self.client.player.frustum_planes(self.width as f32 / self.height as f32),
+                    &self
+                        .client
+                        .player
+                        .frustum_planes(self.width as f32 / self.height as f32),
                 ) {
                     continue;
                 }
@@ -341,9 +344,21 @@ fn text_messages(
 fn is_aabb_in_frustum(aabb_min: Vec3, aabb_max: Vec3, planes: &[Vec4; 6]) -> bool {
     for plane in planes {
         let p = Vec3::new(
-            if plane.x >= 0.0 { aabb_max.x } else { aabb_min.x },
-            if plane.y >= 0.0 { aabb_max.y } else { aabb_min.y },
-            if plane.z >= 0.0 { aabb_max.z } else { aabb_min.z },
+            if plane.x >= 0.0 {
+                aabb_max.x
+            } else {
+                aabb_min.x
+            },
+            if plane.y >= 0.0 {
+                aabb_max.y
+            } else {
+                aabb_min.y
+            },
+            if plane.z >= 0.0 {
+                aabb_max.z
+            } else {
+                aabb_min.z
+            },
         );
         if plane.truncate().dot(p) + plane.w < 0.0 {
             return false;

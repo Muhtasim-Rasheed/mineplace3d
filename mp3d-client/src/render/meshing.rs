@@ -281,15 +281,19 @@ fn mesh_chunk(
                         continue;
                     }
 
-                    let neighbor_pos =
-                        glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
+                    let neighbor_pos = glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
 
                     // Create face the neighboring block is air or doesn't occlude this face.
                     let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
-                    let neighbor_model = neighbor_block
-                        .and_then(|b| block_models.get(b.ident));
+                    let neighbor_model = neighbor_block.and_then(|b| block_models.get(b.ident));
                     if neighbor_block.is_none()
-                        || !should_occlude(block, neighbor_block.unwrap(), face_index(dx, dy, dz), model, neighbor_model.unwrap())
+                        || !should_occlude(
+                            block,
+                            neighbor_block.unwrap(),
+                            face_index(dx, dy, dz),
+                            model,
+                            neighbor_model.unwrap(),
+                        )
                     {
                         for el in &model.elements {
                             // The elements' faces are ordered as NSEWUD and we are using a
@@ -306,18 +310,18 @@ fn mesh_chunk(
                             };
 
                             let model_uv = face.uv;
-                            let [uv_min, uv_max] = block_textures
-                                .get_uv(&face.texture_name, model_uv)
-                                .unwrap();
+                            let [uv_min, uv_max] =
+                                block_textures.get_uv(&face.texture_name, model_uv).unwrap();
 
                             let base_index = vertices.len() as u32;
                             let uvs = face_uvs(IVec3::new(dx, dy, dz), uv_min, uv_max);
-                            for (vert, uv) in FACE_VERTS[face_index(dx, dy, dz)]
-                                .iter()
-                                .zip(uvs.iter())
+                            for (vert, uv) in
+                                FACE_VERTS[face_index(dx, dy, dz)].iter().zip(uvs.iter())
                             {
                                 vertices.push(ChunkVertex {
-                                    position: *vert * (el.to - el.from) + el.from + Vec3::new(world_x as f32, world_y as f32, world_z as f32),
+                                    position: *vert * (el.to - el.from)
+                                        + el.from
+                                        + Vec3::new(world_x as f32, world_y as f32, world_z as f32),
                                     normal: IVec3::new(dx, dy, dz),
                                     uv: *uv,
                                 });
@@ -340,4 +344,3 @@ fn mesh_chunk(
 
     (vertices, indices)
 }
-
