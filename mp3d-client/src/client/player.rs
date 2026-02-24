@@ -1,5 +1,7 @@
 use glam::{Mat4, Vec3, Vec4};
-use mp3d_core::protocol::MoveInstructions;
+use mp3d_core::{entity::{Entity, PlayerEntity}, protocol::MoveInstructions};
+
+use crate::client::world::ClientWorld;
 
 pub struct ClientPlayer {
     pub position: Vec3,
@@ -63,13 +65,13 @@ impl ClientPlayer {
         planes
     }
 
-    pub fn optimistic(&mut self, tps: u8) {
+    pub fn optimistic(&mut self, tps: u8, world: &ClientWorld) {
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
         let mut movement = Vec3::ZERO;
-        movement += forward_vec * (self.input.forward as f32) * 1.0;
-        movement += right_vec * (self.input.strafe as f32) * 1.0;
+        movement += forward_vec * self.input.forward as f32;
+        movement += right_vec * self.input.strafe as f32;
         if self.input.jump {
             movement.y += 0.8;
         }
@@ -78,8 +80,24 @@ impl ClientPlayer {
         }
         // Note: this 48 is not actually tps, but rather a constant that makes the
         // movement feel good.
-        self.velocity += movement * (1.0 / tps as f32) * 48.0;
-        self.position += self.velocity * (1.0 / tps as f32);
-        self.velocity *= 0.75_f32.powf(1.0 / tps as f32 * 48.0);
+        let delta_time = 1.0 / tps as f32;
+        self.velocity += movement * delta_time * 50.0;
+        // self.position += self.velocity * delta_time;
+        self.position.x += self.velocity.x * delta_time;
+        if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
+            self.position.x -= self.velocity.x * delta_time;
+            self.velocity.x = 0.0;
+        }
+        self.position.y += self.velocity.y * delta_time;
+        if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
+            self.position.y -= self.velocity.y * delta_time;
+            self.velocity.y = 0.0;
+        }
+        self.position.z += self.velocity.z * delta_time;
+        if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
+            self.position.z -= self.velocity.z * delta_time;
+            self.velocity.z = 0.0;
+        }
+        self.velocity *= 0.75_f32.powf(delta_time * 48.0);
     }
 }

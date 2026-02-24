@@ -137,8 +137,8 @@ impl Server {
                         Vec3::new(yaw.to_radians().sin(), 0.0, yaw.to_radians().cos());
                     let right_vec = Vec3::new(yaw.to_radians().cos(), 0.0, -yaw.to_radians().sin());
                     let mut movement = Vec3::ZERO;
-                    movement += forward_vec * (forward.clamp(-1, 2) as f32) * 1.0;
-                    movement += right_vec * (strafe.clamp(-1, 1) as f32) * 1.0;
+                    movement += forward_vec * (forward as f32).clamp(-1.0, 1.5);
+                    movement += right_vec * (strafe.clamp(-1, 1) as f32);
                     if jump {
                         movement.y += 0.8;
                     }

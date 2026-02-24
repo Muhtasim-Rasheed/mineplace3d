@@ -245,7 +245,7 @@ impl<C: Connection> Client<C> {
             }
         }
 
-        self.player.optimistic(tps);
+        self.player.optimistic(tps, &self.world);
 
         self.connection.send(C2SMessage::Move(self.player.input));
 

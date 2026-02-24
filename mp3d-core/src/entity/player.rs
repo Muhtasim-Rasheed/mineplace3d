@@ -175,7 +175,7 @@ impl Entity for PlayerEntity {
             self.velocity.z = 0.0;
         }
 
-        self.velocity *= 0.75_f32.powf(delta_time * 48.0);
+        self.velocity *= 0.75_f32.powf(delta_time * 50.0);
 
         // nothing much right now
     }
