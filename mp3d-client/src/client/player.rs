@@ -9,6 +9,8 @@ pub struct ClientPlayer {
     pub yaw: f32,
     pub pitch: f32,
     pub fov: f32,
+    pub flying: bool,
+    pub on_ground: bool,
     pub input: MoveInstructions,
 }
 
@@ -65,6 +67,16 @@ impl ClientPlayer {
         planes
     }
 
+    pub fn update_from_snapshot(&mut self, snapshot: &[u8]) {
+        let _user_id = u64::from_le_bytes(snapshot[0..8].try_into().unwrap());
+        self.position.x = f32::from_le_bytes(snapshot[8..12].try_into().unwrap());
+        self.position.y = f32::from_le_bytes(snapshot[12..16].try_into().unwrap());
+        self.position.z = f32::from_le_bytes(snapshot[16..20].try_into().unwrap());
+        self.yaw = f32::from_le_bytes(snapshot[20..24].try_into().unwrap());
+        self.pitch = f32::from_le_bytes(snapshot[24..28].try_into().unwrap());
+        self.flying = snapshot[28] != 0;
+    }
+
     pub fn optimistic(&mut self, tps: u8, world: &ClientWorld) {
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
@@ -73,22 +85,40 @@ impl ClientPlayer {
         movement += forward_vec * self.input.forward as f32;
         movement += right_vec * self.input.strafe as f32;
         if self.input.jump {
-            movement.y += 0.8;
+            if self.flying {
+                movement.y += 0.8;
+            } else if self.on_ground {
+                self.velocity.y += 15.0;
+                self.on_ground = false;
+            }
         }
-        if self.input.sneak {
+        if self.input.sneak && self.flying {
             movement.y -= 0.8;
         }
-        // Note: this 48 is not actually tps, but rather a constant that makes the
-        // movement feel good.
         let delta_time = 1.0 / tps as f32;
         self.velocity += movement * delta_time * 50.0;
-        // self.position += self.velocity * delta_time;
+
+        if !self.flying {
+            if self.on_ground && self.velocity.y < 0.0 {
+                self.velocity.y = 0.0;
+            } else {
+                self.velocity.y -= mp3d_core::entity::player::GRAVITY * delta_time;
+            }
+        }
+
+        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
+
         self.position.x += self.velocity.x * delta_time;
         if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
             self.position.x -= self.velocity.x * delta_time;
             self.velocity.x = 0.0;
         }
         self.position.y += self.velocity.y * delta_time;
+        self.on_ground = world.collides(
+            Vec3::new(self.position.x, self.position.y - mp3d_core::entity::player::GROUND_EPSILON, self.position.z),
+            PlayerEntity::width(),
+            PlayerEntity::height(),
+        ) && self.velocity.y <= 0.0;
         if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
             self.position.y -= self.velocity.y * delta_time;
             self.velocity.y = 0.0;
@@ -98,6 +128,8 @@ impl ClientPlayer {
             self.position.z -= self.velocity.z * delta_time;
             self.velocity.z = 0.0;
         }
-        self.velocity *= 0.75_f32.powf(delta_time * 48.0);
+        let d = 0.75_f32.powf(delta_time * 50.0);
+        self.velocity.x *= d;
+        self.velocity.z *= d;
     }
 }

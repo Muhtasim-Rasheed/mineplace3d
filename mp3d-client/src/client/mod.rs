@@ -92,6 +92,8 @@ impl<C: Connection> Client<C> {
                 yaw: 0.0,
                 pitch: 0.0,
                 fov: 90.0,
+                flying: false,
+                on_ground: false,
                 input: MoveInstructions::default(),
             },
             user_id: None,
@@ -276,6 +278,11 @@ impl<C: Connection> Client<C> {
                 } => {
                     if entity_type == mp3d_core::entity::EntityType::Player as u8 {
                         println!("Player snapshot {:?}", entity_snapshot);
+                        if u64::from_le_bytes(entity_snapshot[0..8].try_into().unwrap())
+                            == self.user_id.unwrap()
+                        {
+                            self.player.update_from_snapshot(&entity_snapshot);
+                        }
                     }
                 }
                 S2CMessage::PlayerMoved {

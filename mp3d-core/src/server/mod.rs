@@ -93,7 +93,7 @@ impl Server {
                 self.connections.insert(connection_id, user_id);
                 broadcast_message(
                     &mut self.sessions,
-                    Some(user_id),
+                    None,
                     S2CMessage::EntitySpawned {
                         entity_id,
                         entity_type: crate::entity::EntityType::Player as u8,
@@ -140,15 +140,20 @@ impl Server {
                     movement += forward_vec * (forward as f32).clamp(-1.0, 1.5);
                     movement += right_vec * (strafe.clamp(-1, 1) as f32);
                     if jump {
-                        movement.y += 0.8;
+                        if entity.flying {
+                            movement.y += 0.8;
+                        } else if entity.on_ground {
+                            movement.y += 15.0;
+                            entity.on_ground = false;
+                        }
                     }
-                    if sneak {
+                    if sneak && entity.flying {
                         movement.y -= 0.8;
                     }
                     let dt = 1.0 / (self.tps as f32);
                     // Note: this 48 is not actually tps, but rather a constant that makes the
                     // movement feel good.
-                    entity.apply_velocity(movement * dt * 48.0);
+                    entity.apply_velocity(movement * dt * 50.0);
                     broadcast_message(
                         &mut self.sessions,
                         None,

@@ -4,12 +4,8 @@ use glam::Vec3;
 
 use crate::{entity::Entity, world::World};
 
-pub struct PlayerEntitySnapshot {
-    pub user_id: u64,
-    pub position: Vec3,
-    pub yaw: f32,
-    pub pitch: f32,
-}
+pub const GRAVITY: f32 = 60.0;
+pub const GROUND_EPSILON: f32 = 0.07;
 
 pub struct PlayerEntity {
     pub entity_id: u64,
@@ -18,7 +14,9 @@ pub struct PlayerEntity {
     pub velocity: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+    pub flying: bool,
     pub cooldown: u8,
+    pub on_ground: bool,
 }
 
 impl PlayerEntity {
@@ -30,7 +28,9 @@ impl PlayerEntity {
             velocity: Vec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
+            flying: false,
             cooldown: 0,
+            on_ground: false,
         }
     }
 }
@@ -63,10 +63,21 @@ impl Entity for PlayerEntity {
         data.extend(&self.velocity.z.to_le_bytes());
         data.extend(&self.yaw.to_le_bytes());
         data.extend(&self.pitch.to_le_bytes());
+        data.extend(&[self.flying as u8]);
         data
     }
 
-    fn load(data: &[u8], version: u8) -> Result<Self, String> {
+    fn load(data: &[u8], _version: u8) -> Result<Self, String> {
+        fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8, String> {
+            if *offset + 1 > data.len() {
+                return Err("Unexpected end of data".to_string());
+            }
+
+            let byte = data[*offset];
+            *offset += 1;
+            Ok(byte)
+        }
+
         fn read_u64(data: &[u8], offset: &mut usize) -> Result<u64, String> {
             if *offset + 8 > data.len() {
                 return Err("Unexpected end of data".to_string());
@@ -95,11 +106,7 @@ impl Entity for PlayerEntity {
 
         let mut offset = 0;
 
-        let user_id = if version >= 1 {
-            read_u64(data, &mut offset)?
-        } else {
-            0
-        };
+        let user_id = read_u64(data, &mut offset)?;
         let pos_x = read_f32(data, &mut offset)?;
         let pos_y = read_f32(data, &mut offset)?;
         let pos_z = read_f32(data, &mut offset)?;
@@ -108,6 +115,7 @@ impl Entity for PlayerEntity {
         let vel_z = read_f32(data, &mut offset)?;
         let yaw = read_f32(data, &mut offset)?;
         let pitch = read_f32(data, &mut offset)?;
+        let flying = read_u8(data, &mut offset)? != 0;
 
         Ok(Self {
             entity_id: 0,
@@ -116,20 +124,21 @@ impl Entity for PlayerEntity {
             velocity: Vec3::new(vel_x, vel_y, vel_z),
             yaw,
             pitch,
+            flying,
             cooldown: 0,
+            on_ground: false,
         })
     }
 
     fn snapshot(&self) -> Vec<u8> {
-        // The client doesn't need to concern itself with velocity.
-
         let mut data = Vec::new();
-        data.extend(&self.user_id.to_le_bytes());
-        data.extend(&self.position.x.to_le_bytes());
-        data.extend(&self.position.y.to_le_bytes());
-        data.extend(&self.position.z.to_le_bytes());
-        data.extend(&self.yaw.to_le_bytes());
-        data.extend(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&self.user_id.to_le_bytes());
+        data.extend_from_slice(&self.position.x.to_le_bytes());
+        data.extend_from_slice(&self.position.y.to_le_bytes());
+        data.extend_from_slice(&self.position.z.to_le_bytes());
+        data.extend_from_slice(&self.yaw.to_le_bytes());
+        data.extend_from_slice(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&[self.flying as u8]);
         data
     }
 
@@ -159,24 +168,42 @@ impl Entity for PlayerEntity {
         self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw = self.yaw.rem_euclid(360.0);
 
+        if !self.flying {
+            if self.on_ground {
+                self.velocity.y = 0.0;
+            } else {
+                self.velocity.y -= GRAVITY * delta_time;
+            }
+        }
+
+        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
+
         self.position.x += self.velocity.x * delta_time;
-        if world.collides(self.position, Self::width(), Self::height()) {
+        let collide_x = world.collides(self.position, Self::width(), Self::height());
+        if collide_x {
             self.position.x -= self.velocity.x * delta_time;
             self.velocity.x = 0.0;
         }
         self.position.y += self.velocity.y * delta_time;
-        if world.collides(self.position, Self::width(), Self::height()) {
+        self.on_ground = world.collides(
+            Vec3::new(self.position.x, self.position.y - GROUND_EPSILON, self.position.z),
+            Self::width(),
+            Self::height(),
+        ) && self.velocity.y <= 0.0;
+        let collide_y = world.collides(self.position, Self::width(), Self::height());
+        if collide_y {
             self.position.y -= self.velocity.y * delta_time;
             self.velocity.y = 0.0;
         }
         self.position.z += self.velocity.z * delta_time;
-        if world.collides(self.position, Self::width(), Self::height()) {
+        let collide_z = world.collides(self.position, Self::width(), Self::height());
+        if collide_z {
             self.position.z -= self.velocity.z * delta_time;
             self.velocity.z = 0.0;
         }
 
-        self.velocity *= 0.75_f32.powf(delta_time * 50.0);
-
-        // nothing much right now
+        let d = 0.75_f32.powf(delta_time * 50.0);
+        self.velocity.x *= d;
+        self.velocity.z *= d;
     }
 }

@@ -23,6 +23,12 @@ impl Chunk {
                     let global_x = chunk_pos.x * CHUNK_SIZE as i32 + x as i32;
                     let global_y = chunk_pos.y * CHUNK_SIZE as i32 + y as i32;
                     let global_z = chunk_pos.z * CHUNK_SIZE as i32 + z as i32;
+
+                    if global_y < -48 {
+                        blocks[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)] = 0;
+                        continue;
+                    }
+
                     let height = noise
                         .get_noise_2d(global_x as f32 * 5.0, global_z as f32 * 5.0)
                         .powi(2)
