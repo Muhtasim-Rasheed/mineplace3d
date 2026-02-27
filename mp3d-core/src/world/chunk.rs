@@ -1,7 +1,5 @@
 //! A 16x16x16 chunk in a voxel engine.
 
-use std::io::Write;
-
 use glam::IVec3;
 
 use crate::block::Block;
@@ -25,6 +23,12 @@ impl Chunk {
                     let global_x = chunk_pos.x * CHUNK_SIZE as i32 + x as i32;
                     let global_y = chunk_pos.y * CHUNK_SIZE as i32 + y as i32;
                     let global_z = chunk_pos.z * CHUNK_SIZE as i32 + z as i32;
+
+                    if global_y < -48 {
+                        blocks[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)] = 0;
+                        continue;
+                    }
+
                     let height = noise
                         .get_noise_2d(global_x as f32 * 5.0, global_z as f32 * 5.0)
                         .powi(2)
@@ -85,6 +89,7 @@ impl Chunk {
     ///   - 1 byte: whether the block is visible (0 or 1)
     ///   - 1 byte: length of the block identifier (M)
     ///   - M bytes: block identifier (UTF-8 string)
+    ///   - 1 byte: collision shape
     /// - 4096 * 2 bytes: block indices (u16) for each block in the chunk
     pub fn save(&self) -> Vec<u8> {
         let mut data = Vec::new();
@@ -94,6 +99,7 @@ impl Chunk {
             data.push(block.visible as u8);
             data.push(ident_len);
             data.extend(block.ident.as_bytes());
+            data.extend(&[block.collision_shape as u8]);
         }
         for block_index in &self.blocks {
             data.extend(&block_index.to_le_bytes());

@@ -7,12 +7,8 @@ use crate::{
     world::World,
 };
 
-pub struct PlayerEntitySnapshot {
-    pub user_id: u64,
-    pub position: Vec3,
-    pub yaw: f32,
-    pub pitch: f32,
-}
+pub const GRAVITY: f32 = 60.0;
+pub const GROUND_EPSILON: f32 = 0.07;
 
 pub struct PlayerEntity {
     pub entity_id: u64,
@@ -21,7 +17,9 @@ pub struct PlayerEntity {
     pub velocity: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+    pub flying: bool,
     pub cooldown: u8,
+    pub on_ground: bool,
 }
 
 impl PlayerEntity {
@@ -33,7 +31,9 @@ impl PlayerEntity {
             velocity: Vec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
+            flying: false,
             cooldown: 0,
+            on_ground: false,
         }
     }
 }
@@ -75,9 +75,44 @@ impl Entity for PlayerEntity {
         data.extend(&self.velocity.z.to_le_bytes());
         data.extend(&self.yaw.to_le_bytes());
         data.extend(&self.pitch.to_le_bytes());
+        data.extend(&[self.flying as u8]);
         data
     }
 
+// <<<<<<< HEAD
+//     fn load(data: &[u8], version: u8) -> Result<Self, String> {
+//         fn read_string(data: &[u8], offset: &mut usize) -> Result<String, String> {
+//             if *offset >= data.len() {
+// =======
+//     fn load(data: &[u8], _version: u8) -> Result<Self, String> {
+//         fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8, String> {
+//             if *offset + 1 > data.len() {
+//                 return Err("Unexpected end of data".to_string());
+//             }
+
+//             let byte = data[*offset];
+//             *offset += 1;
+//             Ok(byte)
+//         }
+
+//         fn read_u64(data: &[u8], offset: &mut usize) -> Result<u64, String> {
+//             if *offset + 8 > data.len() {
+// >>>>>>> main
+//                 return Err("Unexpected end of data".to_string());
+//             }
+
+//             let len = data[*offset] as usize;
+//             *offset += 1;
+
+//             if *offset + len > data.len() {
+//                 return Err("Unexpected end of data".to_string());
+//             }
+
+//             let string_data = &data[*offset..*offset + len];
+//             *offset += len;
+
+//             String::from_utf8(string_data.to_vec()).map_err(|_| "Failed to read string".to_string())
+//         }
     fn load(data: &[u8], version: u8) -> Result<Self, String> {
         fn read_string(data: &[u8], offset: &mut usize) -> Result<String, String> {
             if *offset >= data.len() {
@@ -95,6 +130,16 @@ impl Entity for PlayerEntity {
             *offset += len;
 
             String::from_utf8(string_data.to_vec()).map_err(|_| "Failed to read string".to_string())
+        }
+
+        fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8, String> {
+            if *offset + 1 > data.len() {
+                return Err("Unexpected end of data".to_string());
+            }
+
+            let byte = data[*offset];
+            *offset += 1;
+            Ok(byte)
         }
 
         fn read_f32(data: &[u8], offset: &mut usize) -> Result<f32, String> {
@@ -123,6 +168,7 @@ impl Entity for PlayerEntity {
                 let vel_z = read_f32(data, &mut offset)?;
                 let yaw = read_f32(data, &mut offset)?;
                 let pitch = read_f32(data, &mut offset)?;
+                let flying = read_u8(data, &mut offset)? != 0;
 
                 Ok(Self {
                     entity_id: 0,
@@ -131,7 +177,9 @@ impl Entity for PlayerEntity {
                     velocity: Vec3::new(vel_x, vel_y, vel_z),
                     yaw,
                     pitch,
+                    flying,
                     cooldown: 0,
+                    on_ground: false,
                 })
             }
             _ => Err(format!("Unsupported player entity version: {}", version)),
@@ -139,15 +187,14 @@ impl Entity for PlayerEntity {
     }
 
     fn snapshot(&self) -> Vec<u8> {
-        // The client doesn't need to concern itself with velocity.
-
         let mut data = Vec::new();
-        data.extend(&self.entity_id.to_le_bytes());
-        data.extend(&self.position.x.to_le_bytes());
-        data.extend(&self.position.y.to_le_bytes());
-        data.extend(&self.position.z.to_le_bytes());
-        data.extend(&self.yaw.to_le_bytes());
-        data.extend(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&self.entity_id.to_le_bytes());
+        data.extend_from_slice(&self.position.x.to_le_bytes());
+        data.extend_from_slice(&self.position.y.to_le_bytes());
+        data.extend_from_slice(&self.position.z.to_le_bytes());
+        data.extend_from_slice(&self.yaw.to_le_bytes());
+        data.extend_from_slice(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&[self.flying as u8]);
         data
     }
 
@@ -159,11 +206,11 @@ impl Entity for PlayerEntity {
         self.velocity += velocity;
     }
 
-    fn width(&self) -> f32 {
-        0.6
+    fn width() -> f32 {
+        0.8
     }
 
-    fn height(&self) -> f32 {
+    fn height() -> f32 {
         1.8
     }
 
@@ -171,15 +218,48 @@ impl Entity for PlayerEntity {
         false
     }
 
-    fn tick(&mut self, _world: &mut World, tps: u8) {
+    fn tick(&mut self, world: &mut World, tps: u8) {
         let delta_time = 1.0 / tps as f32;
 
         self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw = self.yaw.rem_euclid(360.0);
 
-        self.position += self.velocity * delta_time;
-        self.velocity *= 0.9_f32.powf(delta_time * 48.0);
+        if !self.flying {
+            if self.on_ground {
+                self.velocity.y = 0.0;
+            } else {
+                self.velocity.y -= GRAVITY * delta_time;
+            }
+        }
 
-        // nothing much right now
+        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
+
+        self.position.x += self.velocity.x * delta_time;
+        let collide_x = world.collides(self.position, Self::width(), Self::height());
+        if collide_x {
+            self.position.x -= self.velocity.x * delta_time;
+            self.velocity.x = 0.0;
+        }
+        self.position.y += self.velocity.y * delta_time;
+        self.on_ground = world.collides(
+            Vec3::new(self.position.x, self.position.y - GROUND_EPSILON, self.position.z),
+            Self::width(),
+            Self::height(),
+        ) && self.velocity.y <= 0.0;
+        let collide_y = world.collides(self.position, Self::width(), Self::height());
+        if collide_y {
+            self.position.y -= self.velocity.y * delta_time;
+            self.velocity.y = 0.0;
+        }
+        self.position.z += self.velocity.z * delta_time;
+        let collide_z = world.collides(self.position, Self::width(), Self::height());
+        if collide_z {
+            self.position.z -= self.velocity.z * delta_time;
+            self.velocity.z = 0.0;
+        }
+
+        let d = 0.75_f32.powf(delta_time * 50.0);
+        self.velocity.x *= d;
+        self.velocity.z *= d;
     }
 }

@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use glam::{IVec3, Vec3};
+use glam::Vec3;
 
 use crate::{
     TextComponent,
@@ -13,7 +13,7 @@ use crate::{
     protocol::*,
     world::{
         World,
-        chunk::{CHUNK_SIZE, Chunk},
+        chunk::CHUNK_SIZE,
     },
 };
 
@@ -105,7 +105,7 @@ impl Server {
                             self.world.add_entity(Box::new(entity))
                         } else {
                             self.world
-                                .add_entity(Box::new(PlayerEntity::new(username.clone(), Vec3::ZERO)))
+                                .add_entity(Box::new(PlayerEntity::new(username.clone(), Vec3::new(0.0, 25.0, 0.0))))
                         };
                         self.sessions.insert(
                             user_id,
@@ -178,16 +178,23 @@ impl Server {
                         Vec3::new(yaw.to_radians().sin(), 0.0, yaw.to_radians().cos());
                     let right_vec = Vec3::new(yaw.to_radians().cos(), 0.0, -yaw.to_radians().sin());
                     let mut movement = Vec3::ZERO;
-                    movement += forward_vec * (forward.clamp(-1, 2) as f32) * 7.5;
-                    movement += right_vec * (strafe.clamp(-1, 1) as f32) * 7.5;
+                    movement += forward_vec * (forward as f32).clamp(-1.0, 1.5);
+                    movement += right_vec * (strafe.clamp(-1, 1) as f32);
                     if jump {
-                        movement.y += 6.0;
+                        if entity.flying {
+                            movement.y += 0.8;
+                        } else if entity.on_ground {
+                            movement.y += 15.0;
+                            entity.on_ground = false;
+                        }
                     }
-                    if sneak {
-                        movement.y -= 6.0;
+                    if sneak && entity.flying {
+                        movement.y -= 0.8;
                     }
                     let dt = 1.0 / (self.tps as f32);
-                    entity.apply_velocity(movement * dt * 5.0);
+                    // Note: this 48 is not actually tps, but rather a constant that makes the
+                    // movement feel good.
+                    entity.apply_velocity(movement * dt * 50.0);
                     broadcast_message(
                         &mut self.sessions,
                         None,
@@ -201,12 +208,40 @@ impl Server {
                 }
             }
             C2SMessage::SetBlock { position, block } => {
-                self.world.set_block_at(position, block);
-                broadcast_message(
-                    &mut self.sessions,
-                    None,
-                    S2CMessage::BlockUpdated { position, block },
-                );
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get(user_id)
+                    && let Some(player_pos) = self
+                        .world
+                        .get_entity::<PlayerEntity>(session.entity_id)
+                        .map(|e| e.position)
+                {
+                    if position.as_vec3().distance_squared(player_pos) > 25.0 {
+                        return None;
+                    }
+
+                    let old = *self.world.get_block_at(position).unwrap_or(&crate::block::Block::AIR);
+                    self.world.set_block_at(position, block);
+
+                    if self.world.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
+                        self.world.set_block_at(position, old);
+
+                        // The client may have optimistically updated the block on their end, so we
+                        // need to tell them to revert it.
+                        broadcast_message(
+                            &mut self.sessions,
+                            None,
+                            S2CMessage::BlockUpdated { position, block: old },
+                        );
+
+                        return None;
+                    }
+
+                    broadcast_message(
+                        &mut self.sessions,
+                        None,
+                        S2CMessage::BlockUpdated { position, block },
+                    );
+                }
             }
             C2SMessage::RequestChunks { chunk_positions } => {
                 if let Some(user_id) = self.connections.get(&connection_id)

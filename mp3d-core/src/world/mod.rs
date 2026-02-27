@@ -167,6 +167,38 @@ impl World {
             }
         }
     }
+
+    /// Checks for collisions between an entity (using its position, width, and height) and the
+    /// blocks in the world. This is used for player movement and other entity interactions with
+    /// the world.
+    pub fn collides(&self, entity_pos: Vec3, entity_width: f32, entity_height: f32) -> bool {
+        let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0)).floor().as_ivec3();
+        let max_block_pos =
+            (entity_pos + Vec3::new(entity_width / 2.0, entity_height, entity_width / 2.0))
+                .floor()
+                .as_ivec3();
+
+        for x in min_block_pos.x..=max_block_pos.x {
+            for y in min_block_pos.y..=max_block_pos.y {
+                for z in min_block_pos.z..=max_block_pos.z {
+                    let block_pos = IVec3::new(x, y, z);
+                    if let Some(block) = self.get_block_at(block_pos) {
+                        let block_state = crate::block::BlockState::None; // For now, we don't have any block states
+                        if block.collides_with_player(
+                            entity_width,
+                            entity_height,
+                            entity_pos - block_pos.as_vec3(),
+                            block_state,
+                        ) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        false
+    }
 }
 
 pub enum WorldLoadError {
@@ -233,6 +265,7 @@ impl World {
     ///   - 1 byte: whether the block is visible (0 or 1)
     ///   - 1 byte: length of the block identifier (M)
     ///   - M bytes: block identifier (UTF-8 string)
+    ///   - 1 byte: collision shape
     /// - actual chunk data defined by [`Chunk::save`]
     ///
     /// # save.bin
@@ -281,6 +314,7 @@ impl World {
                 let block_id = block.ident;
                 std::io::Write::write_all(&mut chunk_file, &(block_id.len() as u8).to_le_bytes())?;
                 std::io::Write::write_all(&mut chunk_file, block_id.as_bytes())?;
+                std::io::Write::write_all(&mut chunk_file, &[block.collision_shape as u8])?;
             }
             std::io::Write::write_all(&mut chunk_file, &chunk_data)?;
         }
@@ -407,9 +441,21 @@ impl World {
                                     block_id
                                 )));
                             };
+                        let collision_shape_byte = chunk_iter.next().unwrap();
+                        let collision_shape = match collision_shape_byte {
+                            0 => crate::block::CollisionShape::None,
+                            1 => crate::block::CollisionShape::FullBlock,
+                            _ => {
+                                return Err(WorldLoadError::InvalidSaveFormat(format!(
+                                    "Unknown collision shape: {}",
+                                    collision_shape_byte
+                                )));
+                            }
+                        };
                         let block = Block {
                             ident: block_id_static,
                             visible,
+                            collision_shape,
                         };
                         world
                             .changes

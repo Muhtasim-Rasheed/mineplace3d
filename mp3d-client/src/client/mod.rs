@@ -108,6 +108,8 @@ impl<C: Connection> Client<C> {
                 yaw: 0.0,
                 pitch: 0.0,
                 fov: 90.0,
+                flying: false,
+                on_ground: false,
                 input: MoveInstructions::default(),
             },
             user_id: None,
@@ -262,7 +264,7 @@ impl<C: Connection> Client<C> {
             }
         }
 
-        self.player.optimistic(tps);
+        self.player.optimistic(tps, &self.world);
 
         self.connection.send(C2SMessage::Move(self.player.input));
 
@@ -297,6 +299,11 @@ impl<C: Connection> Client<C> {
                 } => {
                     if entity_type == mp3d_core::entity::EntityType::Player as u8 {
                         println!("Player snapshot {:?}", entity_snapshot);
+                        if u64::from_le_bytes(entity_snapshot[0..8].try_into().unwrap())
+                            == self.user_id.unwrap()
+                        {
+                            self.player.update_from_snapshot(&entity_snapshot);
+                        }
                     }
                 }
                 S2CMessage::PlayerMoved {
@@ -326,6 +333,9 @@ impl<C: Connection> Client<C> {
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
                 }
+                S2CMessage::BlockUpdated { position, block } => {
+                    self.world.set_block_at(position, block);
+                }
                 _ => {}
             }
         }
@@ -341,7 +351,7 @@ pub fn cast_ray(
     player: &player::ClientPlayer,
     max_distance: f32,
 ) -> Option<(IVec3, IVec3)> {
-    let mut pos = player.position;
+    let mut pos = player.eye();
     let yaw_rad = player.yaw.to_radians();
     let pitch_rad = player.pitch.to_radians();
     let direction = Vec3::new(
