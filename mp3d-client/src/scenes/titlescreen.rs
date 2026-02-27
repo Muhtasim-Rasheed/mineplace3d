@@ -1,6 +1,9 @@
 //! The title screen scene implementation.
 
-use std::{rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 
 use glam::{Vec2, Vec4};
 use glow::HasContext;
@@ -27,7 +30,7 @@ impl TitleScreen {
         let quit;
         if window_size.0 >= 1050 {
             play = Button::new(
-                "Start Game",
+                "Singleplayer",
                 Vec4::ONE,
                 24.0,
                 Vec2::new(1010.0, 80.0),
@@ -85,7 +88,7 @@ impl TitleScreen {
         buttons_inner.add_widget(options);
         buttons_inner.add_widget(quit);
 
-        let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
+        let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
         buttons.add_widget(play);
         buttons.add_widget(buttons_inner);
 
@@ -112,6 +115,7 @@ impl TitleScreen {
             Alignment::Center,
             Vec4::new(20.0, 20.0, 60.0, 20.0),
             Justification::SpaceBetween,
+            None,
         );
 
         container.add_widget(header);
@@ -177,6 +181,7 @@ impl super::Scene for TitleScreen {
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
         _assets: &Arc<super::Assets>,
+        config: &Arc<RwLock<super::options::ClientConfig>>,
     ) -> super::SceneSwitch {
         window.set_title("Mineplace3D").unwrap();
         sdl_ctx.mouse().set_relative_mouse_mode(false);
@@ -192,7 +197,7 @@ impl super::Scene for TitleScreen {
             .is_some_and(|btn| btn.is_released())
         {
             return super::SceneSwitch::Push(Box::new(
-                crate::scenes::worldcreation::WorldCreation::new(
+                crate::scenes::worldselection::WorldSelection::new(
                     &self.font,
                     self.texture,
                     window.size(),
@@ -205,9 +210,12 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 1, 0])
             .is_some_and(|btn| btn.is_released())
         {
-            // Options button pressed
-            // Right now we do nothing
-            println!("Options");
+            return super::SceneSwitch::Push(Box::new(super::options::Options::new(
+                &self.font,
+                self.texture,
+                window.size(),
+                config,
+            )));
         }
 
         if self
@@ -225,6 +233,7 @@ impl super::Scene for TitleScreen {
         gl: &Arc<glow::Context>,
         ui: &mut UIRenderer,
         _assets: &Arc<super::Assets>,
+        _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
         unsafe {
             gl.clear_color(0.1, 0.1, 0.2, 1.0);

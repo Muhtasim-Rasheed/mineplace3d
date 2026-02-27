@@ -1,4 +1,7 @@
-use std::{rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 
 use glam::{Vec2, Vec4};
 use glow::HasContext;
@@ -41,7 +44,7 @@ impl WorldCreation {
         );
 
         let mut world_options =
-            Column::new(20.0, Alignment::Center, Vec4::ZERO, Justification::Start);
+            Column::new(20.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
         world_options.add_widget(name_input);
         world_options.add_widget(path_label);
 
@@ -72,6 +75,7 @@ impl WorldCreation {
             Alignment::Center,
             Vec4::new(0.0, 0.0, 40.0, 60.0),
             Justification::SpaceBetween,
+            None,
         );
         container.add_widget(header);
         container.add_widget(world_options);
@@ -101,6 +105,7 @@ impl super::Scene for WorldCreation {
         window: &mut sdl2::video::Window,
         _sdl_ctx: &sdl2::Sdl,
         _assets: &Arc<super::Assets>,
+        config: &Arc<RwLock<super::options::ClientConfig>>,
     ) -> super::SceneSwitch {
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
@@ -155,6 +160,7 @@ impl super::Scene for WorldCreation {
                         self.texture,
                         window.size(),
                         self.world_path.clone(),
+                        config.read().unwrap().username.clone(),
                     ),
                 ));
             }
@@ -163,7 +169,13 @@ impl super::Scene for WorldCreation {
         super::SceneSwitch::None
     }
 
-    fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer, _assets: &Arc<super::Assets>) {
+    fn render(
+        &mut self,
+        gl: &Arc<glow::Context>,
+        ui: &mut UIRenderer,
+        _assets: &Arc<super::Assets>,
+        _config: &Arc<RwLock<super::options::ClientConfig>>,
+    ) {
         unsafe {
             gl.clear_color(0.1, 0.1, 0.2, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);

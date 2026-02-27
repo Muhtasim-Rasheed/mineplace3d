@@ -26,8 +26,9 @@ pub struct MoveInstructions {
 
 /// Messages sent from the client to the server.
 pub enum C2SMessage {
-    /// Request to join a world.
-    Connect,
+    /// Request to join a world. This contains credentials to register the player or log in if the
+    /// player already has an account.
+    Connect { username: String, password: String },
     /// Request to leave a world.
     Disconnect,
     /// Request to move the player.
@@ -44,7 +45,9 @@ pub enum C2SMessage {
 #[derive(Clone, Debug)]
 pub enum S2CMessage {
     /// Confirmation of connection to a world.
-    Connected { user_id: u64 },
+    Connected { user_id: u64, entity_id: u64 },
+    /// Notification of connection failure with a reason.
+    ConnectionFailed { reason: String },
     /// Notification of disconnection from a world.
     Disconnected { user_id: u64 },
     /// An entity has spawned in the world.

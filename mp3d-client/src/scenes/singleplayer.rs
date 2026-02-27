@@ -1,6 +1,11 @@
 //! The single player scene implementation.
 
-use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 
 use glam::{IVec3, Vec2, Vec4};
 use glow::HasContext;
@@ -40,10 +45,52 @@ impl SinglePlayer {
         gui_tex: TextureHandle,
         window_size: (u32, u32),
         world_path: PathBuf,
+        username: String,
     ) -> Self {
-        let server = mp3d_core::server::Server::new();
+        let server = mp3d_core::server::Server::new(true, world_path.clone());
+        Self::setup(
+            server,
+            gl,
+            font,
+            gui_tex,
+            window_size,
+            world_path,
+            username,
+        )
+    }
+
+    /// Loads a world from the given path and creates a new [`SinglePlayer`] instance.
+    pub fn load(
+        gl: &Arc<glow::Context>,
+        font: &Rc<Font>,
+        gui_tex: TextureHandle,
+        window_size: (u32, u32),
+        world_path: PathBuf,
+        username: String,
+    ) -> Self {
+        let server = mp3d_core::server::Server::load(true, world_path.clone()).expect("Failed to load world");
+        Self::setup(
+            server,
+            gl,
+            font,
+            gui_tex,
+            window_size,
+            world_path,
+            username,
+        )
+    }
+
+    fn setup(
+        server: mp3d_core::server::Server,
+        gl: &Arc<glow::Context>,
+        font: &Rc<Font>,
+        gui_tex: TextureHandle,
+        window_size: (u32, u32),
+        world_path: PathBuf,
+        username: String,
+    ) -> Self {
         let connection = LocalConnection::new(server);
-        let client = Client::new(connection);
+        let client = Client::new(connection, username, None);
         let chunk_shader = shader_program!(chunk, gl, "..");
 
         let return_to_game = Button::new(
@@ -75,6 +122,7 @@ impl SinglePlayer {
             crate::render::ui::widgets::Alignment::Center,
             Vec4::ZERO,
             crate::render::ui::widgets::Justification::Center,
+            None,
         );
         pause_screen.add_widget(return_to_game);
         pause_screen.add_widget(save);
@@ -124,6 +172,7 @@ impl super::Scene for SinglePlayer {
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
         assets: &Arc<super::Assets>,
+        _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) -> super::SceneSwitch {
         window.set_title("Mineplace3D - Single Player").unwrap();
         sdl_ctx
@@ -132,7 +181,9 @@ impl super::Scene for SinglePlayer {
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
             self.client.send_input(ctx, self.tick_rate as u8);
-            self.client.recieve_state();
+            if let Err(reason) = self.client.recieve_state() {
+                todo!("Save world and exit.")
+            }
             let tick_time = 1.0 / self.tick_rate;
             self.tick_acc += ctx.delta_time;
             if self.tick_acc > tick_time * 5.0 {
@@ -162,12 +213,12 @@ impl super::Scene for SinglePlayer {
                 .get_widget::<Button>(1)
                 .is_some_and(|btn| btn.is_released())
             {
-                std::fs::create_dir_all(&self.world_path).expect("Failed to create world directory");
+                std::fs::create_dir_all(&self.world_path)
+                    .expect("Failed to create world directory");
                 self.client
                     .connection
                     .server
-                    .world
-                    .save(&self.world_path)
+                    .save()
                     .expect("Failed to save world");
 
                 return super::SceneSwitch::Pop;
@@ -218,6 +269,7 @@ impl super::Scene for SinglePlayer {
         gl: &Arc<glow::Context>,
         ui: &mut crate::render::ui::uirenderer::UIRenderer,
         assets: &Arc<super::Assets>,
+        _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
         unsafe {
             gl.enable(glow::DEPTH_TEST);

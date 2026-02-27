@@ -3,7 +3,7 @@
 //! Note that this does not include networking, for that please check mp3d-server (doesn't exist
 //! yet) and instead focuses on the server-side logic.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use glam::{IVec3, Vec3};
 
@@ -17,6 +17,8 @@ use crate::{
     },
 };
 
+pub mod user;
+
 /// The maximum distance (in chunks) that the server will keep loaded around players.
 pub const MAX_RENDER_DIST: i32 = 12;
 
@@ -28,7 +30,7 @@ pub const MAX_RENDER_DIST_SQ: i32 = MAX_RENDER_DIST * MAX_RENDER_DIST;
 pub struct PlayerSession {
     pub user_id: u64,
     pub entity_id: u64,
-    pub nickname: Option<String>,
+    pub username: String,
     pub pending_messages: Vec<S2CMessage>,
 }
 
@@ -37,16 +39,23 @@ pub struct Server {
     pub sessions: HashMap<u64, PlayerSession>,
     pub connections: HashMap<u64, u64>,
     pub world: World,
+    pub singleplayer: bool,
+    pub save_path: PathBuf,
+    pub user_db: user::UserDatabase,
     pub tps: u8,
 }
 
 impl Server {
-    /// Creates a new server instance.
-    pub fn new() -> Self {
+    /// Creates a new server instance. If the server is in singleplayer mode, it will not check
+    /// credentials on connection and will allow only one player to connect at a time.
+    pub fn new(singleplayer: bool, save_path: PathBuf) -> Server {
         Self {
             sessions: HashMap::new(),
             connections: HashMap::new(),
             world: World::new(),
+            singleplayer,
+            save_path: save_path.clone(),
+            user_db: user::UserDatabase::load(save_path.join("users.json")),
             tps: 48,
         }
     }
@@ -62,7 +71,11 @@ impl Server {
 
     /// Handles messages received from clients, and prepares responses. Note that this does not
     /// tick the server, that must be done separately.
-    pub fn handle_message(&mut self, connection_id: u64, message: C2SMessage) {
+    pub fn handle_message(
+        &mut self,
+        connection_id: u64,
+        message: C2SMessage,
+    ) -> Option<S2CMessage> {
         fn broadcast_message(
             sessions: &mut HashMap<u64, PlayerSession>,
             sender_id: Option<u64>,
@@ -76,47 +89,75 @@ impl Server {
         }
 
         match message {
-            C2SMessage::Connect => {
-                let user_id = self.next_user_id();
-                let entity_id = self
-                    .world
-                    .add_entity(Box::new(PlayerEntity::new(user_id, Vec3::ZERO)));
-                self.sessions.insert(
-                    user_id,
-                    PlayerSession {
-                        user_id,
-                        entity_id,
-                        nickname: None,
-                        pending_messages: vec![S2CMessage::Connected { user_id }],
-                    },
-                );
-                self.connections.insert(connection_id, user_id);
-                broadcast_message(
-                    &mut self.sessions,
-                    Some(user_id),
-                    S2CMessage::EntitySpawned {
-                        entity_id,
-                        entity_type: crate::entity::EntityType::Player as u8,
-                        entity_snapshot: self
-                            .world
-                            .get_entity::<PlayerEntity>(entity_id)
-                            .unwrap()
-                            .snapshot(),
-                    },
-                );
+            C2SMessage::Connect { username, password } => {
+                if self.singleplayer && !self.sessions.is_empty() {
+                    return Some(S2CMessage::ConnectionFailed {
+                        reason: "Singleplayer mode only allows one player".to_string(),
+                    });
+                }
+
+                let auth_result = self.user_db.login_or_register(username.clone(), password);
+
+                match auth_result {
+                    Ok(_) => {
+                        let user_id = self.next_user_id();
+                        let entity_id = if let Some(entity) = self.world.player_cache.remove(&username) {
+                            self.world.add_entity(Box::new(entity))
+                        } else {
+                            self.world
+                                .add_entity(Box::new(PlayerEntity::new(username.clone(), Vec3::ZERO)))
+                        };
+                        self.sessions.insert(
+                            user_id,
+                            PlayerSession {
+                                user_id,
+                                entity_id,
+                                username: username.clone(),
+                                pending_messages: vec![S2CMessage::Connected {
+                                    user_id,
+                                    entity_id,
+                                }],
+                            },
+                        );
+                        self.connections.insert(connection_id, user_id);
+                        broadcast_message(
+                            &mut self.sessions,
+                            None,
+                            S2CMessage::EntitySpawned {
+                                entity_id,
+                                entity_type: crate::entity::EntityType::Player as u8,
+                                entity_snapshot: self
+                                    .world
+                                    .get_entity::<PlayerEntity>(entity_id)
+                                    .unwrap()
+                                    .snapshot(),
+                            },
+                        );
+                    }
+                    Err(reason) => {
+                        return Some(S2CMessage::ConnectionFailed { reason });
+                    }
+                }
             }
             C2SMessage::Disconnect => {
                 let user_id = match self.connections.remove(&connection_id) {
                     Some(uid) => uid,
-                    None => return,
+                    None => return None,
                 };
-                let session = self.sessions.remove(&user_id);
-                self.world.remove_entity(session.unwrap().entity_id);
-                broadcast_message(
-                    &mut self.sessions,
-                    None,
-                    S2CMessage::Disconnected { user_id },
-                );
+
+                if let Some(session) = self.sessions.remove(&user_id) {
+                    if let Some(entity) = self.world.remove_entity(session.entity_id) {
+                        if let Ok(player_entity) = entity.into_any().downcast::<PlayerEntity>() {
+                            self.world.player_cache.insert(player_entity.username.clone(), *player_entity);
+                        }
+                    }
+
+                    broadcast_message(
+                        &mut self.sessions,
+                        None,
+                        S2CMessage::Disconnected { user_id },
+                    );
+                }
             }
             C2SMessage::Move(MoveInstructions {
                 forward,
@@ -190,7 +231,7 @@ impl Server {
             C2SMessage::SendMessage { message } => {
                 let user_id = match self.connections.get(&connection_id) {
                     Some(uid) => *uid,
-                    None => return,
+                    None => return None,
                 };
                 let status = self.execute_command(&message, connection_id);
                 if let Err(err) = status {
@@ -203,7 +244,6 @@ impl Server {
                                 .unwrap(),
                         });
                     }
-                    return;
                 } else if let Some(success) = status.unwrap() {
                     if let Some(user_id) = self.connections.get(&connection_id)
                         && let Some(session) = self.sessions.get_mut(user_id)
@@ -212,43 +252,30 @@ impl Server {
                             .pending_messages
                             .push(S2CMessage::ChatMessage { message: success });
                     }
-                    return;
-                }
-                let nickname = self.connections.get(&connection_id).and_then(|user_id| {
-                    self.sessions
-                        .get(user_id)
-                        .and_then(|session| session.nickname.clone())
-                });
-                if let Some(nickname) = nickname {
-                    if let Ok(c) = format!("{}%r: {}", nickname, message).parse() {
+                } else if let Some(session) = self.sessions.get_mut(&user_id) {
+                    let username = session.username.clone();
+                    if let Ok(c) = format!("{}%r: {}", username, message).parse() {
                         broadcast_message(
                             &mut self.sessions,
                             None,
                             S2CMessage::ChatMessage { message: c },
                         );
                     } else {
-                        if let Some(session) = self.sessions.get_mut(&user_id) {
-                            session.pending_messages.push(S2CMessage::ChatMessage {
-                                message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
-                            });
-                        }
-                    }
-                } else {
-                    if let Some(session) = self.sessions.get_mut(&user_id) {
                         session.pending_messages.push(S2CMessage::ChatMessage {
-                            message: "%bC3Please set a nickname before chatting! To do so, use the command %bD3/nick <nickname>%r.".parse().unwrap(),
+                            message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
                         });
                     }
                 }
             }
         }
+        None
     }
 
     /// Executes a server command, which may modify the world or player sessions.
     pub fn execute_command(
         &mut self,
         command: &str,
-        connection_id: u64,
+        _connection_id: u64,
     ) -> Result<Option<TextComponent>, String> {
         if !command.starts_with('/') {
             return Ok(None);
@@ -256,25 +283,7 @@ impl Server {
         let mut parts = command.split_whitespace();
         let cmd = parts.next().ok_or("No command provided")?;
         match cmd {
-            "/nick" => {
-                let nickname = parts.next().ok_or("No nickname provided")?;
-                if let Some(user_id) = self.connections.get(&connection_id)
-                    && let Some(session) = self.sessions.get_mut(user_id)
-                {
-                    if let Ok(c) = format!("Your nickname has been set to '{}%r'", nickname).parse()
-                    {
-                        session.nickname = Some(nickname.to_string());
-                        Ok(Some(c))
-                    } else {
-                        Err(
-                            "Invalid nickname. Make sure it contains valid formatting codes."
-                                .to_string(),
-                        )
-                    }
-                } else {
-                    Err("You must be connected to set a nickname".to_string())
-                }
-            }
+            // No commands yet
             _ => Err("Unknown command".to_string()),
         }
     }
@@ -302,8 +311,24 @@ impl Server {
     }
 }
 
-impl Default for Server {
-    fn default() -> Self {
-        Self::new()
+impl Server {
+    /// Saves the server state to disk, including the world and user database.
+    pub fn save(&self) -> std::io::Result<()> {
+        self.world.save(&self.save_path)?;
+        self.user_db.save()?;
+        Ok(())
+    }
+
+    /// Loads the server state from disk, including the world and user database.
+    pub fn load(singleplayer: bool, save_path: PathBuf) -> std::io::Result<Self> {
+        Ok(Self {
+            sessions: HashMap::new(),
+            connections: HashMap::new(),
+            world: World::load(&save_path)?,
+            singleplayer,
+            save_path: save_path.clone(),
+            user_db: user::UserDatabase::load(save_path.join("users.json")),
+            tps: 48,
+        })
     }
 }

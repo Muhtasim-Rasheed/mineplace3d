@@ -1,0 +1,168 @@
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
+
+use glam::{Vec2, Vec4};
+use glow::HasContext;
+
+use crate::{
+    abs::TextureHandle,
+    render::ui::{uirenderer::UIRenderer, widgets::*},
+};
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClientConfig {
+    pub username: String,
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        Self {
+            username: "Player".to_string(),
+        }
+    }
+}
+
+impl ClientConfig {
+    pub fn load() -> Self {
+        let config_path = crate::get_config_path();
+        if config_path.exists() {
+            let config_data = std::fs::read_to_string(config_path).unwrap();
+            serde_json::from_str(&config_data).unwrap_or_default()
+        } else {
+            Self::default()
+        }
+    }
+
+    pub fn save(&self) {
+        let config_path = crate::get_config_path();
+        let config_data = serde_json::to_string_pretty(self).unwrap();
+        std::fs::write(config_path, config_data).unwrap();
+    }
+}
+
+pub struct Options {
+    container: Column,
+    font: Rc<Font>,
+    texture: TextureHandle,
+}
+
+impl Options {
+    pub fn new(
+        font: &Rc<Font>,
+        gui_tex: TextureHandle,
+        window_size: (u32, u32),
+        config: &Arc<RwLock<ClientConfig>>,
+    ) -> Self {
+        let header = Label::new("Options", 48.0, Vec4::ONE, font);
+
+        let mut options_container =
+            Column::new(20.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+
+        let mut username_input = InputField::new(
+            "Username",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(1010.0, 80.0),
+            Some("/\\?%*:|\"<> "),
+            font,
+            gui_tex,
+        );
+        username_input.text = config.read().unwrap().username.clone();
+        username_input.cursor_pos = username_input.text.len();
+
+        let back_button = Button::new(
+            "Back",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(500.0, 80.0),
+            font,
+            gui_tex,
+        );
+
+        options_container.add_widget(username_input);
+        options_container.add_widget(back_button);
+
+        let mut container = Column::new(40.0, Alignment::Center, Vec4::ZERO, Justification::Center, None);
+        container.add_widget(header);
+        container.add_widget(options_container);
+
+        container.layout(&LayoutContext {
+            max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
+            cursor: Vec2::ZERO,
+        });
+
+        Self {
+            container,
+            font: font.clone(),
+            texture: gui_tex,
+        }
+    }
+}
+
+impl super::Scene for Options {
+    fn handle_event(&mut self, _gl: &Arc<glow::Context>, _event: &sdl2::event::Event) {}
+
+    fn update(
+        &mut self,
+        _gl: &Arc<glow::Context>,
+        ctx: &crate::other::UpdateContext,
+        window: &mut sdl2::video::Window,
+        _sdl_ctx: &sdl2::Sdl,
+        _assets: &Arc<crate::scenes::Assets>,
+        config: &Arc<RwLock<ClientConfig>>,
+    ) -> crate::scenes::SceneSwitch {
+        self.container.update(ctx);
+        self.container.layout(&LayoutContext {
+            max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
+            cursor: Vec2::ZERO,
+        });
+
+        let input_text = self
+            .container
+            .find_widget::<InputField>(&[1, 0])
+            .unwrap()
+            .text
+            .clone();
+
+        self.container
+            .find_widget_mut::<Button>(&[1, 1])
+            .unwrap()
+            .disabled = input_text.trim().is_empty();
+
+        if self
+            .container
+            .find_widget::<Button>(&[1, 1])
+            .unwrap()
+            .is_released()
+        {
+            let mut config_guard = config.write().unwrap();
+            config_guard.username = input_text;
+            config_guard.save();
+
+            return crate::scenes::SceneSwitch::Pop;
+        }
+
+        crate::scenes::SceneSwitch::None
+    }
+
+    fn render(
+        &mut self,
+        gl: &Arc<glow::Context>,
+        ui: &mut UIRenderer,
+        _assets: &Arc<super::Assets>,
+        _config: &Arc<RwLock<super::options::ClientConfig>>,
+    ) {
+        unsafe {
+            gl.clear_color(0.1, 0.1, 0.2, 1.0);
+            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+
+            gl.disable(glow::DEPTH_TEST);
+            self.container.draw(ui);
+            gl.enable(glow::DEPTH_TEST);
+        }
+    }
+}

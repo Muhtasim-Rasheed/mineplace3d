@@ -6,18 +6,21 @@ use glam::Vec3;
 
 use crate::world::World;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum EntityType {
     Player = 0,
 }
 
 /// Represents a game entity in the world.
-pub trait Entity: Send + Sync + 'static {
+pub trait Entity: std::any::Any + Send + Sync + 'static {
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
     fn name(&self) -> &'static str {
         std::any::type_name::<Self>().rsplit("::").next().unwrap()
     }
+    fn entity_type(&self) -> EntityType;
     fn set_id(&mut self, id: u64);
     fn id(&self) -> u64;
     fn save(&self) -> Vec<u8>;

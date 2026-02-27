@@ -77,23 +77,27 @@ impl Chunk {
 }
 
 impl Chunk {
-    /// Saves the chunk to a file.
+    /// Serialises the chunk..
     ///
-    /// The file format is as follows:
+    /// The chunk format is as follows:
     /// - 1 byte: number of blocks in the palette (N)
-    /// - N * 13 bytes: block data (1 byte for block shape, 12 bytes for block color)
+    /// - N times
+    ///   - 1 byte: whether the block is visible (0 or 1)
+    ///   - 1 byte: length of the block identifier (M)
+    ///   - M bytes: block identifier (UTF-8 string)
     /// - 4096 * 2 bytes: block indices (u16) for each block in the chunk
-    pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
-        let mut file = std::fs::File::create(path)?;
-        file.write_all(&[self.block_palette.len() as u8])?;
+    pub fn save(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.push(self.block_palette.len() as u8);
         for block in &self.block_palette {
             let ident_len = block.ident.len() as u8;
-            file.write_all(&[block.visible as u8, ident_len])?;
-            file.write_all(block.ident.as_bytes())?;
+            data.push(block.visible as u8);
+            data.push(ident_len);
+            data.extend(block.ident.as_bytes());
         }
         for block_index in &self.blocks {
-            file.write_all(&block_index.to_le_bytes())?;
+            data.extend(&block_index.to_le_bytes());
         }
-        Ok(())
+        data
     }
 }

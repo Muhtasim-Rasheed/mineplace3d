@@ -29,6 +29,10 @@ pub struct Column {
     pub padding: Vec4,
     pub justification: Justification,
     pub min_size: Vec2,
+
+    pub scroll_offset: f32,
+    pub viewport_height: Option<f32>,
+    scroll_vel: f32,
 }
 
 impl Column {
@@ -39,6 +43,7 @@ impl Column {
         alignment: Alignment,
         padding: Vec4,
         justification: Justification,
+        viewport_height: Option<f32>,
     ) -> Self {
         Self {
             widgets: Vec::new(),
@@ -47,6 +52,9 @@ impl Column {
             padding,
             justification,
             min_size: Vec2::ZERO,
+            scroll_offset: 0.0,
+            viewport_height,
+            scroll_vel: 0.0,
         }
     }
 
@@ -165,12 +173,12 @@ impl Widget for Column {
         total_height += spacing * (self.widgets.len().saturating_sub(1)) as f32;
 
         let mut cursor_y = match self.justification {
-            Justification::Start => ctx.cursor.y + self.padding.z,
+            Justification::Start => ctx.cursor.y + self.padding.z - self.scroll_offset,
             Justification::Center => {
-                ctx.cursor.y + (ctx.max_size.y - total_height) / 2.0 + self.padding.z
+                ctx.cursor.y + (ctx.max_size.y - total_height) / 2.0 + self.padding.z - self.scroll_offset
             }
-            Justification::End => ctx.cursor.y + ctx.max_size.y - total_height - self.padding.w,
-            Justification::SpaceBetween => ctx.cursor.y + self.padding.z,
+            Justification::End => ctx.cursor.y + ctx.max_size.y - total_height - self.padding.w - self.scroll_offset,
+            Justification::SpaceBetween => ctx.cursor.y + self.padding.z - self.scroll_offset,
         };
 
         for widget in self.widgets.iter_mut() {
@@ -197,6 +205,22 @@ impl Widget for Column {
     }
 
     fn update(&mut self, ctx: &crate::other::UpdateContext) {
+        if let Some(viewport_height) = self.viewport_height {
+            self.scroll_vel -= ctx.mouse.scroll_delta.y * 280.0;
+            self.scroll_offset += self.scroll_vel * ctx.delta_time;
+            self.scroll_vel *= 0.90_f32.powf(ctx.delta_time * 60.0);
+
+            if self.scroll_offset < 0.0 {
+                self.scroll_offset = 0.0;
+                self.scroll_vel = 0.0;
+            }
+
+            if self.scroll_offset > self.size_hint().y - viewport_height {
+                self.scroll_offset = (self.size_hint().y - viewport_height).max(0.0);
+                self.scroll_vel = 0.0;
+            }
+        }
+
         for widget in &mut self.widgets {
             widget.update(ctx);
         }

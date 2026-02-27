@@ -39,18 +39,22 @@ pub trait Connection {
 /// server does not need to differentiate between multiple clients.
 pub struct LocalConnection {
     pub server: Server,
+    pub message: Option<S2CMessage>,
 }
 
 impl LocalConnection {
     /// Creates a new `LocalConnection` with the given server and user ID.
     pub fn new(server: Server) -> Self {
-        Self { server }
+        Self {
+            server,
+            message: None,
+        }
     }
 }
 
 impl Connection for LocalConnection {
     fn send(&mut self, message: C2SMessage) {
-        self.server.handle_message(0, message);
+        self.message = self.server.handle_message(0, message);
     }
 
     fn tick(&mut self, tps: u8) {
@@ -62,6 +66,8 @@ impl Connection for LocalConnection {
             && let Some(session) = self.server.sessions.get_mut(user_id)
         {
             std::mem::take(&mut session.pending_messages)
+        } else if let Some(message) = self.message.take() {
+            vec![message]
         } else {
             vec![]
         }
@@ -73,6 +79,7 @@ pub struct Client<C: Connection> {
     pub connection: C,
     pub player: player::ClientPlayer,
     pub user_id: Option<u64>,
+    pub entity_id: Option<u64>,
     pub chat_message: Option<String>,
     pub chat_open: bool,
     pub messages: Vec<TextComponent>,
@@ -80,9 +87,18 @@ pub struct Client<C: Connection> {
 }
 
 impl<C: Connection> Client<C> {
-    /// Creates a new `Client` with the given connection.
-    pub fn new(mut connection: C) -> Self {
-        connection.send(C2SMessage::Connect);
+    /// Creates a new `Client` with the given connection and credentials. If password is `None`, it
+    /// will use default password "SINGLEPLAYER". The client will send a `Connect` message to the
+    /// server with the provided credentials upon initialization.
+    pub fn new(mut connection: C, username: String, password: Option<String>) -> Self {
+        if let Some(password) = password {
+            connection.send(C2SMessage::Connect { username, password });
+        } else {
+            connection.send(C2SMessage::Connect {
+                username,
+                password: "SINGLEPLAYER".to_string(),
+            });
+        }
 
         Self {
             connection,
@@ -95,6 +111,7 @@ impl<C: Connection> Client<C> {
                 input: MoveInstructions::default(),
             },
             user_id: None,
+            entity_id: None,
             chat_message: None,
             chat_open: false,
             messages: vec![],
@@ -261,13 +278,17 @@ impl<C: Connection> Client<C> {
         }
     }
 
-    /// Updates any state on the client side from all recieved messages from the server
-    pub fn recieve_state(&mut self) {
+    /// Updates any state on the client side from all recieved messages from the server.
+    pub fn recieve_state(&mut self) -> Result<(), String> {
         let messages = self.connection.receive();
         for message in messages {
             match message {
-                S2CMessage::Connected { user_id } => {
+                S2CMessage::Connected { user_id, entity_id } => {
                     self.user_id = Some(user_id);
+                    self.entity_id = Some(entity_id);
+                }
+                S2CMessage::ConnectionFailed { reason } => {
+                    return Err(reason);
                 }
                 S2CMessage::EntitySpawned {
                     entity_id: _,
@@ -308,6 +329,7 @@ impl<C: Connection> Client<C> {
                 _ => {}
             }
         }
+        Ok(())
     }
 }
 

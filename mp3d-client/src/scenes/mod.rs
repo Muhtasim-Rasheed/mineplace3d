@@ -2,9 +2,12 @@
 //!
 //! This module serves as a central point for managing different scenes in the game client.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
-use crate::render::ui::uirenderer::UIRenderer;
+use crate::{render::ui::uirenderer::UIRenderer, scenes::options::ClientConfig};
 
 pub enum SceneSwitch {
     None,
@@ -57,26 +60,35 @@ pub trait Scene {
         _window: &mut sdl2::video::Window,
         _sdl_ctx: &sdl2::Sdl,
         _assets: &Arc<Assets>,
+        _config: &Arc<RwLock<ClientConfig>>,
     ) -> SceneSwitch {
         SceneSwitch::None
     }
 
     /// Renders the scene.
-    fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer, assets: &Arc<Assets>);
+    fn render(
+        &mut self,
+        gl: &Arc<glow::Context>,
+        ui: &mut UIRenderer,
+        assets: &Arc<Assets>,
+        config: &Arc<RwLock<ClientConfig>>,
+    );
 }
 
 /// Manages the stack of scenes.
 pub struct SceneManager {
     assets: Arc<Assets>,
+    config: Arc<RwLock<ClientConfig>>,
     scenes: Vec<Box<dyn Scene>>,
     just_switched: bool,
 }
 
 impl SceneManager {
     /// Creates a new SceneManager with the initial scene.
-    pub fn new(initial_scene: Box<dyn Scene>, assets: Assets) -> Self {
+    pub fn new(initial_scene: Box<dyn Scene>, assets: Assets, config: ClientConfig) -> Self {
         Self {
             assets: Arc::new(assets),
+            config: Arc::new(RwLock::new(config)),
             scenes: vec![initial_scene],
             just_switched: false,
         }
@@ -102,7 +114,7 @@ impl SceneManager {
             return true;
         }
         if let Some(current_scene) = self.scenes.last_mut() {
-            let switch = current_scene.update(gl, ctx, window, sdl_ctx, &self.assets);
+            let switch = current_scene.update(gl, ctx, window, sdl_ctx, &self.assets, &self.config);
             let is_switching = !matches!(switch, SceneSwitch::None);
             match switch {
                 SceneSwitch::None => {}
@@ -126,11 +138,13 @@ impl SceneManager {
     /// Renders the current scene.
     pub fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer) {
         if let Some(current_scene) = self.scenes.last_mut() {
-            current_scene.render(gl, ui, &self.assets);
+            current_scene.render(gl, ui, &self.assets, &self.config);
         }
     }
 }
 
+pub mod options;
 pub mod singleplayer;
 pub mod titlescreen;
 pub mod worldcreation;
+pub mod worldselection;

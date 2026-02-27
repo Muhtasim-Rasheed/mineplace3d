@@ -31,3 +31,28 @@ impl Block {
 
     pub const ALL_BLOCKS: [Block; 4] = [Block::GRASS, Block::DIRT, Block::STONE, Block::AIR];
 }
+
+static BLOCK_IDENTS: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
+    std::sync::OnceLock::new();
+
+fn get_block_idents() -> &'static std::collections::HashSet<&'static str> {
+    BLOCK_IDENTS.get_or_init(|| {
+        let mut set = std::collections::HashSet::new();
+        for block in Block::ALL_BLOCKS {
+            set.insert(block.ident);
+        }
+        set
+    })
+}
+
+/// Nice little helper for the crate to convert from a `&str` to a `&'static str`, which is needed
+/// for block identifiers as `Block` needs to be `Copy` and thus cannot contain owned `String`s.
+/// This function will
+pub(crate) fn get_block_ident(ident: &str) -> Option<&'static str> {
+    let idents = get_block_idents();
+    if let Some(&ident) = idents.get(ident) {
+        Some(ident)
+    } else {
+        None
+    }
+}

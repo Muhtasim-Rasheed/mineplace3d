@@ -46,6 +46,7 @@ macro_rules! shader_program {
 
 pub static ASSETS: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/src/assets");
+
 static GAME_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 pub fn get_game_dir() -> &'static PathBuf {
@@ -70,6 +71,10 @@ pub fn get_saves_dir() -> PathBuf {
         std::fs::create_dir_all(&saves_dir).expect("Failed to create saves directory");
     }
     saves_dir
+}
+
+pub fn get_config_path() -> PathBuf {
+    get_game_dir().join("config.json")
 }
 
 fn main() {
@@ -122,6 +127,8 @@ fn main() {
         panic!("Failed to load assets: {}", e);
     });
 
+    let config = scenes::options::ClientConfig::load();
+
     let mut scene_manager = scenes::SceneManager::new(
         Box::new(scenes::titlescreen::TitleScreen::new(
             &font,
@@ -129,6 +136,7 @@ fn main() {
             (1280, 720),
         )),
         assets,
+        config,
     );
 
     let mut last_frame_time = std::time::Instant::now();

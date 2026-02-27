@@ -13,11 +13,12 @@ pub struct Button {
     pub label: String,
     pub label_color: Vec4,
     pub label_font_size: f32,
+    pub always_hovered: bool,
+    pub disabled: bool,
     is_down: bool,
     is_down_last: bool,
     hovered: bool,
     hover_last: bool,
-    pub disabled: bool,
     stack: Stack,
     texture: TextureHandle,
     font: Rc<Font>,
@@ -39,13 +40,14 @@ impl Button {
             label: label.to_string(),
             label_color,
             label_font_size,
+            always_hovered: false,
+            disabled: false,
             is_down: false,
             is_down_last: false,
             hovered: false,
             hover_last: false,
             stack,
             texture,
-            disabled: false,
             font: Rc::clone(font),
         };
 
@@ -71,8 +73,8 @@ impl Button {
                 glam::uvec4(5, 5, 4, 6)
             },
             4,
-            if self.hovered && !self.is_down {
-                Vec4::ONE * 1.2
+            if (self.hovered || self.always_hovered) && !self.is_down {
+                Vec4::ONE * 1.3
             } else {
                 Vec4::ONE
             },
@@ -97,8 +99,8 @@ impl Button {
             } else {
                 glam::uvec4(5, 5, 4, 6)
             };
-            nine_slice.tint = if self.hovered && !self.is_down && !self.disabled {
-                Vec4::ONE * 1.2
+            nine_slice.tint = if (self.hovered || self.always_hovered) && !self.is_down && !self.disabled {
+                Vec4::ONE * 1.3
             } else {
                 Vec4::ONE
             };
