@@ -202,7 +202,7 @@ pub fn mesh_world(
     world: &mut ClientWorld,
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<&'static str, crate::resource::block::BlockModel>,
+    block_models: &HashMap<String, crate::resource::block::BlockModel>,
 ) {
     let mut dirty_chunks: Vec<IVec3> = Vec::new();
     for (chunk_pos, chunk) in &world.chunks {
@@ -229,7 +229,7 @@ fn mesh_chunk(
     chunk_pos: glam::IVec3,
     world: &ClientWorld,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<&'static str, crate::resource::block::BlockModel>,
+    block_models: &HashMap<String, crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();

@@ -1,0 +1,6 @@
+{
+	"parent": "slab.bot.all",
+	"textures": {
+		"$a": "stone"
+	}
+}

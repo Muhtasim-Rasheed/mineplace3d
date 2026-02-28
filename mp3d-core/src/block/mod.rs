@@ -9,6 +9,7 @@ pub struct Block {
     pub visible: bool,
     pub collision_shape: CollisionShape,
     pub ident: &'static str,
+    pub state_type: u16,
 }
 
 impl Block {
@@ -16,38 +17,38 @@ impl Block {
         visible: false,
         collision_shape: CollisionShape::None,
         ident: "air",
+        state_type: BlockState::NONE.state_type(),
     };
 
     pub const GRASS: Block = Block {
         visible: true,
         collision_shape: CollisionShape::FullBlock,
         ident: "grass",
+        state_type: BlockState::NONE.state_type(),
     };
 
     pub const DIRT: Block = Block {
         visible: true,
         collision_shape: CollisionShape::FullBlock,
         ident: "dirt",
+        state_type: BlockState::NONE.state_type(),
     };
 
     pub const STONE: Block = Block {
         visible: true,
         collision_shape: CollisionShape::FullBlock,
         ident: "stone",
+        state_type: BlockState::NONE.state_type(),
     };
 
     pub const STONE_SLAB: Block = Block {
         visible: true,
         collision_shape: CollisionShape::Slab,
         ident: "stone_slab",
+        state_type: BlockState::SLAB_BOTTOM.state_type(),
     };
 
-    // TODO: STONE_SLAB is not yet added to ALL_BLOCKS because when loading the assets on the
-    // client the client will not be able to distinguish between the top and bottom slab block
-    // states, and thus will not be able to load them correctly. Once the client can distinguish
-    // between the top and bottom slab block states, then STONE_SLAB can be added to ALL_BLOCKS
-    // and the client can load it correctly.
-    pub const ALL_BLOCKS: [Block; 4] = [Block::AIR, Block::GRASS, Block::DIRT, Block::STONE];
+    pub const ALL_BLOCKS: [Block; 5] = [Block::AIR, Block::GRASS, Block::DIRT, Block::STONE, Block::STONE_SLAB];
 
     pub fn collides_with_player(
         &self,
@@ -138,6 +139,18 @@ impl BlockState {
     #[inline]
     pub const fn new(state_type: u16, data: u16) -> BlockState {
         BlockState((state_type as u32) | ((data as u32) << 16))
+    }
+
+    /// Creates a new block state with the given bits.
+    #[inline]
+    pub const fn from_bits(bits: u32) -> BlockState {
+        BlockState(bits)
+    }
+
+    /// Gets the bits of the block state.
+    #[inline]
+    pub const fn bits(&self) -> u32 {
+        self.0
     }
 
     /// Gets the type of the block state.

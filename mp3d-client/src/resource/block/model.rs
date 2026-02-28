@@ -17,8 +17,8 @@ impl BlockModel {
     /// Creates a [`BlockModel`] from a reference to a [`Block`], using its identifier to find the
     /// corresponding model file and then parsing it. This is a convenience method that combines
     /// loading the raw model from the file and then resolving it to a `BlockModel`.
-    pub fn from_block(block: &Block, atlas: &mut TextureAtlas) -> Result<Self, String> {
-        let path = PathBuf::from("blocks/models").join(format!("{}.json", block.ident));
+    pub fn from_block(block: &Block, extra_ident: &'static str, atlas: &mut TextureAtlas) -> Result<Self, String> {
+        let path = PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
         let raw_content = crate::ASSETS
             .get_file(&path)
             .ok_or_else(|| {

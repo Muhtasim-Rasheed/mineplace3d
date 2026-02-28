@@ -79,40 +79,6 @@ impl Entity for PlayerEntity {
         data
     }
 
-    // <<<<<<< HEAD
-    //     fn load(data: &[u8], version: u8) -> Result<Self, String> {
-    //         fn read_string(data: &[u8], offset: &mut usize) -> Result<String, String> {
-    //             if *offset >= data.len() {
-    // =======
-    //     fn load(data: &[u8], _version: u8) -> Result<Self, String> {
-    //         fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8, String> {
-    //             if *offset + 1 > data.len() {
-    //                 return Err("Unexpected end of data".to_string());
-    //             }
-
-    //             let byte = data[*offset];
-    //             *offset += 1;
-    //             Ok(byte)
-    //         }
-
-    //         fn read_u64(data: &[u8], offset: &mut usize) -> Result<u64, String> {
-    //             if *offset + 8 > data.len() {
-    // >>>>>>> main
-    //                 return Err("Unexpected end of data".to_string());
-    //             }
-
-    //             let len = data[*offset] as usize;
-    //             *offset += 1;
-
-    //             if *offset + len > data.len() {
-    //                 return Err("Unexpected end of data".to_string());
-    //             }
-
-    //             let string_data = &data[*offset..*offset + len];
-    //             *offset += len;
-
-    //             String::from_utf8(string_data.to_vec()).map_err(|_| "Failed to read string".to_string())
-    //         }
     fn load(data: &[u8], version: u8) -> Result<Self, String> {
         fn read_string(data: &[u8], offset: &mut usize) -> Result<String, String> {
             if *offset >= data.len() {
@@ -156,7 +122,7 @@ impl Entity for PlayerEntity {
         }
 
         match version {
-            0 => {
+            0 | 1 => {
                 let mut offset = 0;
 
                 let username = read_string(data, &mut offset)?;
