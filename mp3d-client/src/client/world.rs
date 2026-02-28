@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use glam::{IVec3, Vec3};
-use mp3d_core::{block::Block, world::chunk::CHUNK_SIZE};
+use mp3d_core::{block::{Block, BlockState}, world::chunk::CHUNK_SIZE};
 
 use crate::client::chunk::ClientChunk;
 
@@ -18,7 +18,7 @@ pub struct ClientWorld {
     /// A mapping of chunk positions to their corresponding client-side chunk data.
     pub chunks: HashMap<IVec3, ClientChunk>,
     /// Changes done to the world that haven't been sent to the server yet.
-    pub pending_changes: Vec<(IVec3, Block)>,
+    pub pending_changes: Vec<(IVec3, (Block, BlockState))>,
 }
 
 impl ClientWorld {
@@ -31,7 +31,7 @@ impl ClientWorld {
     }
 
     /// Gets a block at the given world position.
-    pub fn get_block_at(&self, world_pos: IVec3) -> Option<&Block> {
+    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(&Block, &BlockState)> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -39,16 +39,16 @@ impl ClientWorld {
     }
 
     /// Sets a block at the given world position.
-    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block) {
+    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
         let chunk = self.chunks.get_mut(&chunk_pos);
 
         if let Some(chunk) = chunk {
-            chunk.set_block(local_pos, block);
+            chunk.set_block(local_pos, block, state);
         }
-        self.pending_changes.push((world_pos, block));
+        self.pending_changes.push((world_pos, (block, state)));
 
         // Mark neighboring chunks as dirty if the block is on the edge of the chunk
         if local_pos.x == 0 {
@@ -141,13 +141,12 @@ impl ClientWorld {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
-                    if let Some(block) = self.get_block_at(block_pos) {
-                        let block_state = mp3d_core::block::BlockState::none();
+                    if let Some((block, block_state)) = self.get_block_at(block_pos) {
                         if block.collides_with_player(
                             entity_width,
                             entity_height,
                             entity_pos - block_pos.as_vec3(),
-                            block_state,
+                            *block_state,
                         ) {
                             return true;
                         }

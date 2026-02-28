@@ -207,7 +207,7 @@ impl Server {
                     );
                 }
             }
-            C2SMessage::SetBlock { position, block } => {
+            C2SMessage::SetBlock { position, block, block_state } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get(user_id)
                     && let Some(player_pos) = self
@@ -219,18 +219,18 @@ impl Server {
                         return None;
                     }
 
-                    let old = *self
+                    let old = self
                         .world
                         .get_block_at(position)
-                        .unwrap_or(&crate::block::Block::AIR);
-                    self.world.set_block_at(position, block);
+                        .map_or((crate::block::Block::AIR, crate::block::BlockState::none()), |(b, s)| (*b, *s));
+                    self.world.set_block_at(position, block, block_state);
 
                     if self.world.collides(
                         player_pos,
                         PlayerEntity::width(),
                         PlayerEntity::height(),
                     ) {
-                        self.world.set_block_at(position, old);
+                        self.world.set_block_at(position, old.0, old.1);
 
                         // The client may have optimistically updated the block on their end, so we
                         // need to tell them to revert it.
@@ -239,7 +239,8 @@ impl Server {
                             None,
                             S2CMessage::BlockUpdated {
                                 position,
-                                block: old,
+                                block: old.0,
+                                block_state: old.1,
                             },
                         );
 
@@ -249,7 +250,7 @@ impl Server {
                     broadcast_message(
                         &mut self.sessions,
                         None,
-                        S2CMessage::BlockUpdated { position, block },
+                        S2CMessage::BlockUpdated { position, block, block_state },
                     );
                 }
             }

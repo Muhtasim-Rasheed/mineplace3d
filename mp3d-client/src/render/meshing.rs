@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use glam::{IVec3, Vec2, Vec3};
 use glow::HasContext;
-use mp3d_core::{block::Block, world::chunk::CHUNK_SIZE};
+use mp3d_core::{block::{Block, BlockState}, world::chunk::CHUNK_SIZE};
 
 use crate::{
     abs::{Mesh, Vertex},
@@ -54,7 +54,6 @@ fn should_occlude(
     face_idx: usize,
     a_model: &crate::resource::block::BlockModel,
     b_model: &crate::resource::block::BlockModel,
-    // block_models: &HashMap<&'static str, crate::resource::block::BlockModel>
 ) -> bool {
     if !a.visible {
         unreachable!("Invisible blocks have no faces");
@@ -62,9 +61,6 @@ fn should_occlude(
     if !b.visible {
         return false;
     }
-
-    // let a_model = block_models.get(a.ident).unwrap();
-    // let b_model = block_models.get(b.ident).unwrap();
 
     for a_el in &a_model.elements {
         if !a_el.faces[face_idx].occludes {
@@ -239,7 +235,7 @@ fn mesh_chunk(
         world: &'a ClientWorld,
         chunk_pos: IVec3,
         world_pos: IVec3,
-    ) -> Option<&'a Block> {
+    ) -> Option<(&'a Block, &'a BlockState)> {
         let local_x = world_pos.x - chunk_pos.x * (CHUNK_SIZE as i32);
         let local_y = world_pos.y - chunk_pos.y * (CHUNK_SIZE as i32);
         let local_z = world_pos.z - chunk_pos.z * (CHUNK_SIZE as i32);
@@ -258,17 +254,28 @@ fn mesh_chunk(
         }
     }
 
+    fn ident(block: &Block, state: &BlockState) -> String {
+        format!("{}{}", block.ident, state.to_ident().unwrap())
+    }
+
     for x in 0..(CHUNK_SIZE as i32) {
         for y in 0..(CHUNK_SIZE as i32) {
             for z in 0..(CHUNK_SIZE as i32) {
                 // Check if the block is visible
                 let block_local_pos = glam::IVec3::new(x, y, z);
-                let block = chunk.get_block(block_local_pos);
+                let (block, state) = chunk.get_block(block_local_pos);
                 if !block.visible {
                     continue;
                 }
 
-                let model = block_models.get(block.ident).unwrap();
+                // let model = block_models.get(block.ident).unwrap();
+                let model = block_models.get(&ident(block, state)).unwrap_or_else(|| {
+                    panic!(
+                        "No model found for block {} with state {}",
+                        block.ident,
+                        state.to_ident().unwrap()
+                    )
+                });
 
                 // Calculate world position of the block
                 let world_x = chunk_pos.x * (CHUNK_SIZE as i32) + x;
@@ -285,7 +292,12 @@ fn mesh_chunk(
 
                     // Create face the neighboring block is air or doesn't occlude this face.
                     let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
-                    let neighbor_model = neighbor_block.and_then(|b| block_models.get(b.ident));
+                    let neighbor_state = neighbor_block.map(|(_, state)| state);
+                    let neighbor_block = neighbor_block.map(|(block, _)| block);
+                    // let neighbor_model = neighbor_block.and_then(|b| block_models.get(b.ident));
+                    let neighbor_model = neighbor_block
+                        .and_then(|b| neighbor_state.map(|s| ident(b, s)))
+                        .and_then(|ident| block_models.get(&ident));
                     if neighbor_block.is_none()
                         || !should_occlude(
                             block,

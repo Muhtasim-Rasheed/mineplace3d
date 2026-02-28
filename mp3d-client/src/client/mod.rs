@@ -190,7 +190,7 @@ impl<C: Connection> Client<C> {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
                 if let Some((block_pos, _)) = raycast_result {
                     self.world
-                        .set_block_at(block_pos, mp3d_core::block::Block::AIR);
+                        .set_block_at(block_pos, mp3d_core::block::Block::AIR, mp3d_core::block::BlockState::none());
                 }
             }
 
@@ -203,7 +203,7 @@ impl<C: Connection> Client<C> {
                 if let Some((block_pos, normal)) = raycast_result {
                     let place_pos = block_pos + normal;
                     self.world
-                        .set_block_at(place_pos, mp3d_core::block::Block::STONE);
+                        .set_block_at(place_pos, mp3d_core::block::Block::STONE_SLAB, mp3d_core::block::BlockState::slab(true));
                 }
             }
 
@@ -274,9 +274,9 @@ impl<C: Connection> Client<C> {
         });
 
         let block_changes = std::mem::take(&mut self.world.pending_changes);
-        for (position, block) in block_changes {
+        for (position, (block, block_state)) in block_changes {
             self.connection
-                .send(C2SMessage::SetBlock { position, block });
+                .send(C2SMessage::SetBlock { position, block, block_state });
         }
     }
 
@@ -333,8 +333,8 @@ impl<C: Connection> Client<C> {
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
                 }
-                S2CMessage::BlockUpdated { position, block } => {
-                    self.world.set_block_at(position, block);
+                S2CMessage::BlockUpdated { position, block, block_state } => {
+                    self.world.set_block_at(position, block, block_state);
                 }
                 _ => {}
             }
@@ -364,7 +364,7 @@ pub fn cast_ray(
 
     for _ in 0..(max_distance / step) as usize {
         let block_pos = pos.floor().as_ivec3();
-        let block = world.get_block_at(block_pos)?;
+        let block = world.get_block_at(block_pos)?.0;
 
         if block.visible {
             let normal = calc_face_normal(pos, block_pos.as_vec3());

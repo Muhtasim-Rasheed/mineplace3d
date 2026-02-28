@@ -81,6 +81,7 @@ impl ClientPlayer {
     }
 
     pub fn optimistic(&mut self, fps: u8, world: &ClientWorld) {
+        let fps = fps.max(1);
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());

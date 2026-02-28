@@ -3,12 +3,12 @@
 		{
 			"from": [0, 8, 0],
 			"to": [16, 16, 16],
-			"n": {"uv": [0, 8, 16, 16], "texture": "$n"},
-			"s": {"uv": [0, 8, 16, 16], "texture": "$s"},
-			"e": {"uv": [0, 8, 16, 16], "texture": "$e"},
-			"w": {"uv": [0, 8, 16, 16], "texture": "$w"},
+			"n": {"uv": [0, 0, 16, 8], "texture": "$n", "cullable": false},
+			"s": {"uv": [0, 0, 16, 8], "texture": "$s", "cullable": false},
+			"e": {"uv": [0, 0, 16, 8], "texture": "$e", "cullable": false},
+			"w": {"uv": [0, 0, 16, 8], "texture": "$w", "cullable": false},
 			"u": {"uv": [0, 0, 16, 16], "texture": "$u"},
-			"d": {"uv": [0, 0, 16, 16], "texture": "$d"}
+			"d": {"uv": [0, 0, 16, 16], "texture": "$d", "occludes": false, "cullable": false}
 		}
 	]
 }

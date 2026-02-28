@@ -1,7 +1,7 @@
 //! Client-side chunk representation.
 
 use glam::IVec3;
-use mp3d_core::{block::Block, world::chunk::Chunk};
+use mp3d_core::{block::{Block, BlockState}, world::chunk::Chunk};
 
 /// Client-side chunk representation.
 ///
@@ -22,13 +22,13 @@ impl ClientChunk {
     }
 
     /// Gets a block at the given local position within the chunk.
-    pub fn get_block(&self, local_pos: IVec3) -> &Block {
+    pub fn get_block(&self, local_pos: IVec3) -> (&Block, &BlockState) {
         self.chunk.get_block(local_pos)
     }
 
     /// Sets a block at the given local position within the chunk.
-    pub fn set_block(&mut self, local_pos: IVec3, block: Block) {
-        self.chunk.set_block(local_pos, block);
+    pub fn set_block(&mut self, local_pos: IVec3, block: Block, state: BlockState) {
+        self.chunk.set_block(local_pos, block, state);
         self.dirty = true;
     }
 }

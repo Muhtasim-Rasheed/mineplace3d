@@ -2,7 +2,7 @@
 
 use glam::IVec3;
 
-use crate::{block::Block, world::WorldLoadError};
+use crate::{block::{Block, BlockState}, world::WorldLoadError};
 
 pub const CHUNK_SIZE: usize = 16;
 
@@ -11,12 +11,15 @@ pub const CHUNK_SIZE: usize = 16;
 pub struct Chunk {
     block_palette: Vec<Block>,
     blocks: [u16; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+    block_states: [BlockState; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
 }
 
 impl Chunk {
     /// Creates a new chunk.
     pub fn new(chunk_pos: IVec3, noise: &fastnoise_lite::FastNoiseLite) -> Self {
         let mut blocks = [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        #[allow(unused_mut)]
+        let mut block_states = [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
@@ -56,19 +59,20 @@ impl Chunk {
         Chunk {
             block_palette: vec![Block::AIR, Block::GRASS, Block::DIRT, Block::STONE],
             blocks,
+            block_states,
         }
     }
 
-    /// Gets a reference to the block at the given local position within the chunk.
-    pub fn get_block(&self, local_pos: IVec3) -> &Block {
+    /// Gets a reference to the block and block state at the given local position within the chunk.
+    pub fn get_block(&self, local_pos: IVec3) -> (&Block, &BlockState) {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         let palette_index = self.blocks[index] as usize;
-        &self.block_palette[palette_index]
+        (&self.block_palette[palette_index], &self.block_states[index])
     }
 
     /// Sets the block at the given local position within the chunk.
-    pub fn set_block(&mut self, local_pos: IVec3, block: Block) {
+    pub fn set_block(&mut self, local_pos: IVec3, block: Block, state: BlockState) {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         if let Some(palette_index) = self.block_palette.iter().position(|b| *b == block) {
@@ -77,6 +81,7 @@ impl Chunk {
             self.block_palette.push(block);
             self.blocks[index] = (self.block_palette.len() - 1) as u16;
         }
+        self.block_states[index] = state;
     }
 }
 
@@ -92,6 +97,7 @@ impl Chunk {
     ///   - 1 byte: collision shape
     ///   - 2 bytes: block state type (u16)
     /// - 4096 * 2 bytes: block indices (u16) for each block in the chunk
+    /// - 4096 * 4 bytes: block states (u32) for each block in the chunk
     pub fn save(&self) -> Vec<u8> {
         let mut data = Vec::new();
         data.push(self.block_palette.len() as u8);
@@ -105,6 +111,9 @@ impl Chunk {
         }
         for block_index in &self.blocks {
             data.extend(&block_index.to_le_bytes());
+        }
+        for block_state in &self.block_states {
+            data.extend(&block_state.bits().to_le_bytes());
         }
         data
     }
@@ -171,6 +180,7 @@ fn load_v0(data_iter: &mut impl Iterator<Item = u8>) -> Result<Chunk, WorldLoadE
     Ok(Chunk {
         block_palette,
         blocks,
+        block_states: [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
     })
 }
 
@@ -214,8 +224,19 @@ fn load_v1(data_iter: &mut impl Iterator<Item = u8>) -> Result<Chunk, WorldLoadE
         let block_bytes = super::take_exact(2, data_iter)?;
         *block = u16::from_le_bytes([block_bytes[0], block_bytes[1]]);
     }
+    let mut block_states = [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+    for block_state in &mut block_states {
+        let state_bytes = super::take_exact(4, data_iter)?;
+        *block_state = BlockState::from_bits(u32::from_le_bytes([
+            state_bytes[0],
+            state_bytes[1],
+            state_bytes[2],
+            state_bytes[3],
+        ]));
+    }
     Ok(Chunk {
         block_palette,
         blocks,
+        block_states,
     })
 }

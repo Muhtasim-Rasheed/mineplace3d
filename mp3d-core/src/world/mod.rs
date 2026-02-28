@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
-    block::Block,
+    block::{Block, BlockState},
     entity::{Entity, EntityType, PlayerEntity},
-    world::chunk::{CHUNK_SIZE, Chunk},
+    world::chunk::{Chunk, CHUNK_SIZE},
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -28,7 +28,7 @@ pub struct World {
     pub(super) player_cache: HashMap<String, PlayerEntity>,
     /// A map of chunk positions to a map of local block positions to the new block state. This is
     /// used to track changes to chunks that have been modified by the player or other entities.
-    changes: HashMap<IVec3, HashMap<IVec3, Block>>,
+    changes: HashMap<IVec3, HashMap<IVec3, (Block, BlockState)>>,
 }
 
 impl Default for World {
@@ -62,7 +62,7 @@ impl World {
     }
 
     /// Gets a block at the given world position.
-    pub fn get_block_at(&self, world_pos: IVec3) -> Option<&Block> {
+    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(&Block, &BlockState)> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -71,7 +71,7 @@ impl World {
 
     /// Gets a block at the given world position, or generates a new chunk and returns the block if
     /// it doesn't exist.
-    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> &Block {
+    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> (&Block, &BlockState) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -79,16 +79,16 @@ impl World {
     }
 
     /// Sets a block at the given world position.
-    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block) {
+    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
         self.changes
             .entry(chunk_pos)
             .or_insert_with(HashMap::new)
-            .insert(local_pos, block);
+            .insert(local_pos, (block, state));
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
-        chunk.set_block(local_pos, block);
+        chunk.set_block(local_pos, block, state);
     }
 
     /// Gets a reference to a chunk at the given chunk position, or loads it if it doesn't exist.
@@ -96,8 +96,8 @@ impl World {
         self.chunks.entry(chunk_pos).or_insert_with(|| {
             let mut chunk = Chunk::new(chunk_pos, &self.noise);
             if let Some(changes) = self.changes.get(&chunk_pos) {
-                for (local_pos, block) in changes {
-                    chunk.set_block(*local_pos, *block);
+                for (local_pos, (block, state)) in changes {
+                    chunk.set_block(*local_pos, *block, *state);
                 }
             }
             chunk
@@ -110,8 +110,8 @@ impl World {
         self.chunks.entry(chunk_pos).or_insert_with(|| {
             let mut chunk = Chunk::new(chunk_pos, &self.noise);
             if let Some(changes) = self.changes.get(&chunk_pos) {
-                for (local_pos, block) in changes {
-                    chunk.set_block(*local_pos, *block);
+                for (local_pos, (block, state)) in changes {
+                    chunk.set_block(*local_pos, *block, *state);
                 }
             }
             chunk
@@ -184,13 +184,12 @@ impl World {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
-                    if let Some(block) = self.get_block_at(block_pos) {
-                        let block_state = crate::block::BlockState::none();
+                    if let Some((block, block_state)) = self.get_block_at(block_pos) {
                         if block.collides_with_player(
                             entity_width,
                             entity_height,
                             entity_pos - block_pos.as_vec3(),
-                            block_state,
+                            *block_state,
                         ) {
                             return true;
                         }
@@ -269,6 +268,7 @@ impl World {
     ///   - M bytes: block identifier (UTF-8 string)
     ///   - 1 byte: collision shape
     ///   - 2 bytes: block state type (u16)
+    ///   - 4 bytes: block state data (u32)
     /// - actual chunk data defined by [`Chunk::save`]
     ///
     /// # save.bin
@@ -297,8 +297,8 @@ impl World {
         std::fs::create_dir_all(path.join("chunks"))?;
         for (chunk_pos, changes) in &self.changes {
             let mut chunk = Chunk::new(*chunk_pos, &self.noise);
-            for (local_pos, block) in changes {
-                chunk.set_block(*local_pos, *block);
+            for (local_pos, (block, state)) in changes {
+                chunk.set_block(*local_pos, *block, *state);
             }
             let chunk_path = path.join("chunks").join(format!(
                 "chunk_{}_{}_{}.bin",
@@ -308,7 +308,7 @@ impl World {
             let mut chunk_file = std::fs::File::create(chunk_path)?;
             let change_count = changes.len() as u16;
             std::io::Write::write_all(&mut chunk_file, &change_count.to_le_bytes())?;
-            for (local_pos, block) in changes {
+            for (local_pos, (block, state)) in changes {
                 std::io::Write::write_all(
                     &mut chunk_file,
                     &[local_pos.x as u8, local_pos.y as u8, local_pos.z as u8],
@@ -319,6 +319,7 @@ impl World {
                 std::io::Write::write_all(&mut chunk_file, block_id.as_bytes())?;
                 std::io::Write::write_all(&mut chunk_file, &[block.collision_shape as u8])?;
                 std::io::Write::write_all(&mut chunk_file, &block.state_type.to_le_bytes())?;
+                std::io::Write::write_all(&mut chunk_file, &state.bits().to_le_bytes())?;
             }
             std::io::Write::write_all(&mut chunk_file, &chunk_data)?;
         }
@@ -484,7 +485,7 @@ fn load_v0(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
                 .changes
                 .entry(chunk_pos)
                 .or_insert_with(HashMap::new)
-                .insert(local_pos, block);
+                .insert(local_pos, (block, crate::block::BlockState::none()));
         }
         let chunk = Chunk::load(0, &mut chunk_iter)?;
         world.chunks.insert(chunk_pos, chunk);
@@ -628,11 +629,13 @@ fn load_v1(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
                 collision_shape,
                 state_type,
             };
+            let block_state_bytes = take_exact(4, &mut chunk_iter)?.try_into().unwrap();
+            let block_state = BlockState::from_bits(u32::from_le_bytes(block_state_bytes));
             world
                 .changes
                 .entry(chunk_pos)
                 .or_insert_with(HashMap::new)
-                .insert(local_pos, block);
+                .insert(local_pos, (block, block_state));
         }
         let chunk = Chunk::load(1, &mut chunk_iter)?;
         world.chunks.insert(chunk_pos, chunk);
