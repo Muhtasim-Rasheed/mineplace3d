@@ -68,7 +68,7 @@ impl ClientPlayer {
     }
 
     pub fn update_from_snapshot(&mut self, snapshot: &[u8]) {
-        let _user_id = u64::from_le_bytes(snapshot[0..8].try_into().unwrap());
+        let _entity_id = u64::from_le_bytes(snapshot[0..8].try_into().unwrap());
         self.position.x = f32::from_le_bytes(snapshot[8..12].try_into().unwrap());
         self.position.y = f32::from_le_bytes(snapshot[12..16].try_into().unwrap());
         self.position.z = f32::from_le_bytes(snapshot[16..20].try_into().unwrap());
@@ -77,7 +77,7 @@ impl ClientPlayer {
         self.flying = snapshot[28] != 0;
     }
 
-    pub fn optimistic(&mut self, tps: u8, world: &ClientWorld) {
+    pub fn optimistic(&mut self, fps: u8, world: &ClientWorld) {
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
@@ -88,14 +88,14 @@ impl ClientPlayer {
             if self.flying {
                 movement.y += 0.8;
             } else if self.on_ground {
-                self.velocity.y += 15.0;
+                self.velocity.y += 12.5;
                 self.on_ground = false;
             }
         }
         if self.input.sneak && self.flying {
             movement.y -= 0.8;
         }
-        let delta_time = 1.0 / tps as f32;
+        let delta_time = 1.0 / fps as f32;
         self.velocity += movement * delta_time * 50.0;
 
         if !self.flying {

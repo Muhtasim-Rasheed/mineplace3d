@@ -184,7 +184,7 @@ impl Server {
                         if entity.flying {
                             movement.y += 0.8;
                         } else if entity.on_ground {
-                            movement.y += 15.0;
+                            movement.y += 12.5;
                             entity.on_ground = false;
                         }
                     }
@@ -192,8 +192,6 @@ impl Server {
                         movement.y -= 0.8;
                     }
                     let dt = 1.0 / (self.tps as f32);
-                    // Note: this 48 is not actually tps, but rather a constant that makes the
-                    // movement feel good.
                     entity.apply_velocity(movement * dt * 50.0);
                     broadcast_message(
                         &mut self.sessions,

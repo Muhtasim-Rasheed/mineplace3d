@@ -122,7 +122,7 @@ impl<C: Connection> Client<C> {
     }
 
     /// Takes in player input and sends it to the server through the connection.
-    pub fn send_input(&mut self, update_context: &UpdateContext, tps: u8) {
+    pub fn send_input(&mut self, update_context: &UpdateContext, fps: u8) {
         if !self.chat_open {
             let mouse_delta = update_context.mouse.delta;
             self.player.yaw -= mouse_delta.x * 0.1;
@@ -264,7 +264,7 @@ impl<C: Connection> Client<C> {
             }
         }
 
-        self.player.optimistic(tps, &self.world);
+        self.player.optimistic(fps, &self.world);
 
         self.connection.send(C2SMessage::Move(self.player.input));
 
@@ -300,7 +300,7 @@ impl<C: Connection> Client<C> {
                     if entity_type == mp3d_core::entity::EntityType::Player as u8 {
                         println!("Player snapshot {:?}", entity_snapshot);
                         if u64::from_le_bytes(entity_snapshot[0..8].try_into().unwrap())
-                            == self.user_id.unwrap()
+                            == self.entity_id.unwrap()
                         {
                             self.player.update_from_snapshot(&entity_snapshot);
                         }
