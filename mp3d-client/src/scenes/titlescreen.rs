@@ -88,7 +88,13 @@ impl TitleScreen {
         buttons_inner.add_widget(options);
         buttons_inner.add_widget(quit);
 
-        let mut buttons = Column::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+        let mut buttons = Column::new(
+            10.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
         buttons.add_widget(play);
         buttons.add_widget(buttons_inner);
 

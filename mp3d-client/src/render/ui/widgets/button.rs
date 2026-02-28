@@ -99,11 +99,12 @@ impl Button {
             } else {
                 glam::uvec4(5, 5, 4, 6)
             };
-            nine_slice.tint = if (self.hovered || self.always_hovered) && !self.is_down && !self.disabled {
-                Vec4::ONE * 1.3
-            } else {
-                Vec4::ONE
-            };
+            nine_slice.tint =
+                if (self.hovered || self.always_hovered) && !self.is_down && !self.disabled {
+                    Vec4::ONE * 1.3
+                } else {
+                    Vec4::ONE
+                };
             nine_slice.position = self.position;
             nine_slice.size = self.size;
         } else {

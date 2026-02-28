@@ -175,9 +175,12 @@ impl Widget for Column {
         let mut cursor_y = match self.justification {
             Justification::Start => ctx.cursor.y + self.padding.z - self.scroll_offset,
             Justification::Center => {
-                ctx.cursor.y + (ctx.max_size.y - total_height) / 2.0 + self.padding.z - self.scroll_offset
+                ctx.cursor.y + (ctx.max_size.y - total_height) / 2.0 + self.padding.z
+                    - self.scroll_offset
             }
-            Justification::End => ctx.cursor.y + ctx.max_size.y - total_height - self.padding.w - self.scroll_offset,
+            Justification::End => {
+                ctx.cursor.y + ctx.max_size.y - total_height - self.padding.w - self.scroll_offset
+            }
             Justification::SpaceBetween => ctx.cursor.y + self.padding.z - self.scroll_offset,
         };
 

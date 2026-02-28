@@ -43,8 +43,13 @@ impl WorldCreation {
             font,
         );
 
-        let mut world_options =
-            Column::new(20.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+        let mut world_options = Column::new(
+            20.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
         world_options.add_widget(name_input);
         world_options.add_widget(path_label);
 

@@ -59,8 +59,13 @@ impl Options {
     ) -> Self {
         let header = Label::new("Options", 48.0, Vec4::ONE, font);
 
-        let mut options_container =
-            Column::new(20.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+        let mut options_container = Column::new(
+            20.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
 
         let mut username_input = InputField::new(
             "Username",
@@ -86,7 +91,13 @@ impl Options {
         options_container.add_widget(username_input);
         options_container.add_widget(back_button);
 
-        let mut container = Column::new(40.0, Alignment::Center, Vec4::ZERO, Justification::Center, None);
+        let mut container = Column::new(
+            40.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Center,
+            None,
+        );
         container.add_widget(header);
         container.add_widget(options_container);
 

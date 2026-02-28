@@ -129,18 +129,20 @@ impl ClientWorld {
     /// blocks in the world. This is used for player movement and other entity interactions with
     /// the world.
     pub fn collides(&self, entity_pos: Vec3, entity_width: f32, entity_height: f32) -> bool {
-        let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0)).floor().as_ivec3();
-        let max_block_pos =
-            (entity_pos + Vec3::new(entity_width / 2.0, entity_height, entity_width / 2.0))
-                .floor()
-                .as_ivec3();
+        let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0))
+            .floor()
+            .as_ivec3();
+        let max_block_pos = (entity_pos
+            + Vec3::new(entity_width / 2.0, entity_height, entity_width / 2.0))
+        .floor()
+        .as_ivec3();
 
         for x in min_block_pos.x..=max_block_pos.x {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
                     if let Some(block) = self.get_block_at(block_pos) {
-                        let block_state = mp3d_core::block::BlockState::None;
+                        let block_state = mp3d_core::block::BlockState::none();
                         if block.collides_with_player(
                             entity_width,
                             entity_height,

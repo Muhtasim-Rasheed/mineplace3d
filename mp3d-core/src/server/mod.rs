@@ -11,10 +11,7 @@ use crate::{
     TextComponent,
     entity::{Entity, PlayerEntity},
     protocol::*,
-    world::{
-        World,
-        chunk::CHUNK_SIZE,
-    },
+    world::{World, chunk::CHUNK_SIZE},
 };
 
 pub mod user;
@@ -101,12 +98,15 @@ impl Server {
                 match auth_result {
                     Ok(_) => {
                         let user_id = self.next_user_id();
-                        let entity_id = if let Some(entity) = self.world.player_cache.remove(&username) {
-                            self.world.add_entity(Box::new(entity))
-                        } else {
-                            self.world
-                                .add_entity(Box::new(PlayerEntity::new(username.clone(), Vec3::new(0.0, 25.0, 0.0))))
-                        };
+                        let entity_id =
+                            if let Some(entity) = self.world.player_cache.remove(&username) {
+                                self.world.add_entity(Box::new(entity))
+                            } else {
+                                self.world.add_entity(Box::new(PlayerEntity::new(
+                                    username.clone(),
+                                    Vec3::new(0.0, 25.0, 0.0),
+                                )))
+                            };
                         self.sessions.insert(
                             user_id,
                             PlayerSession {
@@ -148,7 +148,9 @@ impl Server {
                 if let Some(session) = self.sessions.remove(&user_id) {
                     if let Some(entity) = self.world.remove_entity(session.entity_id) {
                         if let Ok(player_entity) = entity.into_any().downcast::<PlayerEntity>() {
-                            self.world.player_cache.insert(player_entity.username.clone(), *player_entity);
+                            self.world
+                                .player_cache
+                                .insert(player_entity.username.clone(), *player_entity);
                         }
                     }
 
@@ -217,10 +219,17 @@ impl Server {
                         return None;
                     }
 
-                    let old = *self.world.get_block_at(position).unwrap_or(&crate::block::Block::AIR);
+                    let old = *self
+                        .world
+                        .get_block_at(position)
+                        .unwrap_or(&crate::block::Block::AIR);
                     self.world.set_block_at(position, block);
 
-                    if self.world.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
+                    if self.world.collides(
+                        player_pos,
+                        PlayerEntity::width(),
+                        PlayerEntity::height(),
+                    ) {
                         self.world.set_block_at(position, old);
 
                         // The client may have optimistically updated the block on their end, so we
@@ -228,7 +237,10 @@ impl Server {
                         broadcast_message(
                             &mut self.sessions,
                             None,
-                            S2CMessage::BlockUpdated { position, block: old },
+                            S2CMessage::BlockUpdated {
+                                position,
+                                block: old,
+                            },
                         );
 
                         return None;

@@ -95,13 +95,12 @@ impl UIRenderer {
             if let Some(scissor_rect) = self.scissor_rect {
                 unsafe {
                     self.gl.enable(glow::SCISSOR_TEST);
-                    self.gl
-                        .scissor(
-                            scissor_rect[0].x as i32,
-                            scissor_rect[0].y as i32,
-                            (scissor_rect[1].x - scissor_rect[0].x) as i32,
-                            (scissor_rect[1].y - scissor_rect[0].y) as i32,
-                        );
+                    self.gl.scissor(
+                        scissor_rect[0].x as i32,
+                        scissor_rect[0].y as i32,
+                        (scissor_rect[1].x - scissor_rect[0].x) as i32,
+                        (scissor_rect[1].y - scissor_rect[0].y) as i32,
+                    );
                 }
             } else {
                 unsafe {

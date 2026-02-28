@@ -172,18 +172,20 @@ impl World {
     /// blocks in the world. This is used for player movement and other entity interactions with
     /// the world.
     pub fn collides(&self, entity_pos: Vec3, entity_width: f32, entity_height: f32) -> bool {
-        let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0)).floor().as_ivec3();
-        let max_block_pos =
-            (entity_pos + Vec3::new(entity_width / 2.0, entity_height, entity_width / 2.0))
-                .floor()
-                .as_ivec3();
+        let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0))
+            .floor()
+            .as_ivec3();
+        let max_block_pos = (entity_pos
+            + Vec3::new(entity_width / 2.0, entity_height, entity_width / 2.0))
+        .floor()
+        .as_ivec3();
 
         for x in min_block_pos.x..=max_block_pos.x {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
                     if let Some(block) = self.get_block_at(block_pos) {
-                        let block_state = crate::block::BlockState::None; // For now, we don't have any block states
+                        let block_state = crate::block::BlockState::none();
                         if block.collides_with_player(
                             entity_width,
                             entity_height,
@@ -362,7 +364,10 @@ impl World {
     /// Loads a world from a folder. The folder should have the same structure as described in the
     /// `save` method.
     pub fn load(path: &std::path::Path) -> Result<Self, WorldLoadError> {
-        fn take_exact<I: Iterator<Item = u8>>(n: usize, iter: &mut I) -> Result<Vec<u8>, WorldLoadError> {
+        fn take_exact<I: Iterator<Item = u8>>(
+            n: usize,
+            iter: &mut I,
+        ) -> Result<Vec<u8>, WorldLoadError> {
             let bytes: Vec<u8> = iter.take(n).collect();
             if bytes.len() == n {
                 Ok(bytes)
@@ -477,13 +482,15 @@ impl World {
                 #[allow(unreachable_code, unused_variables)]
                 for _ in 0..entity_count {
                     let entity_type = entities_iter.next().unwrap();
-                    let entity_data_len_bytes = take_exact(4, &mut entities_iter)?.try_into().unwrap();
+                    let entity_data_len_bytes =
+                        take_exact(4, &mut entities_iter)?.try_into().unwrap();
                     let entity_data_len = u32::from_le_bytes(entity_data_len_bytes);
                     let entity_data = take_exact(entity_data_len as usize, &mut entities_iter)?;
                     let entity: Box<dyn Entity> = match entity_type {
                         x if x == EntityType::Player as u8 => {
                             return Err(WorldLoadError::InvalidSaveFormat(
-                                "Player entities should be stored in the players folder".to_string(),
+                                "Player entities should be stored in the players folder"
+                                    .to_string(),
                             ));
                         }
                         _ => {
@@ -515,9 +522,7 @@ impl World {
                             e
                         ))
                     })?;
-                    world
-                        .player_cache
-                        .insert(player.username.clone(), player);
+                    world.player_cache.insert(player.username.clone(), player);
                 }
 
                 Ok(world)

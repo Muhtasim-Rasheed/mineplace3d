@@ -48,15 +48,7 @@ impl SinglePlayer {
         username: String,
     ) -> Self {
         let server = mp3d_core::server::Server::new(true, world_path.clone());
-        Self::setup(
-            server,
-            gl,
-            font,
-            gui_tex,
-            window_size,
-            world_path,
-            username,
-        )
+        Self::setup(server, gl, font, gui_tex, window_size, world_path, username)
     }
 
     /// Loads a world from the given path and creates a new [`SinglePlayer`] instance.
@@ -68,16 +60,9 @@ impl SinglePlayer {
         world_path: PathBuf,
         username: String,
     ) -> Self {
-        let server = mp3d_core::server::Server::load(true, world_path.clone()).expect("Failed to load world");
-        Self::setup(
-            server,
-            gl,
-            font,
-            gui_tex,
-            window_size,
-            world_path,
-            username,
-        )
+        let server = mp3d_core::server::Server::load(true, world_path.clone())
+            .expect("Failed to load world");
+        Self::setup(server, gl, font, gui_tex, window_size, world_path, username)
     }
 
     fn setup(
@@ -180,7 +165,8 @@ impl super::Scene for SinglePlayer {
             .set_relative_mouse_mode(self.playing && !self.client.chat_open);
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
-            self.client.send_input(ctx, (1.0 / ctx.delta_time.max(0.01)) as u8);
+            self.client
+                .send_input(ctx, (1.0 / ctx.delta_time.max(0.01)) as u8);
             if let Err(reason) = self.client.recieve_state() {
                 todo!("Save world and exit.")
             }

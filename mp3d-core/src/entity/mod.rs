@@ -30,9 +30,11 @@ pub trait Entity: std::any::Any + Send + Sync + 'static {
     fn snapshot(&self) -> Vec<u8>;
     fn position(&self) -> Vec3;
     fn apply_velocity(&mut self, velocity: Vec3);
-    fn width() -> f32 where
+    fn width() -> f32
+    where
         Self: Sized;
-    fn height() -> f32 where
+    fn height() -> f32
+    where
         Self: Sized;
     fn requests_removal(&self) -> bool {
         false

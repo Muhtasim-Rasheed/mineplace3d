@@ -61,18 +61,36 @@ impl WorldSelection {
             font,
             gui_tex,
         );
-        
-        let mut buttons = Column::new(5.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+
+        let mut buttons = Column::new(
+            5.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
         buttons.add_widget(create_button);
         buttons.add_widget(join_button);
         buttons.add_widget(delete_button);
         buttons.add_widget(back_button);
 
-        let mut panel = Column::new(30.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+        let mut panel = Column::new(
+            30.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
         panel.add_widget(header);
         panel.add_widget(buttons);
 
-        let mut world_list = Column::new(5.0, Alignment::Center, Vec4::ZERO, Justification::Start, None);
+        let mut world_list = Column::new(
+            5.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
         for world in Self::get_worlds() {
             let world_button = Button::new(
                 &world,
@@ -85,13 +103,24 @@ impl WorldSelection {
             world_list.add_widget(world_button);
         }
 
-        let mut column = Column::new(40.0, Alignment::Center, Vec4::ZERO, Justification::Start, Some(window_size.1 as f32 - 200.0));
+        let mut column = Column::new(
+            40.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            Some(window_size.1 as f32 - 200.0),
+        );
         column.add_widget(world_list);
 
-        let mut container = Row::new(20.0, Alignment::Start, Vec4::new(0.0, 0.0, 60.0, 40.0), Justification::Center);
+        let mut container = Row::new(
+            20.0,
+            Alignment::Start,
+            Vec4::new(0.0, 0.0, 60.0, 40.0),
+            Justification::Center,
+        );
         container.add_widget(panel);
         container.add_widget(column);
-        
+
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
@@ -132,7 +161,10 @@ impl super::Scene for WorldSelection {
         _assets: &Arc<super::Assets>,
         config: &Arc<RwLock<super::ClientConfig>>,
     ) -> super::SceneSwitch {
-        self.container.get_widget_mut::<Column>(1).unwrap().viewport_height = Some(window.size().1 as f32 - 200.0);
+        self.container
+            .get_widget_mut::<Column>(1)
+            .unwrap()
+            .viewport_height = Some(window.size().1 as f32 - 200.0);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
             cursor: Vec2::ZERO,
@@ -165,9 +197,17 @@ impl super::Scene for WorldSelection {
         }
 
         let mut newly_selected = None;
-        let len = self.container.find_widget::<Column>(&[1, 0]).unwrap().widgets.len();
+        let len = self
+            .container
+            .find_widget::<Column>(&[1, 0])
+            .unwrap()
+            .widgets
+            .len();
         for i in 0..len {
-            let button = self.container.find_widget_mut::<Button>(&[1, 0, i]).unwrap();
+            let button = self
+                .container
+                .find_widget_mut::<Button>(&[1, 0, i])
+                .unwrap();
             if button.is_released() {
                 newly_selected = Some(i);
             }
@@ -178,14 +218,28 @@ impl super::Scene for WorldSelection {
         }
 
         for i in 0..len {
-            let button = self.container.find_widget_mut::<Button>(&[1, 0, i]).unwrap();
+            let button = self
+                .container
+                .find_widget_mut::<Button>(&[1, 0, i])
+                .unwrap();
             button.always_hovered = Some(i) == self.selected;
         }
 
-        self.container.find_widget_mut::<Button>(&[0, 1, 1]).unwrap().disabled = self.selected.is_none();
-        self.container.find_widget_mut::<Button>(&[0, 1, 2]).unwrap().disabled = self.selected.is_none();
+        self.container
+            .find_widget_mut::<Button>(&[0, 1, 1])
+            .unwrap()
+            .disabled = self.selected.is_none();
+        self.container
+            .find_widget_mut::<Button>(&[0, 1, 2])
+            .unwrap()
+            .disabled = self.selected.is_none();
 
-        if self.container.find_widget::<Button>(&[0, 1, 0]).unwrap().is_released() {
+        if self
+            .container
+            .find_widget::<Button>(&[0, 1, 0])
+            .unwrap()
+            .is_released()
+        {
             return super::SceneSwitch::Push(Box::new(super::worldcreation::WorldCreation::new(
                 &self.font,
                 self.texture,
@@ -193,21 +247,29 @@ impl super::Scene for WorldSelection {
             )));
         }
 
-        if self.container.find_widget::<Button>(&[0, 1, 1]).unwrap().is_released() {
+        if self
+            .container
+            .find_widget::<Button>(&[0, 1, 1])
+            .unwrap()
+            .is_released()
+        {
             let world_name = self.previous_worlds[self.selected.unwrap()].clone();
-            return super::SceneSwitch::Push(Box::new(
-                super::singleplayer::SinglePlayer::load(
-                    gl,
-                    &self.font,
-                    self.texture,
-                    window.size(),
-                    crate::get_saves_dir().join(world_name),
-                    config.read().unwrap().username.clone(),
-                ),
-            ));
+            return super::SceneSwitch::Push(Box::new(super::singleplayer::SinglePlayer::load(
+                gl,
+                &self.font,
+                self.texture,
+                window.size(),
+                crate::get_saves_dir().join(world_name),
+                config.read().unwrap().username.clone(),
+            )));
         }
 
-        if self.container.find_widget::<Button>(&[0, 1, 2]).unwrap().is_released() {
+        if self
+            .container
+            .find_widget::<Button>(&[0, 1, 2])
+            .unwrap()
+            .is_released()
+        {
             let world_name = self.previous_worlds[self.selected.unwrap()].clone();
             let world_path = crate::get_saves_dir().join(world_name);
             if std::fs::remove_dir_all(&world_path).is_ok() {
@@ -219,7 +281,12 @@ impl super::Scene for WorldSelection {
             });
         }
 
-        if self.container.find_widget::<Button>(&[0, 1, 3]).unwrap().is_released() {
+        if self
+            .container
+            .find_widget::<Button>(&[0, 1, 3])
+            .unwrap()
+            .is_released()
+        {
             return super::SceneSwitch::Pop;
         }
 

@@ -1,5 +1,8 @@
 use glam::{Mat4, Vec3, Vec4};
-use mp3d_core::{entity::{Entity, PlayerEntity}, protocol::MoveInstructions};
+use mp3d_core::{
+    entity::{Entity, PlayerEntity},
+    protocol::MoveInstructions,
+};
 
 use crate::client::world::ClientWorld;
 
@@ -115,7 +118,11 @@ impl ClientPlayer {
         }
         self.position.y += self.velocity.y * delta_time;
         self.on_ground = world.collides(
-            Vec3::new(self.position.x, self.position.y - mp3d_core::entity::player::GROUND_EPSILON, self.position.z),
+            Vec3::new(
+                self.position.x,
+                self.position.y - mp3d_core::entity::player::GROUND_EPSILON,
+                self.position.z,
+            ),
             PlayerEntity::width(),
             PlayerEntity::height(),
         ) && self.velocity.y <= 0.0;
