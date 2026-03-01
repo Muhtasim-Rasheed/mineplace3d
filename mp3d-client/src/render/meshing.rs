@@ -146,52 +146,6 @@ const NORMALS: [IVec3; 6] = [
     IVec3::new(0, -1, 0), // Down
 ];
 
-/// Returns the UV coordinates for the vertices of a face in the given direction, based on the
-/// provided minimum and maximum UV coordinates for the face. The order of the returned UVs
-/// corresponds to the vertex order in `FACE_VERTS` for the given face direction.
-#[inline]
-fn face_uvs(dir: IVec3, min: Vec2, max: Vec2) -> [Vec2; 4] {
-    match dir {
-        IVec3 { x: 0, y: 0, z: -1 } => [
-            Vec2::new(max.x, min.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, max.y),
-        ], // North
-        IVec3 { x: 0, y: 0, z: 1 } => [
-            Vec2::new(min.x, min.y),
-            Vec2::new(max.x, min.y),
-            Vec2::new(max.x, max.y),
-            Vec2::new(min.x, max.y),
-        ], // South
-        IVec3 { x: 1, y: 0, z: 0 } => [
-            Vec2::new(max.x, min.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, max.y),
-        ], // East
-        IVec3 { x: -1, y: 0, z: 0 } => [
-            Vec2::new(min.x, min.y),
-            Vec2::new(max.x, min.y),
-            Vec2::new(max.x, max.y),
-            Vec2::new(min.x, max.y),
-        ], // West
-        IVec3 { x: 0, y: 1, z: 0 } => [
-            Vec2::new(max.x, max.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(max.x, min.y),
-        ], // Up
-        IVec3 { x: 0, y: -1, z: 0 } => [
-            Vec2::new(max.x, min.y),
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, max.y),
-        ], // Down
-        _ => unreachable!(),
-    }
-}
-
 /// Generates meshes for all chunks that require being meshed again.
 pub fn mesh_world(
     gl: &Arc<glow::Context>,
@@ -326,7 +280,12 @@ fn mesh_chunk(
                                 block_textures.get_uv(&face.texture_name, model_uv).unwrap();
 
                             let base_index = vertices.len() as u32;
-                            let uvs = face_uvs(IVec3::new(dx, dy, dz), uv_min, uv_max);
+                            let uvs = [
+                                Vec2::new(uv_max.x, uv_min.y),
+                                Vec2::new(uv_min.x, uv_min.y),
+                                Vec2::new(uv_min.x, uv_max.y),
+                                Vec2::new(uv_max.x, uv_max.y),
+                            ];
                             for (vert, uv) in
                                 FACE_VERTS[face_index(dx, dy, dz)].iter().zip(uvs.iter())
                             {

@@ -41,6 +41,13 @@ impl Block {
         state_type: BlockState::NONE.state_type(),
     };
 
+    pub const GLUNGUS: Block = Block {
+        visible: true,
+        collision_shape: CollisionShape::FullBlock,
+        ident: "glungus",
+        state_type: BlockState::NONE.state_type(),
+    };
+
     pub const STONE_SLAB: Block = Block {
         visible: true,
         collision_shape: CollisionShape::Slab,
@@ -48,7 +55,16 @@ impl Block {
         state_type: BlockState::SLAB_BOTTOM.state_type(),
     };
 
-    pub const ALL_BLOCKS: [Block; 5] = [Block::AIR, Block::GRASS, Block::DIRT, Block::STONE, Block::STONE_SLAB];
+    pub const ALL_BLOCKS: &[Block] = &[
+        Block::AIR,
+
+        Block::GRASS,
+        Block::DIRT,
+        Block::STONE,
+        Block::GLUNGUS,
+
+        Block::STONE_SLAB
+    ];
 
     pub fn collides_with_player(
         &self,

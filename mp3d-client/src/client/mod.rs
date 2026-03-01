@@ -203,7 +203,7 @@ impl<C: Connection> Client<C> {
                 if let Some((block_pos, normal)) = raycast_result {
                     let place_pos = block_pos + normal;
                     self.world
-                        .set_block_at(place_pos, mp3d_core::block::Block::STONE_SLAB, mp3d_core::block::BlockState::slab(true));
+                        .set_block_at(place_pos, mp3d_core::block::Block::GLUNGUS, mp3d_core::block::BlockState::none());
                 }
             }
 
