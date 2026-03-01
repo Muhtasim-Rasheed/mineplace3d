@@ -45,11 +45,11 @@ pub struct Server {
 impl Server {
     /// Creates a new server instance. If the server is in singleplayer mode, it will not check
     /// credentials on connection and will allow only one player to connect at a time.
-    pub fn new(singleplayer: bool, save_path: PathBuf) -> Server {
+    pub fn new(singleplayer: bool, seed: i32, save_path: PathBuf) -> Server {
         Self {
             sessions: HashMap::new(),
             connections: HashMap::new(),
-            world: World::new(),
+            world: World::new(seed),
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),

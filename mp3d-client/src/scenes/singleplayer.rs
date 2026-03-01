@@ -44,10 +44,11 @@ impl SinglePlayer {
         font: &Rc<Font>,
         gui_tex: TextureHandle,
         window_size: (u32, u32),
+        seed: i32,
         world_path: PathBuf,
         username: String,
     ) -> Self {
-        let server = mp3d_core::server::Server::new(true, world_path.clone());
+        let server = mp3d_core::server::Server::new(true, seed, world_path.clone());
         Self::setup(server, gl, font, gui_tex, window_size, world_path, username)
     }
 

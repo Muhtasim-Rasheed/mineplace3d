@@ -36,6 +36,16 @@ impl WorldCreation {
         name_input.text = "New_World".to_string();
         name_input.cursor_pos = name_input.text.len();
 
+        let seed_input = InputField::new(
+            "Seed (optional)",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(1010.0, 80.0),
+            None,
+            font,
+            gui_tex,
+        );
+
         let path_label = Label::new(
             &world_path.display().to_string(),
             24.0,
@@ -52,6 +62,7 @@ impl WorldCreation {
         );
         world_options.add_widget(name_input);
         world_options.add_widget(path_label);
+        world_options.add_widget(seed_input);
 
         let cancel_button = Button::new(
             "Cancel",
@@ -156,6 +167,20 @@ impl super::Scene for WorldCreation {
             }
         }
 
+        let seed = self
+            .container
+            .find_widget::<InputField>(&[1, 2])
+            .map_or(rand::random(), |input| {
+                let text = input.text.trim();
+                if let Ok(num) = text.parse::<i32>() {
+                    num
+                } else if !text.trim().is_empty() {
+                    fxhash::hash32(text.as_bytes()) as i32
+                } else {
+                    rand::random()
+                }
+            });
+
         if let Some(create_button) = self.container.find_widget::<Button>(&[2, 1]) {
             if create_button.is_pressed() {
                 return super::SceneSwitch::Replace(Box::new(
@@ -164,6 +189,7 @@ impl super::Scene for WorldCreation {
                         &self.font,
                         self.texture,
                         window.size(),
+                        seed,
                         self.world_path.clone(),
                         config.read().unwrap().username.clone(),
                     ),

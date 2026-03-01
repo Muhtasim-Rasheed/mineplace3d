@@ -31,17 +31,12 @@ pub struct World {
     changes: HashMap<IVec3, HashMap<IVec3, (Block, BlockState)>>,
 }
 
-impl Default for World {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl World {
     /// Creates a new empty world.
-    pub fn new() -> Self {
+    pub fn new(seed: i32) -> Self {
         let mut noise = fastnoise_lite::FastNoiseLite::new();
         noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
+        noise.set_seed(Some(seed));
         let mut chunks = HashMap::new();
         // Preload some chunks around the origin
         for x in -PRELOAD_RADIUS..PRELOAD_RADIUS {
