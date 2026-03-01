@@ -26,8 +26,11 @@ pub struct World {
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
     pub(super) player_cache: HashMap<String, PlayerEntity>,
-    /// A map of chunk positions to a map of local block positions to the new block state. This is
-    /// used to track changes to chunks that have been modified by the player or other entities.
+    /// Also stores changes, but will be sent to players and then cleared.
+    pub(super) pending_changes: Vec<(IVec3, IVec3, Block, BlockState)>,
+    /// A map of chunk positions to a map of local block positions to the new block and block
+    /// state. This is used to track changes to chunks that have been modified by the player or
+    /// other entities.
     changes: HashMap<IVec3, HashMap<IVec3, (Block, BlockState)>>,
 }
 
@@ -53,6 +56,7 @@ impl World {
             noise,
             player_cache: HashMap::new(),
             changes: HashMap::new(),
+            pending_changes: Vec::new(),
         }
     }
 
@@ -82,6 +86,7 @@ impl World {
             .entry(chunk_pos)
             .or_insert_with(HashMap::new)
             .insert(local_pos, (block, state));
+        self.pending_changes.push((chunk_pos, local_pos, block, state));
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -411,6 +416,7 @@ fn load_v0(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
         entities: HashMap::new(),
         noise,
         player_cache: HashMap::new(),
+        pending_changes: Vec::new(),
         changes: HashMap::new(),
     };
 
@@ -557,6 +563,7 @@ fn load_v1(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
         entities: HashMap::new(),
         noise,
         player_cache: HashMap::new(),
+        pending_changes: Vec::new(),
         changes: HashMap::new(),
     };
 

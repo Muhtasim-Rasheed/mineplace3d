@@ -23,6 +23,18 @@ pub const MAX_RENDER_DIST: i32 = 12;
 /// roots.
 pub const MAX_RENDER_DIST_SQ: i32 = MAX_RENDER_DIST * MAX_RENDER_DIST;
 
+fn broadcast_message(
+    sessions: &mut HashMap<u64, PlayerSession>,
+    sender_id: Option<u64>,
+    message: S2CMessage,
+) {
+    for (uid, session) in sessions.iter_mut() {
+        if sender_id != Some(*uid) {
+            session.pending_messages.push(message.clone());
+        }
+    }
+}
+
 /// Represents a connected client on the server.
 pub struct PlayerSession {
     pub user_id: u64,
@@ -73,18 +85,6 @@ impl Server {
         connection_id: u64,
         message: C2SMessage,
     ) -> Option<S2CMessage> {
-        fn broadcast_message(
-            sessions: &mut HashMap<u64, PlayerSession>,
-            sender_id: Option<u64>,
-            message: S2CMessage,
-        ) {
-            for (uid, session) in sessions.iter_mut() {
-                if sender_id != Some(*uid) {
-                    session.pending_messages.push(message.clone());
-                }
-            }
-        }
-
         match message {
             C2SMessage::Connect { username, password } => {
                 if self.singleplayer && !self.sessions.is_empty() {
@@ -231,27 +231,8 @@ impl Server {
                         PlayerEntity::height(),
                     ) {
                         self.world.set_block_at(position, old.0, old.1);
-
-                        // The client may have optimistically updated the block on their end, so we
-                        // need to tell them to revert it.
-                        broadcast_message(
-                            &mut self.sessions,
-                            None,
-                            S2CMessage::BlockUpdated {
-                                position,
-                                block: old.0,
-                                block_state: old.1,
-                            },
-                        );
-
-                        return None;
                     }
-
-                    broadcast_message(
-                        &mut self.sessions,
-                        None,
-                        S2CMessage::BlockUpdated { position, block, block_state },
-                    );
+                    return None;
                 }
             }
             C2SMessage::RequestChunks { chunk_positions } => {
@@ -313,6 +294,9 @@ impl Server {
                     }
                 }
             }
+            C2SMessage::InteractBlock { position, face } => {
+                // nothing yet
+            }
         }
         None
     }
@@ -354,6 +338,21 @@ impl Server {
 
         self.tps = tps;
         self.world.tick(tps);
+
+        let pending_changes = std::mem::take(&mut self.world.pending_changes);
+        for change in pending_changes {
+            let (cpos, lpos, block, state) = change;
+            let world_pos = cpos * CHUNK_SIZE as i32 + lpos;
+            broadcast_message(
+                &mut self.sessions,
+                None,
+                S2CMessage::BlockUpdated {
+                    position: world_pos,
+                    block,
+                    block_state: state,
+                },
+            );
+        }
     }
 }
 

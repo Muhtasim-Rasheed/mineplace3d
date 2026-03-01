@@ -39,6 +39,9 @@ pub enum C2SMessage {
     RequestChunks { chunk_positions: Vec<IVec3> },
     /// Request to send a chat message or execute a command.
     SendMessage { message: String },
+    /// Request for interaction with a block. The face is a number from 0 to 5 in the order of
+    /// NSEWUD.
+    InteractBlock { position: IVec3, face: u8 },
 }
 
 /// Messages sent from the server to the client.
