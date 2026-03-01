@@ -795,6 +795,7 @@ dependencies = [
  "include_dir",
  "mp3d-core",
  "rand 0.10.0",
+ "rayon",
  "sdl2",
  "serde",
  "serde_json",

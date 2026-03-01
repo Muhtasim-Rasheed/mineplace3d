@@ -154,19 +154,45 @@ pub fn mesh_world(
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<String, crate::resource::block::BlockModel>,
 ) {
-    let mut dirty_chunks: Vec<IVec3> = Vec::new();
-    for (chunk_pos, chunk) in &world.chunks {
-        if chunk.dirty {
-            dirty_chunks.push(*chunk_pos);
-        }
-    }
+    use rayon::prelude::*;
 
-    for chunk_pos in dirty_chunks {
-        let chunk = world.chunks.get(&chunk_pos).unwrap();
-        let (chunk_vertices, chunk_indices) =
-            mesh_chunk(chunk, chunk_pos, world, block_textures, block_models);
+    // let mut dirty_chunks: Vec<IVec3> = Vec::new();
+    // for (chunk_pos, chunk) in &world.chunks {
+    //     if chunk.dirty {
+    //         dirty_chunks.push(*chunk_pos);
+    //     }
+    // }
+
+    // for chunk_pos in dirty_chunks {
+    //     let chunk = world.chunks.get(&chunk_pos).unwrap();
+    //     let (chunk_vertices, chunk_indices) =
+    //         mesh_chunk(chunk, chunk_pos, world, block_textures, block_models);
+    //     world.chunks.get_mut(&chunk_pos).unwrap().dirty = false;
+
+    //     let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
+    //     chunk_meshes.insert(chunk_pos, mesh);
+    // }
+
+    let dirty_chunks: Vec<IVec3> = world
+        .chunks
+        .iter()
+        .filter_map(|(chunk_pos, chunk)| if chunk.dirty { Some(*chunk_pos) } else { None })
+        .collect();
+
+    let world_ref = &*world; // To avoid borrowing issues in the parallel iterator
+
+    let new_meshes: Vec<(IVec3, Vec<ChunkVertex>, Vec<u32>)> = dirty_chunks
+        .par_iter()
+        .map(|chunk_pos| {
+            let chunk = world_ref.chunks.get(chunk_pos).unwrap();
+            let (chunk_vertices, chunk_indices) =
+                mesh_chunk(chunk, *chunk_pos, world_ref, block_textures, block_models);
+            (*chunk_pos, chunk_vertices, chunk_indices)
+        })
+        .collect();
+
+    for (chunk_pos, chunk_vertices, chunk_indices) in new_meshes {
         world.chunks.get_mut(&chunk_pos).unwrap().dirty = false;
-
         let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
         chunk_meshes.insert(chunk_pos, mesh);
     }
