@@ -202,8 +202,24 @@ impl<C: Connection> Client<C> {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
                 if let Some((block_pos, normal)) = raycast_result {
                     let place_pos = block_pos + normal;
-                    self.world
-                        .set_block_at(place_pos, mp3d_core::block::Block::GLUNGUS, mp3d_core::block::BlockState::none());
+                    let face_idx = match normal {
+                        IVec3 { z: -1, .. } => 0,
+                        IVec3 { z: 1, .. } => 1,
+                        IVec3 { x: 1, .. } => 2,
+                        IVec3 { x: -1, .. } => 3,
+                        IVec3 { y: 1, .. } => 4,
+                        IVec3 { y: -1, .. } => 5,
+                        _ => unreachable!(),
+                    };
+                    if !self.player.input.sneak {
+                        self.connection.send(C2SMessage::InteractBlock {
+                            position: block_pos,
+                            face: face_idx,
+                        });
+                    } else {
+                        self.world
+                            .set_block_at(place_pos, mp3d_core::block::Block::GLUNGUS, mp3d_core::block::BlockState::none());
+                    }
                 }
             }
 
@@ -335,6 +351,19 @@ impl<C: Connection> Client<C> {
                 }
                 S2CMessage::BlockUpdated { position, block, block_state } => {
                     self.world.set_block_at(position, block, block_state);
+                }
+                S2CMessage::NoBlockInteraction { position, face } => {
+                    let place_pos = position + match face {
+                        0 => IVec3::new(0, 0, -1),
+                        1 => IVec3::new(0, 0, 1),
+                        2 => IVec3::new(1, 0, 0),
+                        3 => IVec3::new(-1, 0, 0),
+                        4 => IVec3::new(0, 1, 0),
+                        5 => IVec3::new(0, -1, 0),
+                        _ => unreachable!(),
+                    };
+                    self.world
+                        .set_block_at(place_pos, mp3d_core::block::Block::GLUNGUS, mp3d_core::block::BlockState::none());
                 }
                 _ => {}
             }

@@ -200,6 +200,28 @@ impl World {
 
         false
     }
+
+    /// Handles a block interaction at the given world position and face index and returns true if
+    /// something happened.
+    pub fn block_interaction(&mut self, _player_entity_id: u64, block_pos: IVec3, _face: u8) -> bool {
+        if let Some((block, _)) = self.get_block_at(block_pos) {
+            if block.ident == "glungus" {
+                let radius_sq = 4;
+                for x in -2..=2 {
+                    for y in -2..=2 {
+                        for z in -2..=2 {
+                            if x * x + y * y + z * z <= radius_sq {
+                                let pos = block_pos + IVec3::new(x, y, z);
+                                self.set_block_at(pos, Block::AIR, BlockState::none());
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+        }
+        false
+    }
 }
 
 pub enum WorldLoadError {

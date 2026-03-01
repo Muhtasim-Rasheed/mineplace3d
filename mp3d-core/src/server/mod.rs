@@ -295,7 +295,13 @@ impl Server {
                 }
             }
             C2SMessage::InteractBlock { position, face } => {
-                // nothing yet
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                {
+                    if !self.world.block_interaction(session.entity_id, position, face) {
+                        session.pending_messages.push(S2CMessage::NoBlockInteraction { position, face });
+                    }
+                }
             }
         }
         None

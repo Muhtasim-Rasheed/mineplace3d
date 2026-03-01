@@ -75,4 +75,6 @@ pub enum S2CMessage {
     },
     /// Delivery of a chat message or command output.
     ChatMessage { message: crate::TextComponent },
+    /// Notification of no block interaction being done with the position of the block.
+    NoBlockInteraction { position: IVec3, face: u8 },
 }
