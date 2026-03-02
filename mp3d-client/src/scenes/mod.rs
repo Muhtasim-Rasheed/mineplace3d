@@ -23,7 +23,7 @@ pub enum SceneSwitch {
 /// as block textures and models.
 pub struct Assets {
     pub block_textures: crate::resource::block::TextureAtlas,
-    pub block_models: HashMap<String, crate::resource::block::BlockModel>,
+    pub block_models: HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 }
 
 impl Assets {
@@ -36,9 +36,6 @@ impl Assets {
         let mut block_textures = crate::resource::block::TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
         for block in mp3d_core::block::Block::ALL_BLOCKS {
-            // let model = crate::resource::block::BlockModel::from_block(&block, &mut block_textures)
-            //     .map_err(|e| format!("Failed to load model for block '{}': {}", block.ident, e))?;
-            // block_models.insert(block.ident.to_string(), model);
             let possible_state_data_values = BlockState::possible_data_values(block.state_type); 
             if let Some(possible_state_data_values) = possible_state_data_values {
                 for &state_data in possible_state_data_values {
@@ -50,7 +47,7 @@ impl Assets {
                     })?;
                     let model = crate::resource::block::BlockModel::from_block(&block, extra_ident, &mut block_textures)
                         .map_err(|e| format!("Failed to load model for block '{}': {}", block.ident, e))?;
-                    block_models.insert(format!("{}{}", block.ident, extra_ident), model);
+                    block_models.insert((block.ident, extra_ident), model);
                 }
             } else {
                 return Err(format!(

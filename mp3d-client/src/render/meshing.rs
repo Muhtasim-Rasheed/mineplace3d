@@ -76,20 +76,6 @@ fn should_occlude(
     false
 }
 
-/// Returns the index of the face corresponding to the given normal direction (dx, dy, dz).
-#[inline]
-fn face_index(dx: i32, dy: i32, dz: i32) -> usize {
-    match (dx, dy, dz) {
-        (0, 0, -1) => 0, // North
-        (0, 0, 1) => 1,  // South
-        (1, 0, 0) => 2,  // East
-        (-1, 0, 0) => 3, // West
-        (0, 1, 0) => 4,  // Up
-        (0, -1, 0) => 5, // Down
-        _ => unreachable!(),
-    }
-}
-
 /// The vertex positions for each face of a cube, in the order of NSEWUD.
 const FACE_VERTS: [[Vec3; 4]; 6] = [
     // North (-Z)
@@ -152,17 +138,18 @@ pub fn mesh_world(
     world: &mut ClientWorld,
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<String, crate::resource::block::BlockModel>,
+    block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 ) {
     use rayon::prelude::*;
 
+    let remesh_queue = std::mem::take(&mut world.remesh_queue);
+
     let world_ref = &*world;
 
-    let new_meshes: Vec<(IVec3, Vec<ChunkVertex>, Vec<u32>)> = world_ref
-        .chunks
+    let new_meshes: Vec<(IVec3, Vec<ChunkVertex>, Vec<u32>)> = remesh_queue
         .par_iter()
-        .filter_map(|(chunk_pos, chunk)| if chunk.dirty { Some(*chunk_pos) } else { None })
         .map(|chunk_pos| {
+            let chunk_pos = *chunk_pos;
             let chunk = world_ref.chunks.get(&chunk_pos).unwrap();
             let (chunk_vertices, chunk_indices) =
                 mesh_chunk(chunk, chunk_pos, world_ref, block_textures, block_models);
@@ -184,10 +171,10 @@ fn mesh_chunk(
     chunk_pos: glam::IVec3,
     world: &ClientWorld,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<String, crate::resource::block::BlockModel>,
+    block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
-    let mut vertices = Vec::new();
-    let mut indices = Vec::new();
+    let mut vertices = Vec::with_capacity(20_000);
+    let mut indices = Vec::with_capacity(30_000);
 
     fn get_block<'a>(
         chunk: &'a ClientChunk,
@@ -213,12 +200,19 @@ fn mesh_chunk(
         }
     }
 
-    fn ident(block: &Block, state: &BlockState) -> String {
-        format!("{}{}", block.ident, state.to_ident().unwrap())
+    fn ident(block: &Block, state: &BlockState) -> (&'static str, &'static str) {
+        (block.ident, state.to_ident().unwrap_or_else(|| {
+            panic!(
+                "Block '{}' has an unrecognized block state type: {}",
+                block.ident, block.state_type
+            )
+        }))
     }
 
     for x in 0..(CHUNK_SIZE as i32) {
+        let world_x = chunk_pos.x * (CHUNK_SIZE as i32) + x;
         for y in 0..(CHUNK_SIZE as i32) {
+            let world_y = chunk_pos.y * (CHUNK_SIZE as i32) + y;
             for z in 0..(CHUNK_SIZE as i32) {
                 // Check if the block is visible
                 let block_local_pos = glam::IVec3::new(x, y, z);
@@ -227,7 +221,6 @@ fn mesh_chunk(
                     continue;
                 }
 
-                // let model = block_models.get(block.ident).unwrap();
                 let model = block_models.get(&ident(block, state)).unwrap_or_else(|| {
                     panic!(
                         "No model found for block {} with state {}",
@@ -236,13 +229,10 @@ fn mesh_chunk(
                     )
                 });
 
-                // Calculate world position of the block
-                let world_x = chunk_pos.x * (CHUNK_SIZE as i32) + x;
-                let world_y = chunk_pos.y * (CHUNK_SIZE as i32) + y;
                 let world_z = chunk_pos.z * (CHUNK_SIZE as i32) + z;
 
                 // Create faces for each non-occluded side
-                for (dx, dy, dz) in NORMALS.iter().map(|n| (n.x, n.y, n.z)) {
+                for (i, (dx, dy, dz)) in NORMALS.iter().map(|n| (n.x, n.y, n.z)).enumerate() {
                     if (dx.abs() + dy.abs() + dz.abs()) != 1 {
                         continue;
                     }
@@ -261,7 +251,7 @@ fn mesh_chunk(
                         || !should_occlude(
                             block,
                             neighbor_block.unwrap(),
-                            face_index(dx, dy, dz),
+                            i,
                             model,
                             neighbor_model.unwrap(),
                         )
@@ -292,7 +282,7 @@ fn mesh_chunk(
                                 Vec2::new(uv_max.x, uv_max.y),
                             ];
                             for (vert, uv) in
-                                FACE_VERTS[face_index(dx, dy, dz)].iter().zip(uvs.iter())
+                                FACE_VERTS[i].iter().zip(uvs.iter())
                             {
                                 vertices.push(ChunkVertex {
                                     position: *vert * (el.to - el.from)

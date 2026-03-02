@@ -345,6 +345,7 @@ impl<C: Connection> Client<C> {
                     chunk,
                 } => {
                     self.world.chunks.insert(chunk_position, (*chunk).into());
+                    self.world.remesh_queue.insert(chunk_position);
                 }
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
@@ -389,7 +390,7 @@ pub fn cast_ray(
         yaw_rad.cos() * pitch_rad.cos(),
     )
     .normalize();
-    let step = 0.01;
+    let step = 0.003;
 
     for _ in 0..(max_distance / step) as usize {
         let block_pos = pos.floor().as_ivec3();
