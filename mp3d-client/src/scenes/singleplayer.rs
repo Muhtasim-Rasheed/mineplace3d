@@ -25,6 +25,7 @@ use crate::{
 pub struct SinglePlayer {
     client: Client<LocalConnection>,
     chunk_meshes: HashMap<IVec3, Mesh>,
+    chunk_mesh_pool: Vec<Mesh>,
     chunk_shader: ShaderProgram,
     width: u32,
     height: u32,
@@ -116,6 +117,7 @@ impl SinglePlayer {
         Self {
             client,
             chunk_meshes: HashMap::new(),
+            chunk_mesh_pool: Vec::new(),
             chunk_shader,
             width: window_size.0,
             height: window_size.1,
@@ -166,8 +168,7 @@ impl super::Scene for SinglePlayer {
             .set_relative_mouse_mode(self.playing && !self.client.chat_open);
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
-            self.client
-                .send_input(ctx, (1.0 / ctx.delta_time.max(0.01)) as u8);
+            self.client.send_input(ctx, ctx.delta_time);
             if let Err(reason) = self.client.recieve_state() {
                 todo!("Save world and exit.")
             }
@@ -239,12 +240,15 @@ impl super::Scene for SinglePlayer {
             .world
             .unload_chunks(self.client.player.position.as_ivec3());
         for pos in unloaded {
-            self.chunk_meshes.remove(&pos);
+            if let Some(mesh) = self.chunk_meshes.remove(&pos) {
+                self.chunk_mesh_pool.push(mesh);
+            }
         }
         mesh_world(
             gl,
             &mut self.client.world,
             &mut self.chunk_meshes,
+            &mut self.chunk_mesh_pool,
             &assets.block_textures,
             &assets.block_models,
         );

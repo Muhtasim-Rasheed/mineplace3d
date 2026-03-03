@@ -80,8 +80,7 @@ impl ClientPlayer {
         self.flying = snapshot[28] != 0;
     }
 
-    pub fn optimistic(&mut self, fps: u8, world: &ClientWorld) {
-        let fps = fps.max(1);
+    pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
@@ -99,25 +98,24 @@ impl ClientPlayer {
         if self.input.sneak && self.flying {
             movement.y -= 0.8;
         }
-        let delta_time = 1.0 / fps as f32;
-        self.velocity += movement * delta_time * 50.0;
+        self.velocity += movement * dt * 50.0;
 
         if !self.flying {
             if self.on_ground && self.velocity.y < 0.0 {
                 self.velocity.y = 0.0;
             } else {
-                self.velocity.y -= mp3d_core::entity::player::GRAVITY * delta_time;
+                self.velocity.y -= mp3d_core::entity::player::GRAVITY * dt;
             }
         }
 
         self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
-        self.position.x += self.velocity.x * delta_time;
+        self.position.x += self.velocity.x * dt;
         if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.x -= self.velocity.x * delta_time;
+            self.position.x -= self.velocity.x * dt;
             self.velocity.x = 0.0;
         }
-        self.position.y += self.velocity.y * delta_time;
+        self.position.y += self.velocity.y * dt;
         self.on_ground = world.collides(
             Vec3::new(
                 self.position.x,
@@ -128,15 +126,15 @@ impl ClientPlayer {
             PlayerEntity::height(),
         ) && self.velocity.y <= 0.0;
         if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.y -= self.velocity.y * delta_time;
+            self.position.y -= self.velocity.y * dt;
             self.velocity.y = 0.0;
         }
-        self.position.z += self.velocity.z * delta_time;
+        self.position.z += self.velocity.z * dt;
         if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.z -= self.velocity.z * delta_time;
+            self.position.z -= self.velocity.z * dt;
             self.velocity.z = 0.0;
         }
-        let d = 0.75_f32.powf(delta_time * 50.0);
+        let d = 0.75_f32.powf(dt * 50.0);
         self.velocity.x *= d;
         self.velocity.z *= d;
     }

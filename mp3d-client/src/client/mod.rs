@@ -122,7 +122,7 @@ impl<C: Connection> Client<C> {
     }
 
     /// Takes in player input and sends it to the server through the connection.
-    pub fn send_input(&mut self, update_context: &UpdateContext, fps: u8) {
+    pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32) {
         if !self.chat_open {
             let mouse_delta = update_context.mouse.delta;
             self.player.yaw -= mouse_delta.x * 0.1;
@@ -280,7 +280,7 @@ impl<C: Connection> Client<C> {
             }
         }
 
-        self.player.optimistic(fps, &self.world);
+        self.player.optimistic(dt, &self.world);
 
         self.connection.send(C2SMessage::Move(self.player.input));
 

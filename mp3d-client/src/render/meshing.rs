@@ -137,6 +137,7 @@ pub fn mesh_world(
     gl: &Arc<glow::Context>,
     world: &mut ClientWorld,
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
+    chunk_mesh_pool: &mut Vec<Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 ) {
@@ -159,8 +160,13 @@ pub fn mesh_world(
 
     for (chunk_pos, chunk_vertices, chunk_indices) in new_meshes {
         world.chunks.get_mut(&chunk_pos).unwrap().dirty = false;
-        let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
-        chunk_meshes.insert(chunk_pos, mesh);
+        if let Some(mut mesh) = chunk_mesh_pool.pop() {
+            mesh.update(&chunk_vertices, &chunk_indices);
+            chunk_meshes.insert(chunk_pos, mesh);
+        } else {
+            let mesh = Mesh::new(gl, &chunk_vertices, &chunk_indices, glow::TRIANGLES);
+            chunk_meshes.insert(chunk_pos, mesh);
+        }
     }
 }
 
@@ -173,8 +179,8 @@ fn mesh_chunk(
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
-    let mut vertices = Vec::with_capacity(20_000);
-    let mut indices = Vec::with_capacity(30_000);
+    let mut vertices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 6);
+    let mut indices = Vec::with_capacity(vertices.capacity() * 2);
 
     fn get_block<'a>(
         chunk: &'a ClientChunk,
@@ -233,10 +239,6 @@ fn mesh_chunk(
 
                 // Create faces for each non-occluded side
                 for (i, (dx, dy, dz)) in NORMALS.iter().map(|n| (n.x, n.y, n.z)).enumerate() {
-                    if (dx.abs() + dy.abs() + dz.abs()) != 1 {
-                        continue;
-                    }
-
                     let neighbor_pos = glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
 
                     // Create face the neighboring block is air or doesn't occlude this face.
