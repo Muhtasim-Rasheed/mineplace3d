@@ -5,7 +5,10 @@
 
 use glam::{IVec3, Vec3};
 
-use crate::{block::{Block, BlockState}, world::chunk::Chunk};
+use crate::{
+    block::{Block, BlockState},
+    world::chunk::Chunk,
+};
 
 /// Move instructions for the player.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -34,7 +37,11 @@ pub enum C2SMessage {
     /// Request to move the player.
     Move(MoveInstructions),
     /// Request to set a block at a specified position with a given block.
-    SetBlock { position: IVec3, block: Block, block_state: BlockState },
+    SetBlock {
+        position: IVec3,
+        block: Block,
+        block_state: BlockState,
+    },
     /// Request for chunk data.
     RequestChunks { chunk_positions: Vec<IVec3> },
     /// Request to send a chat message or execute a command.
@@ -67,7 +74,11 @@ pub enum S2CMessage {
         pitch: f32,
     },
     /// Update of a block at a specified position with a given block.
-    BlockUpdated { position: IVec3, block: Block, block_state: BlockState },
+    BlockUpdated {
+        position: IVec3,
+        block: Block,
+        block_state: BlockState,
+    },
     /// Delivery of chunk data.
     ChunkData {
         chunk_position: IVec3,

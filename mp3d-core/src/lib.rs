@@ -6,6 +6,7 @@ use glam::{Vec3, Vec4};
 
 pub mod block;
 pub mod entity;
+pub mod item;
 pub mod protocol;
 pub mod server;
 pub mod world;

@@ -4,7 +4,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use glam::{IVec3, Vec2, Vec3};
 use glow::HasContext;
-use mp3d_core::{block::{Block, BlockState}, world::chunk::CHUNK_SIZE};
+use mp3d_core::{
+    block::{Block, BlockState},
+    world::chunk::CHUNK_SIZE,
+};
 
 use crate::{
     abs::{Mesh, Vertex},
@@ -77,7 +80,7 @@ fn should_occlude(
 }
 
 /// The vertex positions for each face of a cube, in the order of NSEWUD.
-const FACE_VERTS: [[Vec3; 4]; 6] = [
+pub const FACE_VERTS: [[Vec3; 4]; 6] = [
     // North (-Z)
     [
         Vec3::new(1.0, 0.0, 0.0),
@@ -207,12 +210,15 @@ fn mesh_chunk(
     }
 
     fn ident(block: &Block, state: &BlockState) -> (&'static str, &'static str) {
-        (block.ident, state.to_ident().unwrap_or_else(|| {
-            panic!(
-                "Block '{}' has an unrecognized block state type: {}",
-                block.ident, block.state_type
-            )
-        }))
+        (
+            block.ident,
+            state.to_ident().unwrap_or_else(|| {
+                panic!(
+                    "Block '{}' has an unrecognized block state type: {}",
+                    block.ident, block.state_type
+                )
+            }),
+        )
     }
 
     for x in 0..(CHUNK_SIZE as i32) {
@@ -283,9 +289,7 @@ fn mesh_chunk(
                                 Vec2::new(uv_min.x, uv_max.y),
                                 Vec2::new(uv_max.x, uv_max.y),
                             ];
-                            for (vert, uv) in
-                                FACE_VERTS[i].iter().zip(uvs.iter())
-                            {
+                            for (vert, uv) in FACE_VERTS[i].iter().zip(uvs.iter()) {
                                 vertices.push(ChunkVertex {
                                     position: *vert * (el.to - el.from)
                                         + el.from

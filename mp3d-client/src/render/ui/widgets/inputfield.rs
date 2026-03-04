@@ -66,6 +66,7 @@ impl InputField {
             self.size,
             glam::uvec4(6, 6, 4, 4),
             4,
+            0,
             if self.hovered && !self.focused {
                 Vec4::new(1.2, 1.2, 1.2, 1.0)
             } else {
@@ -198,8 +199,12 @@ impl Widget for InputField {
         )
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
-        self.stack.draw(ui_renderer);
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
+        self.stack.draw(ui_renderer, assets);
         // Draw cursor
         if self.focused {
             let cursor_x = self.position.x
@@ -211,13 +216,14 @@ impl Widget for InputField {
                     )
                     .x;
             let cursor_y = self.position.y + (self.size.y - self.label_font_size) / 2.0;
-            ui_renderer.add_command(crate::render::ui::uirenderer::DrawCommand {
+            ui_renderer.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                 rect: [
                     Vec2::new(cursor_x, cursor_y),
                     Vec2::new(cursor_x + 2.0, cursor_y + self.label_font_size),
                 ],
                 uv_rect: [Vec2::ZERO, Vec2::ONE],
                 mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::ONE),
+                layer: 2,
             });
         }
     }

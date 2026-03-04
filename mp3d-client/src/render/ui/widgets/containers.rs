@@ -94,6 +94,10 @@ impl Column {
                     let container = container_any.downcast_ref::<Stack>().unwrap();
                     current = container.widgets.get(index)?.as_ref();
                 }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_ref::<Grid>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
                 _ => return None,
             }
         }
@@ -116,6 +120,10 @@ impl Column {
                 }
                 id if id == std::any::TypeId::of::<Stack>() => {
                     let container = container_any.downcast_mut::<Stack>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_mut::<Grid>().unwrap();
                     current = container.widgets.get_mut(index)?.as_mut();
                 }
                 _ => return None,
@@ -229,9 +237,13 @@ impl Widget for Column {
         }
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
         for widget in &self.widgets {
-            widget.draw(ui_renderer);
+            widget.draw(ui_renderer, assets);
         }
     }
 }
@@ -301,6 +313,10 @@ impl Row {
                     let container = container_any.downcast_ref::<Stack>().unwrap();
                     current = container.widgets.get(index)?.as_ref();
                 }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_ref::<Grid>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
                 _ => return None,
             }
         }
@@ -323,6 +339,10 @@ impl Row {
                 }
                 id if id == std::any::TypeId::of::<Stack>() => {
                     let container = container_any.downcast_mut::<Stack>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_mut::<Grid>().unwrap();
                     current = container.widgets.get_mut(index)?.as_mut();
                 }
                 _ => return None,
@@ -416,9 +436,13 @@ impl Widget for Row {
         )
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
         for widget in &self.widgets {
-            widget.draw(ui_renderer);
+            widget.draw(ui_renderer, assets);
         }
     }
 }
@@ -478,6 +502,10 @@ impl Stack {
                     let container = container_any.downcast_ref::<Stack>().unwrap();
                     current = container.widgets.get(index)?.as_ref();
                 }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_ref::<Grid>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
                 _ => return None,
             }
         }
@@ -500,6 +528,10 @@ impl Stack {
                 }
                 id if id == std::any::TypeId::of::<Stack>() => {
                     let container = container_any.downcast_mut::<Stack>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_mut::<Grid>().unwrap();
                     current = container.widgets.get_mut(index)?.as_mut();
                 }
                 _ => return None,
@@ -570,9 +602,217 @@ impl Widget for Stack {
         Vec2::new(max_width + self.padding, max_height + self.padding)
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
         for widget in &self.widgets {
-            widget.draw(ui_renderer);
+            widget.draw(ui_renderer, assets);
+        }
+    }
+}
+
+/// Aranges the child widgets in a grid layout with specified number of columns, spacing, alignment
+/// and padding.
+pub struct Grid {
+    pub widgets: Vec<Box<dyn super::Widget>>,
+    pub columns: usize,
+    pub spacing: f32,
+    pub alignment: Alignment,
+    pub padding: Vec4,
+}
+
+impl Grid {
+    /// Creates a new `Grid` container with the specified number of columns, spacing, alignment and
+    /// padding.
+    pub fn new(columns: usize, spacing: f32, alignment: Alignment, padding: Vec4) -> Self {
+        Self {
+            widgets: Vec::new(),
+            columns,
+            spacing,
+            alignment,
+            padding,
+        }
+    }
+
+    /// Adds a widget to the grid.
+    pub fn add_widget<T: Widget + 'static>(&mut self, widget: T) {
+        self.widgets.push(Box::new(widget));
+    }
+
+    /// Gets a certain widget by index.
+    pub fn get_widget<T: Widget + 'static>(&self, index: usize) -> Option<&T> {
+        self.widgets.get(index)?.as_any().downcast_ref::<T>()
+    }
+
+    /// Gets a certain widget by index as mutable.
+    pub fn get_widget_mut<T: Widget + 'static>(&mut self, index: usize) -> Option<&mut T> {
+        self.widgets
+            .get_mut(index)?
+            .as_any_mut()
+            .downcast_mut::<T>()
+    }
+
+    /// Traverses through containers to find a widget of type T and returns a reference.
+    pub fn find_widget<T: Widget + 'static>(&self, indices: &[usize]) -> Option<&T> {
+        let mut current: &dyn Widget = self;
+        for &index in indices {
+            let container_any = current.as_any();
+            match container_any.type_id() {
+                id if id == std::any::TypeId::of::<Column>() => {
+                    let container = container_any.downcast_ref::<Column>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
+                id if id == std::any::TypeId::of::<Row>() => {
+                    let container = container_any.downcast_ref::<Row>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
+                id if id == std::any::TypeId::of::<Stack>() => {
+                    let container = container_any.downcast_ref::<Stack>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_ref::<Grid>().unwrap();
+                    current = container.widgets.get(index)?.as_ref();
+                }
+                _ => return None,
+            }
+        }
+        current.as_any().downcast_ref::<T>()
+    }
+
+    /// Traverses through containers to find a widget of type T and returns a mutable reference.
+    pub fn find_widget_mut<T: Widget + 'static>(&mut self, indices: &[usize]) -> Option<&mut T> {
+        let mut current: &mut dyn Widget = self;
+        for &index in indices {
+            let container_any = current.as_any_mut();
+            match container_any.type_id() {
+                id if id == std::any::TypeId::of::<Column>() => {
+                    let container = container_any.downcast_mut::<Column>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                id if id == std::any::TypeId::of::<Row>() => {
+                    let container = container_any.downcast_mut::<Row>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                id if id == std::any::TypeId::of::<Stack>() => {
+                    let container = container_any.downcast_mut::<Stack>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                id if id == std::any::TypeId::of::<Grid>() => {
+                    let container = container_any.downcast_mut::<Grid>().unwrap();
+                    current = container.widgets.get_mut(index)?.as_mut();
+                }
+                _ => return None,
+            }
+        }
+        current.as_any_mut().downcast_mut::<T>()
+    }
+}
+
+impl Widget for Grid {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn size_hint(&self) -> Vec2 {
+        let mut max_col_widths = vec![0.0_f32; self.columns];
+        let mut max_row_heights =
+            vec![0.0_f32; (self.widgets.len() + self.columns - 1) / self.columns];
+
+        for (i, widget) in self.widgets.iter().enumerate() {
+            let size = widget.size_hint();
+            let col = i % self.columns;
+            let row = i / self.columns;
+            max_col_widths[col] = max_col_widths[col].max(size.x);
+            max_row_heights[row] = max_row_heights[row].max(size.y);
+        }
+
+        let total_width: f32 =
+            max_col_widths.iter().sum::<f32>() + self.spacing * (self.columns - 1) as f32;
+        let total_height: f32 =
+            max_row_heights.iter().sum::<f32>() + self.spacing * (max_row_heights.len() - 1) as f32;
+
+        Vec2::new(
+            total_width + self.padding.x + self.padding.z,
+            total_height + self.padding.y + self.padding.w,
+        )
+    }
+
+    fn update(&mut self, ctx: &crate::other::UpdateContext) {
+        for widget in &mut self.widgets {
+            widget.update(ctx);
+        }
+    }
+
+    fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
+        let mut max_col_widths = vec![0.0_f32; self.columns];
+        let mut max_row_heights =
+            vec![0.0_f32; (self.widgets.len() + self.columns - 1) / self.columns];
+
+        for (i, widget) in self.widgets.iter().enumerate() {
+            let size = widget.size_hint();
+            let col = i % self.columns;
+            let row = i / self.columns;
+            max_col_widths[col] = max_col_widths[col].max(size.x);
+            max_row_heights[row] = max_row_heights[row].max(size.y);
+        }
+
+        let total_width: f32 =
+            max_col_widths.iter().sum::<f32>() + self.spacing * (self.columns - 1) as f32;
+        let total_height: f32 =
+            max_row_heights.iter().sum::<f32>() + self.spacing * (max_row_heights.len() - 1) as f32;
+
+        let mut cursor_y = ctx.cursor.y + self.padding.y;
+
+        for row in 0..max_row_heights.len() {
+            let mut cursor_x = ctx.cursor.x + self.padding.x;
+
+            for col in 0..self.columns {
+                let index = row * self.columns + col;
+                if index >= self.widgets.len() {
+                    break;
+                }
+
+                let widget = &mut self.widgets[index];
+                let widget_size = widget.size_hint();
+
+                let offset_x = match self.alignment {
+                    Alignment::Start => 0.0,
+                    Alignment::Center => (max_col_widths[col] - widget_size.x) / 2.0,
+                    Alignment::End => max_col_widths[col] - widget_size.x,
+                };
+
+                let layout_ctx = super::LayoutContext {
+                    max_size: Vec2::new(widget_size.x, widget_size.y),
+                    cursor: Vec2::new(cursor_x + offset_x, cursor_y),
+                };
+
+                widget.layout(&layout_ctx);
+                cursor_x += max_col_widths[col] + self.spacing;
+            }
+
+            cursor_y += max_row_heights[row] + self.spacing;
+        }
+
+        Vec2::new(
+            total_width + self.padding.x + self.padding.z,
+            total_height + self.padding.y + self.padding.w,
+        )
+    }
+
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
+        for widget in &self.widgets {
+            widget.draw(ui_renderer, assets);
         }
     }
 }

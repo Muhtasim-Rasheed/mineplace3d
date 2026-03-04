@@ -13,7 +13,7 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{Block, BlockState},
     entity::{Entity, EntityType, PlayerEntity},
-    world::chunk::{Chunk, CHUNK_SIZE},
+    world::chunk::{CHUNK_SIZE, Chunk},
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -86,7 +86,8 @@ impl World {
             .entry(chunk_pos)
             .or_insert_with(HashMap::new)
             .insert(local_pos, (block, state));
-        self.pending_changes.push((chunk_pos, local_pos, block, state));
+        self.pending_changes
+            .push((chunk_pos, local_pos, block, state));
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -203,7 +204,12 @@ impl World {
 
     /// Handles a block interaction at the given world position and face index and returns true if
     /// something happened.
-    pub fn block_interaction(&mut self, _player_entity_id: u64, block_pos: IVec3, _face: u8) -> bool {
+    pub fn block_interaction(
+        &mut self,
+        _player_entity_id: u64,
+        block_pos: IVec3,
+        _face: u8,
+    ) -> bool {
         if let Some((block, _)) = self.get_block_at(block_pos) {
             if block.ident == "glungus" {
                 let radius_sq = 4;
@@ -425,7 +431,10 @@ pub(super) fn take_exact<I: Iterator<Item = u8>>(
     }
 }
 
-fn load_v0(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Result<World, WorldLoadError> {
+fn load_v0(
+    path: &std::path::Path,
+    save_iter: &mut std::slice::Iter<u8>,
+) -> Result<World, WorldLoadError> {
     // SEED
     let seed_bytes = take_exact(4, &mut save_iter.cloned())?;
     let seed = i32::from_le_bytes(seed_bytes.try_into().unwrap());
@@ -526,15 +535,13 @@ fn load_v0(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
     #[allow(unreachable_code, unused_variables)]
     for _ in 0..entity_count {
         let entity_type = entities_iter.next().unwrap();
-        let entity_data_len_bytes =
-            take_exact(4, &mut entities_iter)?.try_into().unwrap();
+        let entity_data_len_bytes = take_exact(4, &mut entities_iter)?.try_into().unwrap();
         let entity_data_len = u32::from_le_bytes(entity_data_len_bytes);
         let entity_data = take_exact(entity_data_len as usize, &mut entities_iter)?;
         let entity: Box<dyn Entity> = match entity_type {
             x if x == EntityType::Player as u8 => {
                 return Err(WorldLoadError::InvalidSaveFormat(
-                    "Player entities should be stored in the players folder"
-                        .to_string(),
+                    "Player entities should be stored in the players folder".to_string(),
                 ));
             }
             _ => {
@@ -572,7 +579,10 @@ fn load_v0(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
     Ok(world)
 }
 
-fn load_v1(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Result<World, WorldLoadError> {
+fn load_v1(
+    path: &std::path::Path,
+    save_iter: &mut std::slice::Iter<u8>,
+) -> Result<World, WorldLoadError> {
     // SEED
     let seed_bytes = take_exact(4, &mut save_iter.cloned())?;
     let seed = i32::from_le_bytes(seed_bytes.try_into().unwrap());
@@ -677,15 +687,13 @@ fn load_v1(path: &std::path::Path, save_iter: &mut std::slice::Iter<u8>) -> Resu
     #[allow(unreachable_code, unused_variables)]
     for _ in 0..entity_count {
         let entity_type = entities_iter.next().unwrap();
-        let entity_data_len_bytes =
-            take_exact(4, &mut entities_iter)?.try_into().unwrap();
+        let entity_data_len_bytes = take_exact(4, &mut entities_iter)?.try_into().unwrap();
         let entity_data_len = u32::from_le_bytes(entity_data_len_bytes);
         let entity_data = take_exact(entity_data_len as usize, &mut entities_iter)?;
         let entity: Box<dyn Entity> = match entity_type {
             x if x == EntityType::Player as u8 => {
                 return Err(WorldLoadError::InvalidSaveFormat(
-                    "Player entities should be stored in the players folder"
-                        .to_string(),
+                    "Player entities should be stored in the players folder".to_string(),
                 ));
             }
             _ => {

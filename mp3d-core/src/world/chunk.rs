@@ -2,7 +2,10 @@
 
 use glam::IVec3;
 
-use crate::{block::{Block, BlockState}, world::WorldLoadError};
+use crate::{
+    block::{Block, BlockState},
+    world::WorldLoadError,
+};
 
 pub const CHUNK_SIZE: usize = 16;
 
@@ -68,7 +71,10 @@ impl Chunk {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         let palette_index = self.blocks[index] as usize;
-        (&self.block_palette[palette_index], &self.block_states[index])
+        (
+            &self.block_palette[palette_index],
+            &self.block_states[index],
+        )
     }
 
     /// Sets the block at the given local position within the chunk.
@@ -119,7 +125,10 @@ impl Chunk {
     }
 
     /// Loads a chunk from the given data.
-    pub fn load<I: Iterator<Item = u8>>(version: u8, data_iter: &mut I) -> Result<Self, WorldLoadError> {
+    pub fn load<I: Iterator<Item = u8>>(
+        version: u8,
+        data_iter: &mut I,
+    ) -> Result<Self, WorldLoadError> {
         match version {
             0 => load_v0(data_iter),
             1 => load_v1(data_iter),
@@ -156,7 +165,7 @@ fn load_v0(data_iter: &mut impl Iterator<Item = u8>) -> Result<Chunk, WorldLoadE
                 return Err(WorldLoadError::InvalidSaveFormat(format!(
                     "Invalid collision shape: {}",
                     collision_shape
-                )))
+                )));
             }
         };
         let Some(ident) = crate::block::get_block_ident(&ident) else {
@@ -207,7 +216,7 @@ fn load_v1(data_iter: &mut impl Iterator<Item = u8>) -> Result<Chunk, WorldLoadE
                 return Err(WorldLoadError::InvalidSaveFormat(format!(
                     "Invalid collision shape: {}",
                     collision_shape
-                )))
+                )));
             }
         };
         let state_type_bytes = super::take_exact(2, data_iter)?;

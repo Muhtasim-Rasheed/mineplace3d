@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use glam::{Mat4, Vec2, Vec4};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use glow::HasContext;
 
 use crate::{
@@ -18,15 +18,23 @@ pub enum UIRenderMode {
 }
 
 /// A draw command for rendering a UI element.
-pub struct DrawCommand {
-    pub rect: [Vec2; 2],
-    pub uv_rect: [Vec2; 2],
-    pub mode: UIRenderMode,
+pub enum DrawCommand {
+    Quad {
+        rect: [Vec2; 2],
+        uv_rect: [Vec2; 2],
+        mode: UIRenderMode,
+        layer: i32,
+    },
+    Mesh {
+        vertices: Vec<UIVertex>,
+        indices: Vec<u32>,
+        mode: UIRenderMode,
+    },
 }
 
 /// The UI renderer for rendering 2D elements on the screen.
 pub struct UIRenderer {
-    gl: Arc<glow::Context>,
+    pub gl: Arc<glow::Context>,
     shader_program: ShaderProgram,
     pub projection_matrix: Mat4,
     last_command: Option<DrawCommand>,
@@ -57,7 +65,15 @@ impl UIRenderer {
     pub fn add_command(&mut self, command: DrawCommand) {
         // If the last command's mode is the same this command's mode, we can batch them together.
         if let Some(last_command) = &self.last_command {
-            if last_command.mode == command.mode {
+            let last_mode = match last_command {
+                DrawCommand::Quad { mode, .. } => *mode,
+                DrawCommand::Mesh { mode, .. } => *mode,
+            };
+            let new_mode = match &command {
+                DrawCommand::Quad { mode, .. } => *mode,
+                DrawCommand::Mesh { mode, .. } => *mode,
+            };
+            if last_mode == new_mode {
                 self.append_command(&command);
                 self.last_command = Some(command);
             } else {
@@ -108,7 +124,11 @@ impl UIRenderer {
                 }
             }
 
-            match last_command.mode {
+            let mode = match last_command {
+                DrawCommand::Quad { mode, .. } => *mode,
+                DrawCommand::Mesh { mode, .. } => *mode,
+            };
+            match mode {
                 UIRenderMode::Texture(texture_handle, color) => {
                     // Bind texture and set color uniform
                     texture_handle.bind(&self.gl, 0);
@@ -134,30 +154,47 @@ impl UIRenderer {
     /// Appends a draw command's vertices and indices to the current batch.
     fn append_command(&mut self, command: &DrawCommand) {
         let base_index = self.vertices.len() as u32;
-        let [min, max] = command.rect;
-        let [uv_min, uv_max] = command.uv_rect;
+        match command {
+            DrawCommand::Quad {
+                rect,
+                uv_rect,
+                mode: _,
+                layer,
+            } => {
+                let [min, max] = rect;
+                let [uv_min, uv_max] = uv_rect;
 
-        self.vertices.push(UIVertex {
-            position: Vec2::new(max.x, min.y),
-            uv: Vec2::new(uv_max.x, uv_min.y),
-        });
-        self.vertices.push(UIVertex {
-            position: Vec2::new(min.x, min.y),
-            uv: Vec2::new(uv_min.x, uv_min.y),
-        });
-        self.vertices.push(UIVertex {
-            position: Vec2::new(min.x, max.y),
-            uv: Vec2::new(uv_min.x, uv_max.y),
-        });
-        self.vertices.push(UIVertex {
-            position: Vec2::new(max.x, max.y),
-            uv: Vec2::new(uv_max.x, uv_max.y),
-        });
-        self.indices.push(base_index);
-        self.indices.push(base_index + 1);
-        self.indices.push(base_index + 2);
-        self.indices.push(base_index);
-        self.indices.push(base_index + 2);
-        self.indices.push(base_index + 3);
+                self.vertices.push(UIVertex {
+                    position: Vec3::new(max.x, min.y, *layer as f32 * 0.01),
+                    uv: Vec2::new(uv_max.x, uv_min.y),
+                });
+                self.vertices.push(UIVertex {
+                    position: Vec3::new(min.x, min.y, *layer as f32 * 0.01),
+                    uv: Vec2::new(uv_min.x, uv_min.y),
+                });
+                self.vertices.push(UIVertex {
+                    position: Vec3::new(min.x, max.y, *layer as f32 * 0.01),
+                    uv: Vec2::new(uv_min.x, uv_max.y),
+                });
+                self.vertices.push(UIVertex {
+                    position: Vec3::new(max.x, max.y, *layer as f32 * 0.01),
+                    uv: Vec2::new(uv_max.x, uv_max.y),
+                });
+                self.indices.push(base_index);
+                self.indices.push(base_index + 1);
+                self.indices.push(base_index + 2);
+                self.indices.push(base_index);
+                self.indices.push(base_index + 2);
+                self.indices.push(base_index + 3);
+            }
+            DrawCommand::Mesh {
+                vertices,
+                indices,
+                mode: _,
+            } => {
+                self.vertices.extend_from_slice(vertices.as_slice());
+                self.indices.extend(indices.iter().map(|i| i + base_index));
+            }
+        }
     }
 }

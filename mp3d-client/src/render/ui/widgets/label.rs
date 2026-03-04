@@ -71,13 +71,14 @@ impl Font {
                     let pos_min = cursor;
                     let pos_max = cursor + char_size;
 
-                    commands.push(DrawCommand {
+                    commands.push(DrawCommand::Quad {
                         rect: [pos_min, pos_max],
                         uv_rect: uvs,
                         mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
                             self.atlas().handle(),
                             color,
                         ),
+                        layer: 5,
                     });
                 }
                 cursor.x += char_size.x;
@@ -105,8 +106,14 @@ impl Font {
         for part in &component.parts {
             let part_commands = self.text(&part.text, font_size, part.color.into());
             for mut cmd in part_commands {
-                cmd.rect[0] += cursor;
-                cmd.rect[1] += cursor;
+                if let DrawCommand::Quad { rect, .. } = &mut cmd {
+                    rect[0] += cursor;
+                    rect[1] += cursor;
+                } else if let DrawCommand::Mesh { vertices, .. } = &mut cmd {
+                    for vertex in vertices {
+                        vertex.position += cursor.extend(0.0);
+                    }
+                }
                 commands.push(cmd);
             }
             let part_size = self.measure_text(&part.text, font_size);
@@ -162,14 +169,24 @@ impl Widget for Label {
         )
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        _assets: &crate::scenes::Assets,
+    ) {
         let commands = self
             .font
             .text(&self.text, self.font_size, self.color)
             .into_iter()
             .map(|mut cmd| {
-                cmd.rect[0] += self.position;
-                cmd.rect[1] += self.position;
+                if let DrawCommand::Quad { rect, .. } = &mut cmd {
+                    rect[0] += self.position;
+                    rect[1] += self.position;
+                } else if let DrawCommand::Mesh { vertices, .. } = &mut cmd {
+                    for vertex in vertices {
+                        vertex.position += self.position.extend(0.0);
+                    }
+                }
                 cmd
             });
 

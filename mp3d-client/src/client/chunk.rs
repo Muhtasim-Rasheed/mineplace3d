@@ -1,7 +1,10 @@
 //! Client-side chunk representation.
 
 use glam::IVec3;
-use mp3d_core::{block::{Block, BlockState}, world::chunk::Chunk};
+use mp3d_core::{
+    block::{Block, BlockState},
+    world::chunk::Chunk,
+};
 
 /// Client-side chunk representation.
 ///

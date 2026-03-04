@@ -57,13 +57,11 @@ impl Block {
 
     pub const ALL_BLOCKS: &[Block] = &[
         Block::AIR,
-
         Block::GRASS,
         Block::DIRT,
         Block::STONE,
         Block::GLUNGUS,
-
-        Block::STONE_SLAB
+        Block::STONE_SLAB,
     ];
 
     pub fn collides_with_player(
@@ -232,8 +230,19 @@ impl BlockState {
     #[inline]
     pub const fn possible_data_values(state_type: u16) -> Option<&'static [u16]> {
         match state_type {
-            0x0000 => Some(&[0x0000]), // NONE
+            0x0000 => Some(&[0x0000]),         // NONE
             0x0001 => Some(&[0x0000, 0x0001]), // SLAB
+            _ => None,
+        }
+    }
+
+    /// Returns a default block state that can be used for displaying blocks in inventories and
+    /// such.
+    #[inline]
+    pub const fn default_state(state_type: u16) -> Option<BlockState> {
+        match state_type {
+            0x0000 => Some(BlockState::NONE),
+            0x0001 => Some(BlockState::SLAB_BOTTOM),
             _ => None,
         }
     }

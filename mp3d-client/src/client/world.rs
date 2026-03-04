@@ -3,7 +3,10 @@
 use std::collections::{HashMap, HashSet};
 
 use glam::{IVec3, Vec3};
-use mp3d_core::{block::{Block, BlockState}, world::chunk::CHUNK_SIZE};
+use mp3d_core::{
+    block::{Block, BlockState},
+    world::chunk::CHUNK_SIZE,
+};
 
 use crate::client::chunk::ClientChunk;
 

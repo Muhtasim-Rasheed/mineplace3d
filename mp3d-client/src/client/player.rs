@@ -1,6 +1,9 @@
+use std::{cell::RefCell, rc::Rc};
+
 use glam::{Mat4, Vec3, Vec4};
 use mp3d_core::{
     entity::{Entity, PlayerEntity},
+    item::Inventory,
     protocol::MoveInstructions,
 };
 
@@ -15,6 +18,7 @@ pub struct ClientPlayer {
     pub flying: bool,
     pub on_ground: bool,
     pub input: MoveInstructions,
+    pub inventory: Rc<RefCell<Inventory>>,
 }
 
 impl ClientPlayer {

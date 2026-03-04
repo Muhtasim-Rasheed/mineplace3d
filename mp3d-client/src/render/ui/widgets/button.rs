@@ -73,6 +73,7 @@ impl Button {
                 glam::uvec4(5, 5, 4, 6)
             },
             4,
+            0,
             if (self.hovered || self.always_hovered) && !self.is_down {
                 Vec4::ONE * 1.3
             } else {
@@ -176,7 +177,11 @@ impl Widget for Button {
         )
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
-        self.stack.draw(ui_renderer);
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
+        self.stack.draw(ui_renderer, assets);
     }
 }

@@ -27,17 +27,19 @@ pub trait Widget {
     fn layout(&mut self, ctx: &LayoutContext) -> Vec2;
 
     /// Draws the widget with the given UI renderer.
-    fn draw(&self, ui_renderer: &mut UIRenderer);
+    fn draw(&self, ui_renderer: &mut UIRenderer, assets: &crate::scenes::Assets);
 }
 
 pub mod button;
 pub mod containers;
 pub mod inputfield;
+pub mod inventoryslot;
 pub mod label;
 pub mod nineslice;
 
 pub use button::*;
 pub use containers::*;
 pub use inputfield::*;
+pub use inventoryslot::*;
 pub use label::*;
 pub use nineslice::*;

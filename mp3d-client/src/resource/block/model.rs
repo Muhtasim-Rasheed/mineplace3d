@@ -1,7 +1,9 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use glam::{Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use mp3d_core::block::Block;
+
+use crate::render::meshing::FACE_VERTS;
 
 use super::{
     TextureAtlas, TextureRef,
@@ -17,8 +19,13 @@ impl BlockModel {
     /// Creates a [`BlockModel`] from a reference to a [`Block`], using its identifier to find the
     /// corresponding model file and then parsing it. This is a convenience method that combines
     /// loading the raw model from the file and then resolving it to a `BlockModel`.
-    pub fn from_block(block: &Block, extra_ident: &'static str, atlas: &mut TextureAtlas) -> Result<Self, String> {
-        let path = PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
+    pub fn from_block(
+        block: &Block,
+        extra_ident: &'static str,
+        atlas: &mut TextureAtlas,
+    ) -> Result<Self, String> {
+        let path =
+            PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
         let raw_content = crate::ASSETS
             .get_file(&path)
             .ok_or_else(|| {
@@ -131,6 +138,53 @@ impl BlockModel {
         } else {
             Err(format!("Model {:?} has no elements and no parent", parent))
         }
+    }
+
+    /// Returns a set of draw commands for the UI renderer to render this block model, given the
+    /// texture atlas. Each draw command contains the vertex data for a single face of a block
+    /// element, along with the texture coordinates and the texture to use from the atlas.
+    pub fn draw_commands(
+        &self,
+        gl: &std::sync::Arc<glow::Context>,
+        atlas: &TextureAtlas,
+        position: Vec2,
+        size: Vec2,
+        rotation: Mat4,
+    ) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
+        let mut commands = Vec::new();
+        for element in &self.elements {
+            for (i, face) in element.faces.iter().enumerate() {
+                let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
+
+                let uvs = [
+                    Vec2::new(uv_max.x, uv_min.y),
+                    Vec2::new(uv_min.x, uv_min.y),
+                    Vec2::new(uv_min.x, uv_max.y),
+                    Vec2::new(uv_max.x, uv_max.y),
+                ];
+
+                let mut vertices = Vec::new();
+
+                for (vert, uv) in FACE_VERTS[i].iter().zip(uvs.iter()) {
+                    let rotated = rotation
+                        .transform_point3(*vert - (element.to - element.from) + element.from);
+                    vertices.push(crate::render::ui::UIVertex {
+                        position: (position + rotated.truncate() * size).extend(rotated.z + 2.0),
+                        uv: *uv,
+                    });
+                }
+
+                commands.push(crate::render::ui::uirenderer::DrawCommand::Mesh {
+                    vertices,
+                    indices: vec![0, 1, 2, 0, 2, 3],
+                    mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
+                        atlas.upload(gl).handle(),
+                        Vec4::ONE,
+                    ),
+                });
+            }
+        }
+        commands
     }
 }
 

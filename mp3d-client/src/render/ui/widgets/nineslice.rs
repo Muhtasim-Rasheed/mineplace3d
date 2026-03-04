@@ -12,6 +12,7 @@ pub struct NineSlice {
     /// Scales the borders without changing the overall size of the nine-slice and the UVs.
     pub scale: u32,
     pub tint: Vec4,
+    pub layer: i32,
     atlas_size: UVec2,
 }
 
@@ -23,6 +24,7 @@ impl NineSlice {
         size: Vec2,
         border: UVec4,
         scale: u32,
+        layer: i32,
         tint: Vec4,
     ) -> Self {
         Self {
@@ -34,6 +36,7 @@ impl NineSlice {
             border,
             scale,
             tint,
+            layer,
             atlas_size: UVec2::new(texture.width(), texture.height()),
         }
     }
@@ -65,7 +68,11 @@ impl Widget for NineSlice {
         )
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer) {
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        _assets: &crate::scenes::Assets,
+    ) {
         let left = self.border.x * self.scale;
         let right = self.border.y * self.scale;
         let top = self.border.z * self.scale;
@@ -120,13 +127,14 @@ impl Widget for NineSlice {
                 let uv_min = uvs[row * 4 + col];
                 let uv_max = uvs[(row + 1) * 4 + (col + 1)];
 
-                ui_renderer.add_command(crate::render::ui::uirenderer::DrawCommand {
+                ui_renderer.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [pos_min, pos_max],
                     uv_rect: [uv_min, uv_max],
                     mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
                         self.texture,
                         self.tint,
                     ),
+                    layer: self.layer,
                 });
             }
         }

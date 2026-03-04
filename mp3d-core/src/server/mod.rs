@@ -207,7 +207,11 @@ impl Server {
                     );
                 }
             }
-            C2SMessage::SetBlock { position, block, block_state } => {
+            C2SMessage::SetBlock {
+                position,
+                block,
+                block_state,
+            } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get(user_id)
                     && let Some(player_pos) = self
@@ -219,10 +223,10 @@ impl Server {
                         return None;
                     }
 
-                    let old = self
-                        .world
-                        .get_block_at(position)
-                        .map_or((crate::block::Block::AIR, crate::block::BlockState::none()), |(b, s)| (*b, *s));
+                    let old = self.world.get_block_at(position).map_or(
+                        (crate::block::Block::AIR, crate::block::BlockState::none()),
+                        |(b, s)| (*b, *s),
+                    );
                     self.world.set_block_at(position, block, block_state);
 
                     if self.world.collides(
@@ -298,8 +302,13 @@ impl Server {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
                 {
-                    if !self.world.block_interaction(session.entity_id, position, face) {
-                        session.pending_messages.push(S2CMessage::NoBlockInteraction { position, face });
+                    if !self
+                        .world
+                        .block_interaction(session.entity_id, position, face)
+                    {
+                        session
+                            .pending_messages
+                            .push(S2CMessage::NoBlockInteraction { position, face });
                     }
                 }
             }

@@ -167,19 +167,19 @@ impl super::Scene for WorldCreation {
             }
         }
 
-        let seed = self
-            .container
-            .find_widget::<InputField>(&[1, 2])
-            .map_or(rand::random(), |input| {
-                let text = input.text.trim();
-                if let Ok(num) = text.parse::<i32>() {
-                    num
-                } else if !text.trim().is_empty() {
-                    fxhash::hash32(text.as_bytes()) as i32
-                } else {
-                    rand::random()
-                }
-            });
+        let seed =
+            self.container
+                .find_widget::<InputField>(&[1, 2])
+                .map_or(rand::random(), |input| {
+                    let text = input.text.trim();
+                    if let Ok(num) = text.parse::<i32>() {
+                        num
+                    } else if !text.trim().is_empty() {
+                        fxhash::hash32(text.as_bytes()) as i32
+                    } else {
+                        rand::random()
+                    }
+                });
 
         if let Some(create_button) = self.container.find_widget::<Button>(&[2, 1]) {
             if create_button.is_pressed() {
@@ -204,16 +204,14 @@ impl super::Scene for WorldCreation {
         &mut self,
         gl: &Arc<glow::Context>,
         ui: &mut UIRenderer,
-        _assets: &Arc<super::Assets>,
+        assets: &Arc<super::Assets>,
         _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
         unsafe {
             gl.clear_color(0.1, 0.1, 0.2, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
-            gl.disable(glow::DEPTH_TEST);
-            self.container.draw(ui);
-            gl.enable(glow::DEPTH_TEST);
+            self.container.draw(ui, assets);
         }
     }
 }

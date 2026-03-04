@@ -36,17 +36,25 @@ impl Assets {
         let mut block_textures = crate::resource::block::TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
         for block in mp3d_core::block::Block::ALL_BLOCKS {
-            let possible_state_data_values = BlockState::possible_data_values(block.state_type); 
+            let possible_state_data_values = BlockState::possible_data_values(block.state_type);
             if let Some(possible_state_data_values) = possible_state_data_values {
                 for &state_data in possible_state_data_values {
-                    let extra_ident = BlockState::new(block.state_type, state_data).to_ident().ok_or_else(|| {
-                        format!(
-                            "Block '{}' has an unrecognized block state type: {}",
-                            block.ident, block.state_type
-                        )
+                    let extra_ident = BlockState::new(block.state_type, state_data)
+                        .to_ident()
+                        .ok_or_else(|| {
+                            format!(
+                                "Block '{}' has an unrecognized block state type: {}",
+                                block.ident, block.state_type
+                            )
+                        })?;
+                    let model = crate::resource::block::BlockModel::from_block(
+                        &block,
+                        extra_ident,
+                        &mut block_textures,
+                    )
+                    .map_err(|e| {
+                        format!("Failed to load model for block '{}': {}", block.ident, e)
                     })?;
-                    let model = crate::resource::block::BlockModel::from_block(&block, extra_ident, &mut block_textures)
-                        .map_err(|e| format!("Failed to load model for block '{}': {}", block.ident, e))?;
                     block_models.insert((block.ident, extra_ident), model);
                 }
             } else {

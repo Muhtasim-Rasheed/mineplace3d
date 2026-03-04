@@ -11,9 +11,12 @@ pub mod chunk;
 pub mod player;
 pub mod world;
 
+use std::{cell::RefCell, rc::Rc};
+
 use glam::{IVec3, Vec3};
 use mp3d_core::{
     TextComponent,
+    item::Inventory,
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
 };
@@ -82,6 +85,7 @@ pub struct Client<C: Connection> {
     pub entity_id: Option<u64>,
     pub chat_message: Option<String>,
     pub chat_open: bool,
+    pub inventory_open: bool,
     pub messages: Vec<TextComponent>,
     pub world: ClientWorld,
 }
@@ -111,11 +115,13 @@ impl<C: Connection> Client<C> {
                 flying: false,
                 on_ground: false,
                 input: MoveInstructions::default(),
+                inventory: Rc::new(RefCell::new(Inventory::new())),
             },
             user_id: None,
             entity_id: None,
             chat_message: None,
             chat_open: false,
+            inventory_open: false,
             messages: vec![],
             world: ClientWorld::new(),
         }
@@ -123,7 +129,7 @@ impl<C: Connection> Client<C> {
 
     /// Takes in player input and sends it to the server through the connection.
     pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32) {
-        if !self.chat_open {
+        if !self.chat_open && !self.inventory_open {
             let mouse_delta = update_context.mouse.delta;
             self.player.yaw -= mouse_delta.x * 0.1;
             self.player.pitch += mouse_delta.y * 0.1;
@@ -189,8 +195,11 @@ impl<C: Connection> Client<C> {
             {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
                 if let Some((block_pos, _)) = raycast_result {
-                    self.world
-                        .set_block_at(block_pos, mp3d_core::block::Block::AIR, mp3d_core::block::BlockState::none());
+                    self.world.set_block_at(
+                        block_pos,
+                        mp3d_core::block::Block::AIR,
+                        mp3d_core::block::BlockState::none(),
+                    );
                 }
             }
 
@@ -217,8 +226,11 @@ impl<C: Connection> Client<C> {
                             face: face_idx,
                         });
                     } else {
-                        self.world
-                            .set_block_at(place_pos, mp3d_core::block::Block::GLUNGUS, mp3d_core::block::BlockState::none());
+                        self.world.set_block_at(
+                            place_pos,
+                            mp3d_core::block::Block::GLUNGUS,
+                            mp3d_core::block::BlockState::none(),
+                        );
                     }
                 }
             }
@@ -239,7 +251,15 @@ impl<C: Connection> Client<C> {
                 self.chat_open = true;
                 self.chat_message = Some("/".to_string());
             }
-        } else {
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::E)
+            {
+                self.inventory_open = !self.inventory_open;
+            }
+        } else if self.chat_open {
             self.chat_message
                 .get_or_insert_with(String::new)
                 .push_str(&update_context.keyboard.text_input);
@@ -278,6 +298,14 @@ impl<C: Connection> Client<C> {
                     message.pop();
                 }
             }
+        } else if self.inventory_open {
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::Escape)
+            {
+                self.inventory_open = false;
+            }
         }
 
         self.player.optimistic(dt, &self.world);
@@ -291,8 +319,11 @@ impl<C: Connection> Client<C> {
 
         let block_changes = std::mem::take(&mut self.world.pending_changes);
         for (position, (block, block_state)) in block_changes {
-            self.connection
-                .send(C2SMessage::SetBlock { position, block, block_state });
+            self.connection.send(C2SMessage::SetBlock {
+                position,
+                block,
+                block_state,
+            });
         }
     }
 
@@ -350,21 +381,29 @@ impl<C: Connection> Client<C> {
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
                 }
-                S2CMessage::BlockUpdated { position, block, block_state } => {
+                S2CMessage::BlockUpdated {
+                    position,
+                    block,
+                    block_state,
+                } => {
                     self.world.set_block_at(position, block, block_state);
                 }
                 S2CMessage::NoBlockInteraction { position, face } => {
-                    let place_pos = position + match face {
-                        0 => IVec3::new(0, 0, -1),
-                        1 => IVec3::new(0, 0, 1),
-                        2 => IVec3::new(1, 0, 0),
-                        3 => IVec3::new(-1, 0, 0),
-                        4 => IVec3::new(0, 1, 0),
-                        5 => IVec3::new(0, -1, 0),
-                        _ => unreachable!(),
-                    };
-                    self.world
-                        .set_block_at(place_pos, mp3d_core::block::Block::GLUNGUS, mp3d_core::block::BlockState::none());
+                    let place_pos = position
+                        + match face {
+                            0 => IVec3::new(0, 0, -1),
+                            1 => IVec3::new(0, 0, 1),
+                            2 => IVec3::new(1, 0, 0),
+                            3 => IVec3::new(-1, 0, 0),
+                            4 => IVec3::new(0, 1, 0),
+                            5 => IVec3::new(0, -1, 0),
+                            _ => unreachable!(),
+                        };
+                    self.world.set_block_at(
+                        place_pos,
+                        mp3d_core::block::Block::GLUNGUS,
+                        mp3d_core::block::BlockState::none(),
+                    );
                 }
                 _ => {}
             }
