@@ -4,10 +4,10 @@ use glam::{Mat4, UVec2, UVec4, Vec2, Vec4};
 use mp3d_core::item::*;
 
 use crate::{
-    abs::{Texture, TextureHandle},
+    abs::TextureHandle,
     render::ui::{
         uirenderer::DrawCommand,
-        widgets::{NineSlice, Stack, Widget},
+        widgets::{Font, NineSlice, Widget},
     },
 };
 
@@ -17,11 +17,17 @@ pub struct InventorySlot {
     position: Vec2,
     nineslice: NineSlice,
     inventory: Rc<RefCell<Inventory>>,
+    font: Rc<Font>,
     idx: usize,
 }
 
 impl InventorySlot {
-    pub fn new(texture: TextureHandle, inventory: &Rc<RefCell<Inventory>>, idx: usize) -> Self {
+    pub fn new(
+        texture: TextureHandle,
+        font: &Rc<Font>,
+        inventory: &Rc<RefCell<Inventory>>,
+        idx: usize,
+    ) -> Self {
         let nineslice = NineSlice::new(
             texture,
             UVec2::new(16, 16),
@@ -32,17 +38,69 @@ impl InventorySlot {
             1,
             Vec4::ONE,
         );
-        let mut slot = Self {
+        Self {
             position: Vec2::ZERO,
             nineslice,
             inventory: Rc::clone(inventory),
+            font: Rc::clone(font),
             idx,
-        };
-        slot.setup_stack();
-        slot
+        }
     }
 
-    fn setup_stack(&mut self) {}
+    pub fn draw_stack(
+        stack: ItemStack,
+        assets: &crate::scenes::Assets,
+        position: Vec2,
+        ui: &super::UIRenderer,
+        font: &Rc<Font>,
+    ) -> Vec<DrawCommand> {
+        let mut commands = Vec::new();
+        let item = stack.item;
+        if let Some(block) = item.assoc_block {
+            if block.visible {
+                let item_block_state =
+                    mp3d_core::block::BlockState::default_state(block.state_type).unwrap();
+                let item_block_model = assets
+                    .block_models
+                    .get(&(block.ident, item_block_state.to_ident().unwrap()))
+                    .unwrap();
+                commands.extend(item_block_model.draw_commands(
+                    &ui.gl,
+                    &assets.block_textures,
+                    position,
+                    INVENTORY_SLOT_SIZE / 1.75,
+                    Mat4::from_rotation_z(180f32.to_radians())
+                        * Mat4::from_rotation_x(30f32.to_radians())
+                        * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
+                ));
+            }
+        } else {
+            todo!("Implement item rendering for non-block items");
+        }
+        // Draw the item count if greater than 1
+        if stack.count > 1 {
+            let bottom_right = position + INVENTORY_SLOT_SIZE / 2.0;
+            let count_text = stack.count.to_string();
+            let text_position = bottom_right - font.measure_text(&count_text, 24.0) - Vec2::new(4.0, 4.0);
+            let text_commands = font
+                .text(&count_text, 24.0, Vec4::ONE)
+                .into_iter()
+                .map(|mut cmd| {
+                    if let DrawCommand::Quad { rect, .. } = &mut cmd {
+                        rect[0] += text_position;
+                        rect[1] += text_position;
+                    } else if let DrawCommand::Mesh { vertices, .. } = &mut cmd {
+                        for vertex in vertices {
+                            vertex.position += text_position.extend(0.0);
+                        }
+                    }
+                    cmd
+                })
+                .collect::<Vec<_>>();
+            commands.extend(text_commands);
+        }
+        commands
+    }
 }
 
 impl Widget for InventorySlot {
@@ -59,7 +117,9 @@ impl Widget for InventorySlot {
     }
 
     fn update(&mut self, ctx: &crate::other::UpdateContext) {
-        if ctx.mouse.pressed.contains(&sdl2::mouse::MouseButton::Left) {
+        let right = ctx.mouse.pressed.contains(&sdl2::mouse::MouseButton::Right);
+        let clicked = right || ctx.mouse.pressed.contains(&sdl2::mouse::MouseButton::Left);
+        if clicked {
             let mouse_pos = ctx.mouse.position;
             let slot_pos = self.position;
             let slot_size = INVENTORY_SLOT_SIZE;
@@ -69,7 +129,7 @@ impl Widget for InventorySlot {
                 && mouse_pos.y <= slot_pos.y + slot_size.y
             {
                 let mut inventory = self.inventory.borrow_mut();
-                // TODO: Handle inventory interactions.
+                inventory.click(self.idx, right);
             }
         }
     }
@@ -97,30 +157,15 @@ impl Widget for InventorySlot {
 
         let inventory = self.inventory.borrow();
         if let Some(item_stack) = inventory.main.get(self.idx) {
-            let item = item_stack.item;
-            if let Some(block) = item.assoc_block {
-                if block.visible {
-                    let item_block_state =
-                        mp3d_core::block::BlockState::default_state(block.state_type).unwrap();
-                    let item_block_model = assets
-                        .block_models
-                        .get(&(block.ident, item_block_state.to_ident().unwrap()))
-                        .unwrap();
-                    let commands = item_block_model.draw_commands(
-                        &ui_renderer.gl,
-                        &assets.block_textures,
-                        self.position + INVENTORY_SLOT_SIZE / 2.0,
-                        INVENTORY_SLOT_SIZE / 1.75,
-                        Mat4::from_rotation_z(180f32.to_radians())
-                            * Mat4::from_rotation_x(30f32.to_radians())
-                            * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
-                    );
-                    for cmd in commands {
-                        ui_renderer.add_command(cmd);
-                    }
-                }
-            } else {
-                todo!("Implement item rendering for non-block items");
+            let commands = Self::draw_stack(
+                *item_stack,
+                assets,
+                self.position + INVENTORY_SLOT_SIZE / 2.0,
+                ui_renderer,
+                &self.font,
+            );
+            for cmd in commands {
+                ui_renderer.add_command(cmd);
             }
         }
     }

@@ -98,7 +98,7 @@ fn main() {
     let mut ui_renderer = UIRenderer::new(
         &app.gl,
         shader_program,
-        Mat4::orthographic_rh_gl(0.0, 1280.0, 720.0, 0.0, -1.0, 1.0),
+        Mat4::orthographic_rh_gl(0.0, 1280.0, 720.0, 0.0, -20.0, 20.0),
     );
 
     let font = Rc::new(Font::new(
@@ -171,8 +171,8 @@ fn main() {
                         width as f32,
                         height as f32,
                         0.0,
-                        -10.0,
-                        10.0,
+                        -20.0,
+                        20.0,
                     );
                 }
                 sdl2::event::Event::MouseMotion {

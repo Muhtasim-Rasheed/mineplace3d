@@ -78,7 +78,7 @@ impl Font {
                             self.atlas().handle(),
                             color,
                         ),
-                        layer: 5,
+                        layer: 2000,
                     });
                 }
                 cursor.x += char_size.x;

@@ -116,9 +116,18 @@ impl ItemStack {
     /// then the method will add the counts together and return any remainder if the total count
     /// exceeds the max stack size.
     pub fn add_stack(&mut self, other: &ItemStack) -> ItemStack {
-        if !self.can_merge(other) {
-            return *other; // Can't add different items, return the other stack as is
+        if other.is_empty() {
+            return ItemStack::empty();
         }
+
+        if self.is_empty() {
+            self.item = other.item;
+        }
+
+        if !std::ptr::eq(self.item, other.item) {
+            return *other;
+        }
+
         self.add(other.count)
     }
 
@@ -130,14 +139,21 @@ impl ItemStack {
     pub fn remove(&mut self, count: u16) -> ItemStack {
         let to_remove = count.min(self.count);
         self.count -= to_remove;
-        if to_remove > 0 {
+
+        let removed_stack = if to_remove > 0 {
             ItemStack {
                 item: self.item,
                 count: to_remove,
             }
         } else {
             ItemStack::empty()
+        };
+
+        if self.count == 0 {
+            self.item = &Item::AIR;
         }
+
+        removed_stack
     }
 
     /// Takes some items from another stack to this stack, giving back the leftover or unmergeable
@@ -188,5 +204,35 @@ impl Inventory {
     pub fn take_into_temp(&mut self, index: usize) {
         let count = self.main[index].count;
         self.temp.take_from(&mut self.main[index], count);
+    }
+
+    /// Takes the temporary slot into the general slot and leaves the remainder back to the
+    /// temporary slot.
+    pub fn take_from_temp(&mut self, index: usize) {
+        let count = self.temp.count;
+        self.main[index].take_from(&mut self.temp, count);
+    }
+
+    /// Simulates a click on a general slot.
+    pub fn click(&mut self, index: usize, right: bool) {
+        if right {
+            // Right click: If the temporary stack is empty, halve the general slot stack and take
+            // the halved amount into the temporary stack. If the temporary stack is not empty,
+            // take one item from the temporary stack into the general slot.
+            if self.temp.is_empty() {
+                let half_count = (self.main[index].count + 1) / 2;
+                self.temp.take_from(&mut self.main[index], half_count);
+            } else {
+                self.main[index].take_from(&mut self.temp, 1);
+            }
+        } else {
+            // // Left click: Swap the temporary stack with the general slot stack
+            // std::mem::swap(&mut self.main[index], &mut self.temp);
+            if self.temp.is_empty() {
+                self.take_into_temp(index);
+            } else {
+                self.take_from_temp(index);
+            }
+        }
     }
 }

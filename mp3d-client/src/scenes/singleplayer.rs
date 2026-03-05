@@ -37,6 +37,7 @@ pub struct SinglePlayer {
     inventory: Stack,
     font: Rc<Font>,
     world_path: PathBuf,
+    mouse_pos: Vec2,
 }
 
 impl SinglePlayer {
@@ -113,7 +114,12 @@ impl SinglePlayer {
             Vec4::ZERO,
         );
         for i in 0..36 {
-            inventory_grid.add_widget(InventorySlot::new(gui_tex, &client.player.inventory, i));
+            inventory_grid.add_widget(InventorySlot::new(
+                gui_tex,
+                font,
+                &client.player.inventory,
+                i,
+            ));
         }
         let mut inventory_col = Column::new(
             8.0,
@@ -166,6 +172,7 @@ impl SinglePlayer {
             inventory: inventory_stack,
             font: font.clone(),
             world_path,
+            mouse_pos: Vec2::ZERO,
         }
     }
 }
@@ -202,9 +209,9 @@ impl super::Scene for SinglePlayer {
         _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) -> super::SceneSwitch {
         window.set_title("Mineplace3D - Single Player").unwrap();
-        sdl_ctx
-            .mouse()
-            .set_relative_mouse_mode(self.playing && !self.client.chat_open && !self.client.inventory_open);
+        sdl_ctx.mouse().set_relative_mouse_mode(
+            self.playing && !self.client.chat_open && !self.client.inventory_open,
+        );
         self.client.player.inventory.borrow_mut().main[0] = mp3d_core::item::ItemStack {
             item: &mp3d_core::item::Item::GRASS_BLOCK,
             count: 64,
@@ -294,10 +301,14 @@ impl super::Scene for SinglePlayer {
         if self.client.inventory_open {
             self.inventory.update(ctx);
             let inventory_size = self.inventory.size_hint();
-            self.inventory.layout(&crate::render::ui::widgets::LayoutContext {
-                max_size: inventory_size,
-                cursor: Vec2::new(self.width as f32 / 2.0 - inventory_size.x / 2.0, self.height as f32 / 2.0 - inventory_size.y / 2.0),
-            });
+            self.inventory
+                .layout(&crate::render::ui::widgets::LayoutContext {
+                    max_size: inventory_size,
+                    cursor: Vec2::new(
+                        self.width as f32 / 2.0 - inventory_size.x / 2.0,
+                        self.height as f32 / 2.0 - inventory_size.y / 2.0,
+                    ),
+                });
         }
         let unloaded = self
             .client
@@ -316,6 +327,7 @@ impl super::Scene for SinglePlayer {
             &assets.block_textures,
             &assets.block_models,
         );
+        self.mouse_pos = ctx.mouse.position;
         super::SceneSwitch::None
     }
 
@@ -445,6 +457,16 @@ impl super::Scene for SinglePlayer {
 
             if self.client.inventory_open {
                 self.inventory.draw(ui, assets);
+
+                let temp_stack = &self.client.player.inventory.borrow().temp;
+                if !temp_stack.is_empty() {
+                    // Draw the temp stack at the mouse position
+                    let temp_stack_commands =
+                        InventorySlot::draw_stack(*temp_stack, assets, self.mouse_pos, &ui, &self.font);
+                    for cmd in temp_stack_commands {
+                        ui.add_command(cmd);
+                    }
+                }
             }
         }
     }
