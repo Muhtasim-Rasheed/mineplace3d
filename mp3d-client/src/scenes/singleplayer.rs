@@ -461,8 +461,13 @@ impl super::Scene for SinglePlayer {
                 let temp_stack = &self.client.player.inventory.borrow().temp;
                 if !temp_stack.is_empty() {
                     // Draw the temp stack at the mouse position
-                    let temp_stack_commands =
-                        InventorySlot::draw_stack(*temp_stack, assets, self.mouse_pos, &ui, &self.font);
+                    let temp_stack_commands = InventorySlot::draw_stack(
+                        *temp_stack,
+                        assets,
+                        self.mouse_pos,
+                        &ui,
+                        &self.font,
+                    );
                     for cmd in temp_stack_commands {
                         ui.add_command(cmd);
                     }

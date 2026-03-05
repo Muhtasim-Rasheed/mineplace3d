@@ -4,7 +4,7 @@ use glam::IVec3;
 
 use crate::{
     block::{Block, BlockState},
-    world::WorldLoadError,
+    saving::{io::*, Saveable, WorldLoadError},
 };
 
 pub const CHUNK_SIZE: usize = 16;
@@ -91,7 +91,7 @@ impl Chunk {
     }
 }
 
-impl Chunk {
+impl Saveable for Chunk {
     /// Serialises the chunk.
     ///
     /// The chunk format is as follows:
@@ -104,148 +104,50 @@ impl Chunk {
     ///   - 2 bytes: block state type (u16)
     /// - 4096 * 2 bytes: block indices (u16) for each block in the chunk
     /// - 4096 * 4 bytes: block states (u32) for each block in the chunk
-    pub fn save(&self) -> Vec<u8> {
+    fn save(&self) -> Vec<u8> {
         let mut data = Vec::new();
         data.push(self.block_palette.len() as u8);
         for block in &self.block_palette {
-            let ident_len = block.ident.len() as u8;
-            data.push(block.visible as u8);
-            data.push(ident_len);
-            data.extend(block.ident.as_bytes());
-            data.extend(&[block.collision_shape as u8]);
-            data.extend(&block.state_type.to_le_bytes());
+            let block_data = block.save();
+            data.extend_from_slice(&block_data);
         }
         for block_index in &self.blocks {
-            data.extend(&block_index.to_le_bytes());
+            data.extend_from_slice(&block_index.to_le_bytes());
         }
         for block_state in &self.block_states {
-            data.extend(&block_state.bits().to_le_bytes());
+            data.extend_from_slice(&block_state.save());
         }
         data
     }
 
     /// Loads a chunk from the given data.
-    pub fn load<I: Iterator<Item = u8>>(
+    fn load<I: Iterator<Item = u8>>(
+        data: &mut I,
         version: u8,
-        data_iter: &mut I,
     ) -> Result<Self, WorldLoadError> {
-        match version {
-            0 => load_v0(data_iter),
-            1 => load_v1(data_iter),
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unsupported save version: {}",
-                    version
-                )));
+        let palette_len = read_u8(data, "Chunk palette length")? as usize;
+        let mut block_palette = Vec::with_capacity(palette_len);
+        for _ in 0..palette_len {
+            let block = Block::load(data, version)?;
+            block_palette.push(block);
+        }
+        let mut blocks = [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        for block in &mut blocks {
+            *block = read_u16(data, "Chunk blocks")?;
+        }
+        let mut block_states = [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        // Even though BlockState::load returns BlockState::none() and doesn't consume any data for
+        // version 0, this makes it faster to load version 0 chunks since we don't have to read any
+        // data for block states.
+        if version > 0 {
+            for block_state in &mut block_states {
+                *block_state = BlockState::load(data, version)?;
             }
         }
+        Ok(Chunk {
+            block_palette,
+            blocks,
+            block_states,
+        })
     }
-}
-
-fn load_v0(data_iter: &mut impl Iterator<Item = u8>) -> Result<Chunk, WorldLoadError> {
-    let palette_len = super::take_exact(1, data_iter)?[0] as usize;
-    let mut block_palette = Vec::with_capacity(palette_len);
-    for _ in 0..palette_len {
-        let visible = super::take_exact(1, data_iter)?[0] != 0;
-        let block_id_len = data_iter.next().unwrap() as usize;
-        let block_id_bytes = super::take_exact(block_id_len, data_iter)?;
-        let block_id = String::from_utf8(block_id_bytes).unwrap();
-        let Some(ident) = crate::block::get_block_ident(&block_id) else {
-            return Err(WorldLoadError::InvalidSaveFormat(format!(
-                "Unknown block identifier: {}",
-                block_id
-            )));
-        };
-        let collision_shape = super::take_exact(1, data_iter)?[0];
-        let collision_shape = match collision_shape {
-            0 => crate::block::CollisionShape::None,
-            1 => crate::block::CollisionShape::FullBlock,
-            2 => crate::block::CollisionShape::Slab,
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Invalid collision shape: {}",
-                    collision_shape
-                )));
-            }
-        };
-        let Some(ident) = crate::block::get_block_ident(&ident) else {
-            return Err(WorldLoadError::InvalidSaveFormat(format!(
-                "Unknown block identifier: {}",
-                ident
-            )));
-        };
-        block_palette.push(Block {
-            visible,
-            ident,
-            collision_shape,
-            state_type: crate::block::BlockState::none().state_type(),
-        });
-    }
-    let mut blocks = [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-    for block in &mut blocks {
-        let block_bytes = super::take_exact(2, data_iter)?;
-        *block = u16::from_le_bytes([block_bytes[0], block_bytes[1]]);
-    }
-    Ok(Chunk {
-        block_palette,
-        blocks,
-        block_states: [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
-    })
-}
-
-fn load_v1(data_iter: &mut impl Iterator<Item = u8>) -> Result<Chunk, WorldLoadError> {
-    let palette_len = super::take_exact(1, data_iter)?[0] as usize;
-    let mut block_palette = Vec::with_capacity(palette_len);
-    for _ in 0..palette_len {
-        let visible = super::take_exact(1, data_iter)?[0] != 0;
-        let block_id_len = data_iter.next().unwrap() as usize;
-        let block_id_bytes = super::take_exact(block_id_len, data_iter)?;
-        let block_id = String::from_utf8(block_id_bytes).unwrap();
-        let Some(ident) = crate::block::get_block_ident(&block_id) else {
-            return Err(WorldLoadError::InvalidSaveFormat(format!(
-                "Unknown block identifier: {}",
-                block_id
-            )));
-        };
-        let collision_shape = super::take_exact(1, data_iter)?[0];
-        let collision_shape = match collision_shape {
-            0 => crate::block::CollisionShape::None,
-            1 => crate::block::CollisionShape::FullBlock,
-            2 => crate::block::CollisionShape::Slab,
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Invalid collision shape: {}",
-                    collision_shape
-                )));
-            }
-        };
-        let state_type_bytes = super::take_exact(2, data_iter)?;
-        let state_type = u16::from_le_bytes([state_type_bytes[0], state_type_bytes[1]]);
-        block_palette.push(Block {
-            visible,
-            ident,
-            collision_shape,
-            state_type,
-        });
-    }
-    let mut blocks = [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-    for block in &mut blocks {
-        let block_bytes = super::take_exact(2, data_iter)?;
-        *block = u16::from_le_bytes([block_bytes[0], block_bytes[1]]);
-    }
-    let mut block_states = [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-    for block_state in &mut block_states {
-        let state_bytes = super::take_exact(4, data_iter)?;
-        *block_state = BlockState::from_bits(u32::from_le_bytes([
-            state_bytes[0],
-            state_bytes[1],
-            state_bytes[2],
-            state_bytes[3],
-        ]));
-    }
-    Ok(Chunk {
-        block_palette,
-        blocks,
-        block_states,
-    })
 }

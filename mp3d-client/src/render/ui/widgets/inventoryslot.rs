@@ -81,7 +81,8 @@ impl InventorySlot {
         if stack.count > 1 {
             let bottom_right = position + INVENTORY_SLOT_SIZE / 2.0;
             let count_text = stack.count.to_string();
-            let text_position = bottom_right - font.measure_text(&count_text, 24.0) - Vec2::new(4.0, 4.0);
+            let text_position =
+                bottom_right - font.measure_text(&count_text, 24.0) - Vec2::new(4.0, 4.0);
             let text_commands = font
                 .text(&count_text, 24.0, Vec4::ONE)
                 .into_iter()

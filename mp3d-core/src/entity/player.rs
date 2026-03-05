@@ -3,8 +3,7 @@
 use glam::Vec3;
 
 use crate::{
-    entity::{Entity, EntityType},
-    world::World,
+    entity::{Entity, EntityType}, saving::{io::*, Saveable, WorldLoadError}, world::World
 };
 
 pub const GRAVITY: f32 = 60.0;
@@ -38,6 +37,45 @@ impl PlayerEntity {
     }
 }
 
+impl Saveable for PlayerEntity {
+    fn save(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&(self.username.len() as u8).to_le_bytes());
+        data.extend_from_slice(self.username.as_bytes());
+        data.extend_from_slice(&self.position.x.to_le_bytes());
+        data.extend_from_slice(&self.position.y.to_le_bytes());
+        data.extend_from_slice(&self.position.z.to_le_bytes());
+        data.extend_from_slice(&self.velocity.x.to_le_bytes());
+        data.extend_from_slice(&self.velocity.y.to_le_bytes());
+        data.extend_from_slice(&self.velocity.z.to_le_bytes());
+        data.extend_from_slice(&self.yaw.to_le_bytes());
+        data.extend_from_slice(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&[self.flying as u8]);
+        data
+    }
+
+    fn load<I: Iterator<Item = u8>>(data: &mut I, _version: u8) -> Result<Self, WorldLoadError> {
+        let username_len = read_u8(data, "Player username length")? as usize;
+        let username = read_string(data, username_len, "Player username")?;
+        let position = read_vec3(data, "Player position")?;
+        let velocity = read_vec3(data, "Player velocity")?;
+        let yaw = read_f32(data, "Player yaw")?;
+        let pitch = read_f32(data, "Player pitch")?;
+        let flying = read_u8(data, "Player flying state")? != 0;
+        Ok(Self {
+            entity_id: 0,
+            username,
+            position,
+            velocity,
+            yaw,
+            pitch,
+            flying,
+            cooldown: 0,
+            on_ground: false,
+        })
+    }
+}
+
 impl Entity for PlayerEntity {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -61,95 +99,6 @@ impl Entity for PlayerEntity {
 
     fn id(&self) -> u64 {
         self.entity_id
-    }
-
-    fn save(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-        data.extend(&(self.username.len() as u8).to_le_bytes());
-        data.extend(self.username.as_bytes());
-        data.extend(&self.position.x.to_le_bytes());
-        data.extend(&self.position.y.to_le_bytes());
-        data.extend(&self.position.z.to_le_bytes());
-        data.extend(&self.velocity.x.to_le_bytes());
-        data.extend(&self.velocity.y.to_le_bytes());
-        data.extend(&self.velocity.z.to_le_bytes());
-        data.extend(&self.yaw.to_le_bytes());
-        data.extend(&self.pitch.to_le_bytes());
-        data.extend(&[self.flying as u8]);
-        data
-    }
-
-    fn load(data: &[u8], version: u8) -> Result<Self, String> {
-        fn read_string(data: &[u8], offset: &mut usize) -> Result<String, String> {
-            if *offset >= data.len() {
-                return Err("Unexpected end of data".to_string());
-            }
-
-            let len = data[*offset] as usize;
-            *offset += 1;
-
-            if *offset + len > data.len() {
-                return Err("Unexpected end of data".to_string());
-            }
-
-            let string_data = &data[*offset..*offset + len];
-            *offset += len;
-
-            String::from_utf8(string_data.to_vec()).map_err(|_| "Failed to read string".to_string())
-        }
-
-        fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8, String> {
-            if *offset + 1 > data.len() {
-                return Err("Unexpected end of data".to_string());
-            }
-
-            let byte = data[*offset];
-            *offset += 1;
-            Ok(byte)
-        }
-
-        fn read_f32(data: &[u8], offset: &mut usize) -> Result<f32, String> {
-            if *offset + 4 > data.len() {
-                return Err("Unexpected end of data".to_string());
-            }
-
-            let bytes: [u8; 4] = data[*offset..*offset + 4]
-                .try_into()
-                .map_err(|_| "Failed to read f32".to_string())?;
-
-            *offset += 4;
-            Ok(f32::from_le_bytes(bytes))
-        }
-
-        match version {
-            0 | 1 => {
-                let mut offset = 0;
-
-                let username = read_string(data, &mut offset)?;
-                let pos_x = read_f32(data, &mut offset)?;
-                let pos_y = read_f32(data, &mut offset)?;
-                let pos_z = read_f32(data, &mut offset)?;
-                let vel_x = read_f32(data, &mut offset)?;
-                let vel_y = read_f32(data, &mut offset)?;
-                let vel_z = read_f32(data, &mut offset)?;
-                let yaw = read_f32(data, &mut offset)?;
-                let pitch = read_f32(data, &mut offset)?;
-                let flying = read_u8(data, &mut offset)? != 0;
-
-                Ok(Self {
-                    entity_id: 0,
-                    username,
-                    position: Vec3::new(pos_x, pos_y, pos_z),
-                    velocity: Vec3::new(vel_x, vel_y, vel_z),
-                    yaw,
-                    pitch,
-                    flying,
-                    cooldown: 0,
-                    on_ground: false,
-                })
-            }
-            _ => Err(format!("Unsupported player entity version: {}", version)),
-        }
     }
 
     fn snapshot(&self) -> Vec<u8> {

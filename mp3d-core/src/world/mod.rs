@@ -13,7 +13,8 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{Block, BlockState},
     entity::{Entity, EntityType, PlayerEntity},
-    world::chunk::{CHUNK_SIZE, Chunk},
+    saving::{io::*, Saveable, WorldLoadError, SAVE_VERSION},
+    world::chunk::{Chunk, CHUNK_SIZE},
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -230,48 +231,6 @@ impl World {
     }
 }
 
-pub enum WorldLoadError {
-    MissingSaveFile(std::path::PathBuf),
-    InvalidSaveFormat(String),
-}
-
-impl std::fmt::Display for WorldLoadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WorldLoadError::MissingSaveFile(path) => {
-                write!(f, "Save file not found: {}", path.display())
-            }
-            WorldLoadError::InvalidSaveFormat(msg) => write!(f, "Invalid save format: {}", msg),
-        }
-    }
-}
-
-impl std::fmt::Debug for WorldLoadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "WorldLoadError: {}", self)
-    }
-}
-
-impl std::error::Error for WorldLoadError {}
-
-impl From<WorldLoadError> for std::io::Error {
-    fn from(err: WorldLoadError) -> Self {
-        match err {
-            WorldLoadError::MissingSaveFile(path) => std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Save file not found: {}", path.display()),
-            ),
-            WorldLoadError::InvalidSaveFormat(msg) => std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Invalid save format: {}", msg),
-            ),
-        }
-    }
-}
-
-/// The current version of the world save format (in beta).
-pub const SAVE_VERSION: u8 = 1;
-
 impl World {
     /// Saves the world to a folder.
     ///
@@ -341,13 +300,8 @@ impl World {
                     &mut chunk_file,
                     &[local_pos.x as u8, local_pos.y as u8, local_pos.z as u8],
                 )?;
-                std::io::Write::write_all(&mut chunk_file, &[block.visible as u8])?;
-                let block_id = block.ident;
-                std::io::Write::write_all(&mut chunk_file, &(block_id.len() as u8).to_le_bytes())?;
-                std::io::Write::write_all(&mut chunk_file, block_id.as_bytes())?;
-                std::io::Write::write_all(&mut chunk_file, &[block.collision_shape as u8])?;
-                std::io::Write::write_all(&mut chunk_file, &block.state_type.to_le_bytes())?;
-                std::io::Write::write_all(&mut chunk_file, &state.bits().to_le_bytes())?;
+                let data = (*block, *state).save();
+                std::io::Write::write_all(&mut chunk_file, data.as_slice())?;
             }
             std::io::Write::write_all(&mut chunk_file, &chunk_data)?;
         }
@@ -397,11 +351,10 @@ impl World {
     pub fn load(path: &std::path::Path) -> Result<Self, WorldLoadError> {
         let save_content = std::fs::read(path.join("save.bin"))
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
-        let mut save_iter = save_content.iter();
+        let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(&version) if version == 0 => load_v0(path, &mut save_iter),
-            Some(&version) if version == 1 => load_v1(path, &mut save_iter),
-            Some(&version) => {
+            Some(version) if version <= 1 => load_v0_1(path, &mut save_iter, version),
+            Some(version) => {
                 return Err(WorldLoadError::InvalidSaveFormat(format!(
                     "Unsupported save version: {}",
                     version
@@ -416,28 +369,13 @@ impl World {
     }
 }
 
-pub(super) fn take_exact<I: Iterator<Item = u8>>(
-    n: usize,
-    iter: &mut I,
-) -> Result<Vec<u8>, WorldLoadError> {
-    let bytes: Vec<u8> = iter.take(n).collect();
-    if bytes.len() == n {
-        Ok(bytes)
-    } else {
-        Err(WorldLoadError::InvalidSaveFormat(format!(
-            "Unexpected end of file while reading {} bytes",
-            n
-        )))
-    }
-}
-
-fn load_v0(
+fn load_v0_1(
     path: &std::path::Path,
-    save_iter: &mut std::slice::Iter<u8>,
+    save_iter: &mut impl Iterator<Item = u8>,
+    version: u8,
 ) -> Result<World, WorldLoadError> {
     // SEED
-    let seed_bytes = take_exact(4, &mut save_iter.cloned())?;
-    let seed = i32::from_le_bytes(seed_bytes.try_into().unwrap());
+    let seed = read_i32(save_iter, "World seed")?;
     let mut noise = fastnoise_lite::FastNoiseLite::new();
     noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
     noise.set_seed(Some(seed));
@@ -476,50 +414,17 @@ fn load_v0(
         );
         let chunk_data = std::fs::read(entry.path()).unwrap();
         let mut chunk_iter = chunk_data.into_iter();
-        let change_count_bytes = take_exact(2, &mut chunk_iter)?.try_into().unwrap();
-        let change_count = u16::from_le_bytes(change_count_bytes);
+        let change_count = read_u16(&mut chunk_iter, "Chunk change count")?;
         for _ in 0..change_count {
-            let local_pos_bytes = take_exact(3, &mut chunk_iter)?;
-            let local_pos = IVec3::new(
-                local_pos_bytes[0] as i32,
-                local_pos_bytes[1] as i32,
-                local_pos_bytes[2] as i32,
-            );
-            let visible = chunk_iter.next().unwrap() == 1;
-            let block_id_len = chunk_iter.next().unwrap() as usize;
-            let block_id_bytes = take_exact(block_id_len, &mut chunk_iter)?;
-            let block_id = String::from_utf8(block_id_bytes).unwrap();
-            let Some(ident) = crate::block::get_block_ident(&block_id) else {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unknown block identifier: {}",
-                    block_id
-                )));
-            };
-            let collision_shape_byte = chunk_iter.next().unwrap();
-            let collision_shape = match collision_shape_byte {
-                0 => crate::block::CollisionShape::None,
-                1 => crate::block::CollisionShape::FullBlock,
-                2 => crate::block::CollisionShape::Slab,
-                _ => {
-                    return Err(WorldLoadError::InvalidSaveFormat(format!(
-                        "Unknown collision shape: {}",
-                        collision_shape_byte
-                    )));
-                }
-            };
-            let block = Block {
-                ident,
-                visible,
-                collision_shape,
-                state_type: crate::block::BlockState::none().state_type(),
-            };
+            let local_pos = read_u8vec3(&mut chunk_iter, "Chunk change local position")?.as_ivec3();
+            let block_and_state = <(Block, BlockState)>::load(&mut chunk_iter, version)?;
             world
                 .changes
                 .entry(chunk_pos)
                 .or_insert_with(HashMap::new)
-                .insert(local_pos, (block, crate::block::BlockState::none()));
+                .insert(local_pos, block_and_state);
         }
-        let chunk = Chunk::load(0, &mut chunk_iter)?;
+        let chunk = Chunk::load(&mut chunk_iter, version)?;
         world.chunks.insert(chunk_pos, chunk);
     }
 
@@ -530,14 +435,12 @@ fn load_v0(
     }
     let entities_data = std::fs::read(entities_path).unwrap();
     let mut entities_iter = entities_data.into_iter();
-    let entity_count_bytes = take_exact(8, &mut entities_iter)?.try_into().unwrap();
-    let entity_count = u64::from_le_bytes(entity_count_bytes);
+    let entity_count = read_u64(&mut entities_iter, "Entity count")?;
     #[allow(unreachable_code, unused_variables)]
     for _ in 0..entity_count {
-        let entity_type = entities_iter.next().unwrap();
-        let entity_data_len_bytes = take_exact(4, &mut entities_iter)?.try_into().unwrap();
-        let entity_data_len = u32::from_le_bytes(entity_data_len_bytes);
-        let entity_data = take_exact(entity_data_len as usize, &mut entities_iter)?;
+        let entity_type = read_u8(&mut entities_iter, "Entity type")?;
+        let entity_data_len = read_u32(&mut entities_iter, "Entity data length")?;
+        let entity_data = take_exact(&mut entities_iter, entity_data_len as usize, "Entity data")?;
         let entity: Box<dyn Entity> = match entity_type {
             x if x == EntityType::Player as u8 => {
                 return Err(WorldLoadError::InvalidSaveFormat(
@@ -566,159 +469,8 @@ fn load_v0(
             continue;
         }
         let player_data = std::fs::read(entry.path()).unwrap();
-        let player = PlayerEntity::load(&player_data, 0).map_err(|e| {
-            WorldLoadError::InvalidSaveFormat(format!(
-                "Failed to load player data from {}: {}",
-                entry.path().display(),
-                e
-            ))
-        })?;
-        world.player_cache.insert(player.username.clone(), player);
-    }
-
-    Ok(world)
-}
-
-fn load_v1(
-    path: &std::path::Path,
-    save_iter: &mut std::slice::Iter<u8>,
-) -> Result<World, WorldLoadError> {
-    // SEED
-    let seed_bytes = take_exact(4, &mut save_iter.cloned())?;
-    let seed = i32::from_le_bytes(seed_bytes.try_into().unwrap());
-    let mut noise = fastnoise_lite::FastNoiseLite::new();
-    noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
-    noise.set_seed(Some(seed));
-
-    let mut world = World {
-        chunks: HashMap::new(),
-        entities: HashMap::new(),
-        noise,
-        player_cache: HashMap::new(),
-        pending_changes: Vec::new(),
-        changes: HashMap::new(),
-    };
-
-    // CHUNKS
-    let chunks_dir = path.join("chunks");
-    if !chunks_dir.exists() {
-        return Err(WorldLoadError::MissingSaveFile(chunks_dir));
-    }
-    for entry in std::fs::read_dir(chunks_dir).unwrap() {
-        let entry = entry.unwrap();
-        let file_name = entry.file_name();
-        let file_name_str = file_name.to_str().unwrap();
-        if !file_name_str.starts_with("chunk_") || !file_name_str.ends_with(".bin") {
-            continue;
-        }
-        let parts: Vec<&str> = file_name_str[6..file_name_str.len() - 4]
-            .split('_')
-            .collect();
-        if parts.len() != 3 {
-            continue;
-        }
-        let chunk_pos = IVec3::new(
-            parts[0].parse().unwrap(),
-            parts[1].parse().unwrap(),
-            parts[2].parse().unwrap(),
-        );
-        let chunk_data = std::fs::read(entry.path()).unwrap();
-        let mut chunk_iter = chunk_data.into_iter();
-        let change_count_bytes = take_exact(2, &mut chunk_iter)?.try_into().unwrap();
-        let change_count = u16::from_le_bytes(change_count_bytes);
-        for _ in 0..change_count {
-            let local_pos_bytes = take_exact(3, &mut chunk_iter)?;
-            let local_pos = IVec3::new(
-                local_pos_bytes[0] as i32,
-                local_pos_bytes[1] as i32,
-                local_pos_bytes[2] as i32,
-            );
-            let visible = chunk_iter.next().unwrap() == 1;
-            let block_id_len = chunk_iter.next().unwrap() as usize;
-            let block_id_bytes = take_exact(block_id_len, &mut chunk_iter)?;
-            let block_id = String::from_utf8(block_id_bytes).unwrap();
-            let Some(ident) = crate::block::get_block_ident(&block_id) else {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unknown block identifier: {}",
-                    block_id
-                )));
-            };
-            let collision_shape_byte = chunk_iter.next().unwrap();
-            let collision_shape = match collision_shape_byte {
-                0 => crate::block::CollisionShape::None,
-                1 => crate::block::CollisionShape::FullBlock,
-                2 => crate::block::CollisionShape::Slab,
-                _ => {
-                    return Err(WorldLoadError::InvalidSaveFormat(format!(
-                        "Unknown collision shape: {}",
-                        collision_shape_byte
-                    )));
-                }
-            };
-            let state_type_bytes = take_exact(2, &mut chunk_iter)?.try_into().unwrap();
-            let state_type = u16::from_le_bytes(state_type_bytes);
-            let block = Block {
-                ident,
-                visible,
-                collision_shape,
-                state_type,
-            };
-            let block_state_bytes = take_exact(4, &mut chunk_iter)?.try_into().unwrap();
-            let block_state = BlockState::from_bits(u32::from_le_bytes(block_state_bytes));
-            world
-                .changes
-                .entry(chunk_pos)
-                .or_insert_with(HashMap::new)
-                .insert(local_pos, (block, block_state));
-        }
-        let chunk = Chunk::load(1, &mut chunk_iter)?;
-        world.chunks.insert(chunk_pos, chunk);
-    }
-
-    // ENTITIES
-    let entities_path = path.join("entities.bin");
-    if !entities_path.exists() {
-        return Err(WorldLoadError::MissingSaveFile(entities_path));
-    }
-    let entities_data = std::fs::read(entities_path).unwrap();
-    let mut entities_iter = entities_data.into_iter();
-    let entity_count_bytes = take_exact(8, &mut entities_iter)?.try_into().unwrap();
-    let entity_count = u64::from_le_bytes(entity_count_bytes);
-    #[allow(unreachable_code, unused_variables)]
-    for _ in 0..entity_count {
-        let entity_type = entities_iter.next().unwrap();
-        let entity_data_len_bytes = take_exact(4, &mut entities_iter)?.try_into().unwrap();
-        let entity_data_len = u32::from_le_bytes(entity_data_len_bytes);
-        let entity_data = take_exact(entity_data_len as usize, &mut entities_iter)?;
-        let entity: Box<dyn Entity> = match entity_type {
-            x if x == EntityType::Player as u8 => {
-                return Err(WorldLoadError::InvalidSaveFormat(
-                    "Player entities should be stored in the players folder".to_string(),
-                ));
-            }
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unknown entity type: {}",
-                    entity_type
-                )));
-            }
-        };
-        world.add_entity(entity);
-    }
-
-    let players_dir = path.join("players");
-    if !players_dir.exists() {
-        return Err(WorldLoadError::MissingSaveFile(players_dir));
-    }
-    for entry in std::fs::read_dir(players_dir).unwrap() {
-        let entry = entry.unwrap();
-        let file_name = entry.file_name();
-        let file_name_str = file_name.to_str().unwrap();
-        if !file_name_str.ends_with(".bin") {
-            continue;
-        }
-        let player_data = std::fs::read(entry.path()).unwrap();
-        let player = PlayerEntity::load(&player_data, 1).map_err(|e| {
+        let mut player_iter = player_data.into_iter();
+        let player = PlayerEntity::load(&mut player_iter, version).map_err(|e| {
             WorldLoadError::InvalidSaveFormat(format!(
                 "Failed to load player data from {}: {}",
                 entry.path().display(),

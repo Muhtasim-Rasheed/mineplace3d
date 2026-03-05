@@ -4,7 +4,7 @@
 
 use glam::Vec3;
 
-use crate::world::World;
+use crate::{saving::Saveable, world::World};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -13,7 +13,7 @@ pub enum EntityType {
 }
 
 /// Represents a game entity in the world.
-pub trait Entity: std::any::Any + Send + Sync + 'static {
+pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
@@ -23,10 +23,6 @@ pub trait Entity: std::any::Any + Send + Sync + 'static {
     fn entity_type(&self) -> EntityType;
     fn set_id(&mut self, id: u64);
     fn id(&self) -> u64;
-    fn save(&self) -> Vec<u8>;
-    fn load(data: &[u8], version: u8) -> Result<Self, String>
-    where
-        Self: Sized;
     fn snapshot(&self) -> Vec<u8>;
     fn position(&self) -> Vec3;
     fn apply_velocity(&mut self, velocity: Vec3);

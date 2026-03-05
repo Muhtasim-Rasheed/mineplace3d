@@ -8,6 +8,7 @@ pub mod block;
 pub mod entity;
 pub mod item;
 pub mod protocol;
+pub mod saving;
 pub mod server;
 pub mod world;
 
