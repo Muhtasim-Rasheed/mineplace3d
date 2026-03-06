@@ -2,8 +2,9 @@
 //! versioned format.
 
 /// The current version of the world save format (in beta).
-pub const SAVE_VERSION: u8 = 1;
+pub const SAVE_VERSION: u8 = 2;
 
+/// A trait for types that can be saved and loaded in a versioned format.
 pub trait Saveable {
     fn save(&self) -> Vec<u8>;
     fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError>

@@ -13,8 +13,8 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{Block, BlockState},
     entity::{Entity, EntityType, PlayerEntity},
-    saving::{io::*, Saveable, WorldLoadError, SAVE_VERSION},
-    world::chunk::{Chunk, CHUNK_SIZE},
+    saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    world::chunk::{CHUNK_SIZE, Chunk},
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -353,7 +353,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 1 => load_v0_1(path, &mut save_iter, version),
+            Some(version) if version <= 2 => load_v0_1_2(path, &mut save_iter, version),
             Some(version) => {
                 return Err(WorldLoadError::InvalidSaveFormat(format!(
                     "Unsupported save version: {}",
@@ -369,7 +369,7 @@ impl World {
     }
 }
 
-fn load_v0_1(
+fn load_v0_1_2(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,

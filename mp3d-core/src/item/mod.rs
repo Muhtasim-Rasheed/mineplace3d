@@ -2,6 +2,8 @@
 
 use crate::block::Block;
 
+mod save_impls;
+
 /// A struct used for declaring different types of items on the fly. Mineplace provides some
 /// already defined items and an array of the already defined items.
 #[derive(Clone, Copy, Debug)]
@@ -56,19 +58,31 @@ impl Item {
         Item::GLUNGUS_BLOCK,
         Item::STONE_SLAB,
     ];
+
+    pub fn from_ident(ident: &str) -> Option<&'static Item> {
+        match ident {
+            "air" => Some(&Item::AIR),
+            "grass_block" => Some(&Item::GRASS_BLOCK),
+            "dirt" => Some(&Item::DIRT),
+            "stone" => Some(&Item::STONE),
+            "glungus_block" => Some(&Item::GLUNGUS_BLOCK),
+            "stone_slab" => Some(&Item::STONE_SLAB),
+            _ => None,
+        }
+    }
 }
 
-/// A struct representing a stack of items, containing a reference to the item and the count of how
-/// many of that item are in the stack. The count is limited by the max stack size of the item. An
-/// empty stack is represented by an item of AIR and a count of 0.
+/// A struct representing a stack of items, containing a the item and the count of how many of
+/// that item are in the stack. The count is limited by the max stack size of the item. An empty
+/// stack is represented by an item of AIR and a count of 0.
 #[derive(Clone, Copy, Debug)]
 pub struct ItemStack {
-    pub item: &'static Item,
+    pub item: Item,
     pub count: u16,
 }
 
 impl ItemStack {
-    pub fn new(item: &'static Item, count: u16) -> Self {
+    pub fn new(item: Item, count: u16) -> Self {
         Self {
             item,
             count: count.min(item.max_stack),
@@ -78,7 +92,7 @@ impl ItemStack {
     /// Creates an empty item stack with the item set to AIR and count set to 0.
     pub fn empty() -> Self {
         Self {
-            item: &Item::AIR,
+            item: Item::AIR,
             count: 0,
         }
     }
@@ -124,7 +138,7 @@ impl ItemStack {
             self.item = other.item;
         }
 
-        if !std::ptr::eq(self.item, other.item) {
+        if self.item.ident != other.item.ident {
             return *other;
         }
 
@@ -150,7 +164,7 @@ impl ItemStack {
         };
 
         if self.count == 0 {
-            self.item = &Item::AIR;
+            self.item = Item::AIR;
         }
 
         removed_stack
@@ -177,7 +191,7 @@ impl ItemStack {
     /// method does not check if the total count of the merged stacks would exceed the max stack
     /// size of the item, it only checks if the items are compatible for merging.
     pub fn can_merge(&self, other: &ItemStack) -> bool {
-        std::ptr::eq(self.item, other.item) || self.is_empty() || other.is_empty()
+        self.item.ident == other.item.ident || self.is_empty() || other.is_empty()
     }
 }
 
@@ -235,6 +249,48 @@ impl Inventory {
             }
         }
     }
+
+    /// Returns all slots, including the temporary slot, as a single vector of item stacks. The
+    /// temporary slot is included at the end of the vector after all the general slots.
+    pub fn slots(&self) -> Vec<ItemStack> {
+        let mut slots = self.main.to_vec();
+        slots.push(self.temp);
+        slots
+    }
+
+    /// Returns mutable references to all slots, including the temporary slot, as a single vector
+    /// of mutable item stacks. The temporary slot is included at the end of the vector after all
+    /// the general slots.
+    pub fn slots_mut(&mut self) -> Vec<&mut ItemStack> {
+        let mut slots: Vec<&mut ItemStack> = self.main.iter_mut().collect();
+        slots.push(&mut self.temp);
+        slots
+    }
+
+    /// Searches for a place to put the given item stack in the inventory and adds it to the first
+    /// suitable slot.
+    pub fn add_stack_single(&mut self, stack: ItemStack) {
+        for slot in self.slots_mut() {
+            if slot.can_merge(&stack) {
+                let remainder = slot.add_stack(&stack);
+                if remainder.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn add_stack(&mut self, item: Item, mut count: u16) {
+        // Calculate the number of stacks needed
+        let n_stacks = (count + item.max_stack - 1) / item.max_stack;
+        let mut stacks = Vec::new();
+        for _ in 0..n_stacks {
+            let stack_count = count.min(item.max_stack);
+            stacks.push(ItemStack::new(item, stack_count));
+            count -= stack_count;
+        }
+        for stack in stacks {
+            self.add_stack_single(stack);
+        }
+    }
 }
-
-

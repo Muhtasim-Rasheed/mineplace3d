@@ -212,22 +212,6 @@ impl super::Scene for SinglePlayer {
         sdl_ctx.mouse().set_relative_mouse_mode(
             self.playing && !self.client.chat_open && !self.client.inventory_open,
         );
-        self.client.player.inventory.borrow_mut().main[0] = mp3d_core::item::ItemStack {
-            item: &mp3d_core::item::Item::GRASS_BLOCK,
-            count: 64,
-        };
-        self.client.player.inventory.borrow_mut().main[9] = mp3d_core::item::ItemStack {
-            item: &mp3d_core::item::Item::STONE,
-            count: 64,
-        };
-        self.client.player.inventory.borrow_mut().main[10] = mp3d_core::item::ItemStack {
-            item: &mp3d_core::item::Item::GLUNGUS_BLOCK,
-            count: 64,
-        };
-        self.client.player.inventory.borrow_mut().main[19] = mp3d_core::item::ItemStack {
-            item: &mp3d_core::item::Item::STONE_SLAB,
-            count: 64,
-        };
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
             self.client.send_input(ctx, ctx.delta_time);
@@ -458,7 +442,7 @@ impl super::Scene for SinglePlayer {
             if self.client.inventory_open {
                 self.inventory.draw(ui, assets);
 
-                let temp_stack = &self.client.player.inventory.borrow().temp;
+                let temp_stack = &self.client.player.inventory.borrow().inner.temp;
                 if !temp_stack.is_empty() {
                     // Draw the temp stack at the mouse position
                     let temp_stack_commands = InventorySlot::draw_stack(

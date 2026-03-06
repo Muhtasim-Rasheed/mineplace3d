@@ -49,13 +49,19 @@ pub enum C2SMessage {
     /// Request for interaction with a block. The face is a number from 0 to 5 in the order of
     /// NSEWUD.
     InteractBlock { position: IVec3, face: u8 },
+    /// Request to click on an inventory slot.
+    InventoryClick { idx: usize, right: bool },
 }
 
 /// Messages sent from the server to the client.
 #[derive(Clone, Debug)]
 pub enum S2CMessage {
     /// Confirmation of connection to a world.
-    Connected { user_id: u64, entity_id: u64 },
+    Connected {
+        user_id: u64,
+        entity_id: u64,
+        inventory: crate::item::Inventory,
+    },
     /// Notification of connection failure with a reason.
     ConnectionFailed { reason: String },
     /// Notification of disconnection from a world.
@@ -73,6 +79,8 @@ pub enum S2CMessage {
         yaw: f32,
         pitch: f32,
     },
+    /// Update of a player's inventory.
+    InventoryUpdated { inventory: crate::item::Inventory },
     /// Update of a block at a specified position with a given block.
     BlockUpdated {
         position: IVec3,

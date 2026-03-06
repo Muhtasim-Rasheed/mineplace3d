@@ -38,16 +38,11 @@ impl Saveable for Block {
                 )));
             }
         };
-        match version {
-            0 => state_type = 0,
-            1 => state_type = read_u16(data, "Block::state_type")?,
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unsupported save version: {}",
-                    version
-                )));
-            }
-        };
+        if version < 1 {
+            state_type = 0;
+        } else {
+            state_type = read_u16(data, "Block::state_type")?;
+        }
         Ok(Block {
             visible,
             collision_shape,
@@ -63,15 +58,10 @@ impl Saveable for BlockState {
     }
 
     fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
-        match version {
-            0 => Ok(BlockState::none()),
-            1 => Ok(BlockState::from_bits(read_u32(data, "BlockState::bits")?)),
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unsupported save version: {}",
-                    version
-                )));
-            }
+        if version < 1 {
+            Ok(BlockState::none())
+        } else {
+            Ok(BlockState::from_bits(read_u32(data, "BlockState::bits")?))
         }
     }
 }

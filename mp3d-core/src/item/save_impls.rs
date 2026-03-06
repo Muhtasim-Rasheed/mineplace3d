@@ -17,8 +17,9 @@ impl Saveable for Item {
     }
 
     fn load<I: Iterator<Item = u8>>(data: &mut I, _version: u8) -> Result<Self, WorldLoadError>
-        where
-            Self: Sized {
+    where
+        Self: Sized,
+    {
         let ident_len = read_u8(data, "Item::ident_len")? as usize;
         let ident_str = read_string(data, ident_len, "Item::ident")?;
         let ident = get_item_ident(&ident_str).ok_or_else(|| {
@@ -41,6 +42,48 @@ impl Saveable for Item {
             assoc_block,
             max_stack,
         })
+    }
+}
+
+impl Saveable for ItemStack {
+    fn save(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        let item_data = self.item.save();
+        data.extend_from_slice(&item_data);
+        data.extend_from_slice(&self.count.to_le_bytes());
+        data
+    }
+
+    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError>
+    where
+        Self: Sized,
+    {
+        let item = Item::load(data, version)?;
+        let count = read_u16(data, "ItemStack::count")?;
+        Ok(ItemStack { item, count })
+    }
+}
+
+impl Saveable for Inventory {
+    fn save(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        for slot in &self.slots() {
+            let slot_data = slot.save();
+            data.extend_from_slice(&slot_data);
+        }
+        data
+    }
+
+    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError>
+    where
+        Self: Sized,
+    {
+        let mut inventory = Inventory::new();
+        for slot in inventory.slots_mut() {
+            let slot_data = ItemStack::load(data, version)?;
+            *slot = slot_data;
+        }
+        Ok(inventory)
     }
 }
 

@@ -98,15 +98,14 @@ impl Server {
                 match auth_result {
                     Ok(_) => {
                         let user_id = self.next_user_id();
-                        let entity_id =
-                            if let Some(entity) = self.world.player_cache.remove(&username) {
-                                self.world.add_entity(Box::new(entity))
-                            } else {
-                                self.world.add_entity(Box::new(PlayerEntity::new(
-                                    username.clone(),
-                                    Vec3::new(0.0, 25.0, 0.0),
-                                )))
-                            };
+                        let entity = if let Some(entity) = self.world.player_cache.remove(&username)
+                        {
+                            entity
+                        } else {
+                            PlayerEntity::new(username.clone(), Vec3::new(0.0, 25.0, 0.0))
+                        };
+                        let inventory = entity.inventory.clone();
+                        let entity_id = self.world.add_entity(Box::new(entity));
                         self.sessions.insert(
                             user_id,
                             PlayerSession {
@@ -116,6 +115,7 @@ impl Server {
                                 pending_messages: vec![S2CMessage::Connected {
                                     user_id,
                                     entity_id,
+                                    inventory,
                                 }],
                             },
                         );
@@ -275,10 +275,13 @@ impl Server {
                                 .unwrap(),
                         });
                     }
-                } else if let Some(success) = status.unwrap() {
+                } else if let Some((other_msgs, success)) = status.unwrap() {
                     if let Some(user_id) = self.connections.get(&connection_id)
                         && let Some(session) = self.sessions.get_mut(user_id)
                     {
+                        for msg in other_msgs {
+                            session.pending_messages.push(msg);
+                        }
                         session
                             .pending_messages
                             .push(S2CMessage::ChatMessage { message: success });
@@ -312,6 +315,18 @@ impl Server {
                     }
                 }
             }
+            C2SMessage::InventoryClick { idx, right } => {
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                    && let Some(player_entity) =
+                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                {
+                    player_entity.inventory.click(idx, right);
+                    session.pending_messages.push(S2CMessage::InventoryUpdated {
+                        inventory: player_entity.inventory.clone(),
+                    });
+                }
+            }
         }
         None
     }
@@ -321,14 +336,39 @@ impl Server {
         &mut self,
         command: &str,
         _connection_id: u64,
-    ) -> Result<Option<TextComponent>, String> {
+    ) -> Result<Option<(Vec<S2CMessage>, TextComponent)>, String> {
         if !command.starts_with('/') {
             return Ok(None);
         }
         let mut parts = command.split_whitespace();
         let cmd = parts.next().ok_or("No command provided")?;
         match cmd {
-            // No commands yet
+            "/give" => {
+                let item_name = parts.next().ok_or("No item specified")?;
+                let count_str = parts.next().ok_or("No count specified")?;
+                let count: u16 = count_str.parse().map_err(|_| "Invalid count")?;
+                let item =
+                    crate::item::Item::from_ident(item_name).ok_or("Unknown item identifier")?;
+                if let Some(user_id) = self.connections.get(&_connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                    && let Some(player_entity) =
+                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                {
+                    player_entity
+                        .inventory
+                        .add_stack(*item, count);
+                    Ok(Some((
+                        vec![S2CMessage::InventoryUpdated {
+                            inventory: player_entity.inventory.clone(),
+                        }],
+                        format!("%b7FGave you {} x {}%r", count, item.ident)
+                            .parse()
+                            .unwrap(),
+                    )))
+                } else {
+                    Err("You must be connected to use this command".to_string())
+                }
+            }
             _ => Err("Unknown command".to_string()),
         }
     }

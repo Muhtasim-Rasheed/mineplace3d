@@ -9,6 +9,30 @@ use mp3d_core::{
 
 use crate::client::world::ClientWorld;
 
+pub struct ClientInventory {
+    pub inner: Inventory,
+    pub clicks: Vec<(usize, bool)>,
+}
+
+impl ClientInventory {
+    pub fn new() -> Self {
+        Self {
+            inner: Inventory::new(),
+            clicks: Vec::new(),
+        }
+    }
+
+    pub fn click(&mut self, index: usize, right: bool) {
+        self.inner.click(index, right);
+        self.clicks.push((index, right));
+    }
+
+    pub fn update_from_inventory(&mut self, inventory: Inventory) {
+        self.inner = inventory;
+        self.clicks.clear();
+    }
+}
+
 pub struct ClientPlayer {
     pub position: Vec3,
     pub velocity: Vec3,
@@ -18,7 +42,7 @@ pub struct ClientPlayer {
     pub flying: bool,
     pub on_ground: bool,
     pub input: MoveInstructions,
-    pub inventory: Rc<RefCell<Inventory>>,
+    pub inventory: Rc<RefCell<ClientInventory>>,
 }
 
 impl ClientPlayer {
@@ -75,13 +99,16 @@ impl ClientPlayer {
     }
 
     pub fn update_from_snapshot(&mut self, snapshot: &[u8]) {
-        let _entity_id = u64::from_le_bytes(snapshot[0..8].try_into().unwrap());
-        self.position.x = f32::from_le_bytes(snapshot[8..12].try_into().unwrap());
-        self.position.y = f32::from_le_bytes(snapshot[12..16].try_into().unwrap());
-        self.position.z = f32::from_le_bytes(snapshot[16..20].try_into().unwrap());
-        self.yaw = f32::from_le_bytes(snapshot[20..24].try_into().unwrap());
-        self.pitch = f32::from_le_bytes(snapshot[24..28].try_into().unwrap());
-        self.flying = snapshot[28] != 0;
+        use mp3d_core::saving::{Saveable, io::*};
+        let mut snapshot = snapshot.into_iter().cloned();
+        let _entity_id = read_u64(&mut snapshot, "ClientPlayer reading entity_id").unwrap();
+        self.position = read_vec3(&mut snapshot, "ClientPlayer reading position").unwrap();
+        self.yaw = read_f32(&mut snapshot, "ClientPlayer reading yaw").unwrap();
+        self.pitch = read_f32(&mut snapshot, "ClientPlayer reading pitch").unwrap();
+        self.inventory.borrow_mut().update_from_inventory(
+            Inventory::load(&mut snapshot, mp3d_core::saving::SAVE_VERSION).unwrap(),
+        );
+        self.flying = read_u8(&mut snapshot, "ClientPlayer reading flying").unwrap() != 0;
     }
 
     pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {

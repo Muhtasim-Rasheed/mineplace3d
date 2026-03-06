@@ -4,7 +4,7 @@ use glam::IVec3;
 
 use crate::{
     block::{Block, BlockState},
-    saving::{io::*, Saveable, WorldLoadError},
+    saving::{Saveable, WorldLoadError, io::*},
 };
 
 pub const CHUNK_SIZE: usize = 16;
@@ -121,10 +121,7 @@ impl Saveable for Chunk {
     }
 
     /// Loads a chunk from the given data.
-    fn load<I: Iterator<Item = u8>>(
-        data: &mut I,
-        version: u8,
-    ) -> Result<Self, WorldLoadError> {
+    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
         let palette_len = read_u8(data, "Chunk palette length")? as usize;
         let mut block_palette = Vec::with_capacity(palette_len);
         for _ in 0..palette_len {

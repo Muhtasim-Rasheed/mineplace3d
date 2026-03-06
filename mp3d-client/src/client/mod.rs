@@ -21,7 +21,7 @@ use mp3d_core::{
     server::Server,
 };
 
-use crate::{client::world::ClientWorld, other::UpdateContext};
+use crate::{client::{player::ClientInventory, world::ClientWorld}, other::UpdateContext};
 
 /// The [`Connection`] trait defines the interface for client-server communication.
 pub trait Connection {
@@ -115,7 +115,7 @@ impl<C: Connection> Client<C> {
                 flying: false,
                 on_ground: false,
                 input: MoveInstructions::default(),
-                inventory: Rc::new(RefCell::new(Inventory::new())),
+                inventory: Rc::new(RefCell::new(ClientInventory::new())),
             },
             user_id: None,
             entity_id: None,
@@ -325,6 +325,11 @@ impl<C: Connection> Client<C> {
                 block_state,
             });
         }
+
+        let inventory_changes = std::mem::take(&mut self.player.inventory.borrow_mut().clicks);
+        for (idx, right) in inventory_changes {
+            self.connection.send(C2SMessage::InventoryClick { idx, right });
+        }
     }
 
     /// Updates any state on the client side from all recieved messages from the server.
@@ -332,9 +337,14 @@ impl<C: Connection> Client<C> {
         let messages = self.connection.receive();
         for message in messages {
             match message {
-                S2CMessage::Connected { user_id, entity_id } => {
+                S2CMessage::Connected {
+                    user_id,
+                    entity_id,
+                    inventory,
+                } => {
                     self.user_id = Some(user_id);
                     self.entity_id = Some(entity_id);
+                    self.player.inventory.borrow_mut().update_from_inventory(inventory);
                 }
                 S2CMessage::ConnectionFailed { reason } => {
                     return Err(reason);
@@ -370,6 +380,9 @@ impl<C: Connection> Client<C> {
                     }
                     self.player.yaw = yaw;
                     self.player.pitch = pitch;
+                }
+                S2CMessage::InventoryUpdated { inventory } => {
+                    self.player.inventory.borrow_mut().update_from_inventory(inventory);
                 }
                 S2CMessage::ChunkData {
                     chunk_position,

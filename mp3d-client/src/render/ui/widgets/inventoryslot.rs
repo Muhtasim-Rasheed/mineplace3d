@@ -4,11 +4,10 @@ use glam::{Mat4, UVec2, UVec4, Vec2, Vec4};
 use mp3d_core::item::*;
 
 use crate::{
-    abs::TextureHandle,
-    render::ui::{
+    abs::TextureHandle, client::player::ClientInventory, render::ui::{
         uirenderer::DrawCommand,
         widgets::{Font, NineSlice, Widget},
-    },
+    }
 };
 
 pub const INVENTORY_SLOT_SIZE: Vec2 = Vec2::new(64.0, 64.0);
@@ -16,7 +15,7 @@ pub const INVENTORY_SLOT_SIZE: Vec2 = Vec2::new(64.0, 64.0);
 pub struct InventorySlot {
     position: Vec2,
     nineslice: NineSlice,
-    inventory: Rc<RefCell<Inventory>>,
+    inventory: Rc<RefCell<ClientInventory>>,
     font: Rc<Font>,
     idx: usize,
 }
@@ -25,7 +24,7 @@ impl InventorySlot {
     pub fn new(
         texture: TextureHandle,
         font: &Rc<Font>,
-        inventory: &Rc<RefCell<Inventory>>,
+        inventory: &Rc<RefCell<ClientInventory>>,
         idx: usize,
     ) -> Self {
         let nineslice = NineSlice::new(
@@ -120,18 +119,21 @@ impl Widget for InventorySlot {
     fn update(&mut self, ctx: &crate::other::UpdateContext) {
         let right = ctx.mouse.pressed.contains(&sdl2::mouse::MouseButton::Right);
         let clicked = right || ctx.mouse.pressed.contains(&sdl2::mouse::MouseButton::Left);
-        if clicked {
-            let mouse_pos = ctx.mouse.position;
-            let slot_pos = self.position;
-            let slot_size = INVENTORY_SLOT_SIZE;
-            if mouse_pos.x >= slot_pos.x
-                && mouse_pos.x <= slot_pos.x + slot_size.x
-                && mouse_pos.y >= slot_pos.y
-                && mouse_pos.y <= slot_pos.y + slot_size.y
-            {
+        let mouse_pos = ctx.mouse.position;
+        let slot_pos = self.position;
+        let slot_size = INVENTORY_SLOT_SIZE;
+        if mouse_pos.x >= slot_pos.x
+            && mouse_pos.x <= slot_pos.x + slot_size.x
+            && mouse_pos.y >= slot_pos.y
+            && mouse_pos.y <= slot_pos.y + slot_size.y
+        {
+            if clicked {
                 let mut inventory = self.inventory.borrow_mut();
                 inventory.click(self.idx, right);
             }
+            self.nineslice.tint = Vec4::new(1.1, 1.1, 1.1, 1.0);
+        } else {
+            self.nineslice.tint = Vec4::ONE;
         }
     }
 
@@ -157,7 +159,7 @@ impl Widget for InventorySlot {
         self.nineslice.draw(ui_renderer, assets);
 
         let inventory = self.inventory.borrow();
-        if let Some(item_stack) = inventory.main.get(self.idx) {
+        if let Some(item_stack) = inventory.inner.main.get(self.idx) {
             let commands = Self::draw_stack(
                 *item_stack,
                 assets,

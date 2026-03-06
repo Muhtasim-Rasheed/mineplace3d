@@ -3,7 +3,10 @@
 use glam::Vec3;
 
 use crate::{
-    entity::{Entity, EntityType}, saving::{io::*, Saveable, WorldLoadError}, world::World
+    entity::*,
+    item::Inventory,
+    saving::{Saveable, WorldLoadError, io::*},
+    world::World,
 };
 
 pub const GRAVITY: f32 = 60.0;
@@ -16,6 +19,7 @@ pub struct PlayerEntity {
     pub velocity: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+    pub inventory: Inventory,
     pub flying: bool,
     pub cooldown: u8,
     pub on_ground: bool,
@@ -30,6 +34,7 @@ impl PlayerEntity {
             velocity: Vec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
+            inventory: Inventory::new(),
             flying: false,
             cooldown: 0,
             on_ground: false,
@@ -50,17 +55,24 @@ impl Saveable for PlayerEntity {
         data.extend_from_slice(&self.velocity.z.to_le_bytes());
         data.extend_from_slice(&self.yaw.to_le_bytes());
         data.extend_from_slice(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&self.inventory.save());
         data.extend_from_slice(&[self.flying as u8]);
         data
     }
 
-    fn load<I: Iterator<Item = u8>>(data: &mut I, _version: u8) -> Result<Self, WorldLoadError> {
+    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
         let username_len = read_u8(data, "Player username length")? as usize;
         let username = read_string(data, username_len, "Player username")?;
         let position = read_vec3(data, "Player position")?;
         let velocity = read_vec3(data, "Player velocity")?;
         let yaw = read_f32(data, "Player yaw")?;
         let pitch = read_f32(data, "Player pitch")?;
+        let inventory;
+        if version < 2 {
+            inventory = Inventory::new();
+        } else {
+            inventory = Inventory::load(data, version)?;
+        }
         let flying = read_u8(data, "Player flying state")? != 0;
         Ok(Self {
             entity_id: 0,
@@ -69,6 +81,7 @@ impl Saveable for PlayerEntity {
             velocity,
             yaw,
             pitch,
+            inventory,
             flying,
             cooldown: 0,
             on_ground: false,
@@ -109,6 +122,7 @@ impl Entity for PlayerEntity {
         data.extend_from_slice(&self.position.z.to_le_bytes());
         data.extend_from_slice(&self.yaw.to_le_bytes());
         data.extend_from_slice(&self.pitch.to_le_bytes());
+        data.extend_from_slice(&self.inventory.save());
         data.extend_from_slice(&[self.flying as u8]);
         data
     }
