@@ -118,11 +118,6 @@ impl Mesh {
             self.gl.bind_vertex_array(None);
         }
     }
-
-    // Returns the amount of of indices used in the mesh
-    pub fn index_count(&self) -> usize {
-        self.index_count
-    }
 }
 
 impl Drop for Mesh {

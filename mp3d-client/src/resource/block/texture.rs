@@ -20,8 +20,8 @@ impl std::str::FromStr for TextureRef {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with('$') {
-            Ok(TextureRef::Slot(s[1..].to_string()))
+        if let Some(slot) = s.strip_prefix('$') {
+            Ok(TextureRef::Slot(slot.to_string()))
         } else {
             let p = PathBuf::from("blocks/textures").join(format!("{}.png", s));
             Ok(TextureRef::File(p, s.to_string()))
@@ -72,10 +72,10 @@ impl TextureAtlas {
         TextureAtlas {
             image: image::RgbaImage::new(
                 per_row * TEXTURE_SIZE,
-                (textures + per_row - 1) / per_row * TEXTURE_SIZE,
+                textures.div_ceil(per_row) * TEXTURE_SIZE,
             ),
             width: per_row * TEXTURE_SIZE,
-            height: (textures + per_row - 1) / per_row * TEXTURE_SIZE,
+            height: textures.div_ceil(per_row) * TEXTURE_SIZE,
             uv_coords: HashMap::new(),
             cursor: UVec2::ZERO,
             gpu_tex: std::sync::OnceLock::new(),

@@ -137,8 +137,8 @@ impl SinglePlayer {
         );
         inventory_stack.add_widget(crate::render::ui::widgets::NineSlice::new(
             gui_tex,
-            UVec2::new(0, 16),
-            UVec2::new(16, 16),
+            [UVec2::new(0, 16),
+            UVec2::new(16, 16)],
             inventory_col.size_hint(),
             UVec4::new(4, 4, 3, 3),
             4,
@@ -215,7 +215,7 @@ impl super::Scene for SinglePlayer {
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
             self.client.send_input(ctx, ctx.delta_time);
-            if let Err(reason) = self.client.recieve_state() {
+            if let Err(_reason) = self.client.recieve_state() {
                 todo!("Save world and exit.")
             }
         } else {
@@ -267,10 +267,10 @@ impl super::Scene for SinglePlayer {
             self.tick_acc -= tick_time;
         }
         if let Some(chat) = self.client.chat_message.as_ref() {
-            if self.chat_input_label.is_none() {
-                self.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE, &self.font));
+            if let Some(label) = self.chat_input_label.as_mut() {
+                label.text = chat.clone();
             } else {
-                self.chat_input_label.as_mut().unwrap().text = chat.clone();
+                self.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE, &self.font));
             }
         } else {
             self.chat_input_label = None;
@@ -449,7 +449,7 @@ impl super::Scene for SinglePlayer {
                         *temp_stack,
                         assets,
                         self.mouse_pos,
-                        &ui,
+                        ui,
                         &self.font,
                     );
                     for cmd in temp_stack_commands {

@@ -1,0 +1,266 @@
+    Checking mp3d-core v0.1.0-beta (/home/mutasimos/Work/Rust/mineplace3d/mp3d-core)
+    Checking mp3d-client v0.1.0-beta (/home/mutasimos/Work/Rust/mineplace3d/mp3d-client)
+warning: field `video_subsystem` is never read
+  --> mp3d-client/src/abs/app.rs:11:9
+   |
+ 9 | pub struct App {
+   |            --- field in this struct
+10 |     pub sdl: sdl2::Sdl,
+11 |     pub video_subsystem: sdl2::VideoSubsystem,
+   |         ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `ColorUsage` is never used
+  --> mp3d-client/src/abs/framebuffer.rs:13:10
+   |
+13 | pub enum ColorUsage {
+   |          ^^^^^^^^^^
+
+warning: struct `Framebuffer` is never constructed
+  --> mp3d-client/src/abs/framebuffer.rs:21:12
+   |
+21 | pub struct Framebuffer {
+   |            ^^^^^^^^^^^
+
+warning: associated items `new`, `bind`, `unbind`, `resize`, `texture`, and `depth_texture` are never used
+   --> mp3d-client/src/abs/framebuffer.rs:30:12
+    |
+ 28 | impl Framebuffer {
+    | ---------------- associated items in this implementation
+ 29 |     /// Creates a new framebuffer with the specified width and height.
+ 30 |     pub fn new(
+    |            ^^^
+...
+174 |     pub fn bind(&self) {
+    |            ^^^^
+...
+181 |     pub fn unbind(gl: &glow::Context) {
+    |            ^^^^^^
+...
+188 |     pub fn resize(&self, width: i32, height: i32) {
+    |            ^^^^^^
+...
+228 |     pub fn texture(&self) -> &Texture {
+    |            ^^^^^^^
+...
+233 |     pub fn depth_texture(&self) -> Option<&Texture> {
+    |            ^^^^^^^^^^^^^
+
+warning: method `index_count` is never used
+   --> mp3d-client/src/abs/mesh.rs:123:12
+    |
+ 26 | impl Mesh {
+    | --------- method in this implementation
+...
+123 |     pub fn index_count(&self) -> usize {
+    |            ^^^^^^^^^^^
+
+warning: associated function `new_from_data` is never used
+  --> mp3d-client/src/abs/texture.rs:85:12
+   |
+42 | impl Texture {
+   | ------------ associated function in this implementation
+...
+85 |     pub fn new_from_data(gl: &Arc<glow::Context>, width: u32, height: u32, data: &[u8]) -> Self {
+   |            ^^^^^^^^^^^^^
+
+warning: methods `is_down` and `is_hovered` are never used
+   --> mp3d-client/src/render/ui/widgets/button.rs:123:12
+    |
+ 27 | impl Button {
+    | ----------- methods in this implementation
+...
+123 |     pub fn is_down(&self) -> bool {
+    |            ^^^^^^^
+...
+135 |     pub fn is_hovered(&self) -> bool {
+    |            ^^^^^^^^^^
+
+warning: variant `End` is never constructed
+  --> mp3d-client/src/render/ui/widgets/containers.rs:12:5
+   |
+ 9 | pub enum Alignment {
+   |          --------- variant in this enum
+...
+12 |     End,
+   |     ^^^
+   |
+   = note: `Alignment` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: variant `End` is never constructed
+  --> mp3d-client/src/render/ui/widgets/containers.rs:20:5
+   |
+17 | pub enum Justification {
+   |          ------------- variant in this enum
+...
+20 |     End,
+   |     ^^^
+   |
+   = note: `Justification` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `get_widget` is never used
+   --> mp3d-client/src/render/ui/widgets/containers.rs:286:12
+    |
+261 | impl Row {
+    | -------- method in this implementation
+...
+286 |     pub fn get_widget<T: Widget + 'static>(&self, index: usize) -> Option<&T> {
+    |            ^^^^^^^^^^
+
+warning: methods `get_widget`, `find_widget`, and `find_widget_mut` are never used
+   --> mp3d-client/src/render/ui/widgets/containers.rs:475:12
+    |
+458 | impl Stack {
+    | ---------- methods in this implementation
+...
+475 |     pub fn get_widget<T: Widget + 'static>(&self, index: usize) -> Option<&T> {
+    |            ^^^^^^^^^^
+...
+488 |     pub fn find_widget<T: Widget + 'static>(&self, indices: &[usize]) -> Option<&T> {
+    |            ^^^^^^^^^^^
+...
+516 |     pub fn find_widget_mut<T: Widget + 'static>(&mut self, indices: &[usize]) -> Option<&mut T> {
+    |            ^^^^^^^^^^^^^^^
+
+warning: methods `get_widget`, `get_widget_mut`, `find_widget`, and `find_widget_mut` are never used
+   --> mp3d-client/src/render/ui/widgets/containers.rs:645:12
+    |
+626 | impl Grid {
+    | --------- methods in this implementation
+...
+645 |     pub fn get_widget<T: Widget + 'static>(&self, index: usize) -> Option<&T> {
+    |            ^^^^^^^^^^
+...
+650 |     pub fn get_widget_mut<T: Widget + 'static>(&mut self, index: usize) -> Option<&mut T> {
+    |            ^^^^^^^^^^^^^^
+...
+658 |     pub fn find_widget<T: Widget + 'static>(&self, indices: &[usize]) -> Option<&T> {
+    |            ^^^^^^^^^^^
+...
+686 |     pub fn find_widget_mut<T: Widget + 'static>(&mut self, indices: &[usize]) -> Option<&mut T> {
+    |            ^^^^^^^^^^^^^^^
+
+warning: methods `is_focused` and `is_hovered` are never used
+   --> mp3d-client/src/render/ui/widgets/inputfield.rs:119:12
+    |
+ 27 | impl InputField {
+    | --------------- methods in this implementation
+...
+119 |     pub fn is_focused(&self) -> bool {
+    |            ^^^^^^^^^^
+...
+123 |     pub fn is_hovered(&self) -> bool {
+    |            ^^^^^^^^^^
+
+warning: field `texture` is never read
+   --> mp3d-client/src/resource/block/model.rs:225:9
+    |
+223 | pub struct BlockFace {
+    |            --------- field in this struct
+224 |     pub uv: [Vec2; 2],
+225 |     pub texture: PathBuf,
+    |         ^^^^^^^
+
+warning: fields `font` and `texture` are never read
+  --> mp3d-client/src/scenes/options.rs:49:5
+   |
+47 | pub struct Options {
+   |            ------- fields in this struct
+48 |     container: Column,
+49 |     font: Rc<Font>,
+   |     ^^^^
+50 |     texture: TextureHandle,
+   |     ^^^^^^^
+
+warning: the loop variable `row` is used to index `max_row_heights`
+   --> mp3d-client/src/render/ui/widgets/containers.rs:773:20
+    |
+773 |         for row in 0..max_row_heights.len() {
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#needless_range_loop
+    = note: `#[warn(clippy::needless_range_loop)]` on by default
+help: consider using an iterator and enumerate()
+    |
+773 -         for row in 0..max_row_heights.len() {
+773 +         for (row, <item>) in max_row_heights.iter().enumerate() {
+    |
+
+warning: the loop variable `col` is used to index `max_col_widths`
+   --> mp3d-client/src/render/ui/widgets/containers.rs:776:24
+    |
+776 |             for col in 0..self.columns {
+    |                        ^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#needless_range_loop
+help: consider using an iterator and enumerate()
+    |
+776 -             for col in 0..self.columns {
+776 +             for (col, <item>) in max_col_widths.iter().enumerate().take(self.columns) {
+    |
+
+warning: this function has too many arguments (8/7)
+  --> mp3d-client/src/render/ui/widgets/nineslice.rs:20:5
+   |
+20 | /     pub fn new(
+21 | |         texture: TextureHandle,
+22 | |         uv_top_left: UVec2,
+23 | |         uv_size: UVec2,
+...  |
+28 | |         tint: Vec4,
+29 | |     ) -> Self {
+   | |_____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#too_many_arguments
+   = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: stripping a prefix manually
+  --> mp3d-client/src/resource/block/texture.rs:24:33
+   |
+24 |             Ok(TextureRef::Slot(s[1..].to_string()))
+   |                                 ^^^^^^
+   |
+note: the prefix was tested here
+  --> mp3d-client/src/resource/block/texture.rs:23:9
+   |
+23 |         if s.starts_with('$') {
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#manual_strip
+   = note: `#[warn(clippy::manual_strip)]` on by default
+help: try using the `strip_prefix` method
+   |
+23 ~         if let Some(<stripped>) = s.strip_prefix('$') {
+24 ~             Ok(TextureRef::Slot(<stripped>.to_string()))
+   |
+
+warning: called `unwrap` on `self.chat_input_label` after checking its variant with `is_none`
+   --> mp3d-client/src/scenes/singleplayer.rs:273:17
+    |
+270 |             if self.chat_input_label.is_none() {
+    |             ---------------------------------- help: try: `if let Some(<item>) = &mut self.chat_input_label`
+...
+273 |                 self.chat_input_label.as_mut().unwrap().text = chat.clone();
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#unnecessary_unwrap
+    = note: `#[warn(clippy::unnecessary_unwrap)]` on by default
+
+warning: called `map(f)` on an `Option` value where `f` is a closure that returns the unit type `()`
+   --> mp3d-client/src/scenes/worldcreation.rs:157:9
+    |
+157 | /         self.container
+158 | |             .find_widget_mut::<Button>(&[2, 1])
+159 | |             .map(|button| button.disabled = self.world_path.exists());
+    | |_____________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#option_map_unit_fn
+    = note: `#[warn(clippy::option_map_unit_fn)]` on by default
+help: use `if let` instead
+    |
+157 ~         if let Some(button) = self.container
+158 +             .find_widget_mut::<Button>(&[2, 1]) { ... }
+    |
+
+warning: `mp3d-client` (bin "mp3d-client") generated 21 warnings
+    Finished `dev` profile [optimized] target(s) in 0.88s

@@ -1,5 +1,7 @@
 //! Containers that can hold multiple widgets.
 
+#![allow(dead_code)]
+
 use glam::{Vec2, Vec4};
 
 use crate::render::ui::widgets::Widget;
@@ -723,7 +725,7 @@ impl Widget for Grid {
     fn size_hint(&self) -> Vec2 {
         let mut max_col_widths = vec![0.0_f32; self.columns];
         let mut max_row_heights =
-            vec![0.0_f32; (self.widgets.len() + self.columns - 1) / self.columns];
+            vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
 
         for (i, widget) in self.widgets.iter().enumerate() {
             let size = widget.size_hint();
@@ -753,7 +755,7 @@ impl Widget for Grid {
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
         let mut max_col_widths = vec![0.0_f32; self.columns];
         let mut max_row_heights =
-            vec![0.0_f32; (self.widgets.len() + self.columns - 1) / self.columns];
+            vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
 
         for (i, widget) in self.widgets.iter().enumerate() {
             let size = widget.size_hint();
@@ -770,11 +772,11 @@ impl Widget for Grid {
 
         let mut cursor_y = ctx.cursor.y + self.padding.y;
 
-        for row in 0..max_row_heights.len() {
+        for (i, row) in max_row_heights.iter().enumerate() {
             let mut cursor_x = ctx.cursor.x + self.padding.x;
 
-            for col in 0..self.columns {
-                let index = row * self.columns + col;
+            for (j, col) in max_col_widths.iter().enumerate() {
+                let index = i * self.columns + j;
                 if index >= self.widgets.len() {
                     break;
                 }
@@ -784,8 +786,8 @@ impl Widget for Grid {
 
                 let offset_x = match self.alignment {
                     Alignment::Start => 0.0,
-                    Alignment::Center => (max_col_widths[col] - widget_size.x) / 2.0,
-                    Alignment::End => max_col_widths[col] - widget_size.x,
+                    Alignment::Center => (col - widget_size.x) / 2.0,
+                    Alignment::End => col - widget_size.x,
                 };
 
                 let layout_ctx = super::LayoutContext {
@@ -794,10 +796,10 @@ impl Widget for Grid {
                 };
 
                 widget.layout(&layout_ctx);
-                cursor_x += max_col_widths[col] + self.spacing;
+                cursor_x += col + self.spacing;
             }
 
-            cursor_y += max_row_heights[row] + self.spacing;
+            cursor_y += row + self.spacing;
         }
 
         Vec2::new(

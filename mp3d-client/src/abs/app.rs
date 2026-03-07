@@ -8,7 +8,6 @@ use std::sync::Arc;
 /// The [`App`] struct encapsulates the SDL2 and OpenGL context.
 pub struct App {
     pub sdl: sdl2::Sdl,
-    pub video_subsystem: sdl2::VideoSubsystem,
     pub window: sdl2::video::Window,
     pub _gl_context: sdl2::video::GLContext,
     pub gl: Arc<glow::Context>,
@@ -66,7 +65,6 @@ impl App {
 
         Self {
             sdl,
-            video_subsystem,
             window,
             _gl_context: gl_context,
             gl,

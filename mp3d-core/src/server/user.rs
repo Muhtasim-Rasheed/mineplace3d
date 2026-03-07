@@ -16,10 +16,10 @@ pub struct UserDatabase {
 
 impl UserDatabase {
     pub fn load(file_path: PathBuf) -> Self {
-        if let Ok(data) = std::fs::read(&file_path) {
-            if let Ok(users) = serde_json::from_slice(&data) {
-                return Self { users, file_path };
-            }
+        if let Ok(data) = std::fs::read(&file_path)
+            && let Ok(users) = serde_json::from_slice(&data)
+        {
+            return Self { users, file_path };
         }
         Self {
             users: HashMap::new(),

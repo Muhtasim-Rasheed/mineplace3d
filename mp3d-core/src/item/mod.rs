@@ -13,6 +13,12 @@ pub struct Item {
     pub max_stack: u16,
 }
 
+impl Default for Item {
+    fn default() -> Self {
+        Item::AIR
+    }
+}
+
 impl Item {
     pub const AIR: Item = Item {
         ident: "air",
@@ -75,7 +81,7 @@ impl Item {
 /// A struct representing a stack of items, containing a the item and the count of how many of
 /// that item are in the stack. The count is limited by the max stack size of the item. An empty
 /// stack is represented by an item of AIR and a count of 0.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ItemStack {
     pub item: Item,
     pub count: u16,
@@ -203,6 +209,12 @@ pub struct Inventory {
     pub temp: ItemStack,
 }
 
+impl Default for Inventory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Inventory {
     /// Makes a new inventory with all item stacks initialized to empty and the temporary stack
     /// also initialized to empty.
@@ -234,7 +246,7 @@ impl Inventory {
             // the halved amount into the temporary stack. If the temporary stack is not empty,
             // take one item from the temporary stack into the general slot.
             if self.temp.is_empty() {
-                let half_count = (self.main[index].count + 1) / 2;
+                let half_count = self.main[index].count.div_ceil(2);
                 self.temp.take_from(&mut self.main[index], half_count);
             } else {
                 self.main[index].take_from(&mut self.temp, 1);
@@ -282,7 +294,7 @@ impl Inventory {
 
     pub fn add_stack(&mut self, item: Item, mut count: u16) {
         // Calculate the number of stacks needed
-        let n_stacks = (count + item.max_stack - 1) / item.max_stack;
+        let n_stacks = count.div_ceil(item.max_stack);
         let mut stacks = Vec::new();
         for _ in 0..n_stacks {
             let stack_count = count.min(item.max_stack);

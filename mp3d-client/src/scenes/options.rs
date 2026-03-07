@@ -46,8 +46,6 @@ impl ClientConfig {
 
 pub struct Options {
     container: Column,
-    font: Rc<Font>,
-    texture: TextureHandle,
 }
 
 impl Options {
@@ -108,8 +106,6 @@ impl Options {
 
         Self {
             container,
-            font: font.clone(),
-            texture: gui_tex,
         }
     }
 }

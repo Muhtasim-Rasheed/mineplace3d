@@ -222,7 +222,6 @@ impl BlockElement {
 /// `BlockFace` from a `RawBlockFace`.
 pub struct BlockFace {
     pub uv: [Vec2; 2],
-    pub texture: PathBuf,
     pub texture_name: String,
     pub occludes: bool,
     pub cullable: bool,
@@ -256,7 +255,6 @@ impl BlockFace {
                 Vec2::new(raw.uv[0], raw.uv[1]) / super::TEXTURE_SIZE as f32,
                 Vec2::new(raw.uv[2], raw.uv[3]) / super::TEXTURE_SIZE as f32,
             ],
-            texture: texture_path.0,
             texture_name: texture_path.1,
             occludes: raw.occludes.unwrap_or(true),
             cullable: raw.cullable.unwrap_or(true),

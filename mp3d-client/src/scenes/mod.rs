@@ -48,7 +48,7 @@ impl Assets {
                             )
                         })?;
                     let model = crate::resource::block::BlockModel::from_block(
-                        &block,
+                        block,
                         extra_ident,
                         &mut block_textures,
                     )

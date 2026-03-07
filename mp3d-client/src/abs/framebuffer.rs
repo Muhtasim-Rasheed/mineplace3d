@@ -3,6 +3,8 @@
 //! This module provides functionality to create, bind, and manage OpenGL framebuffers.
 //! It allows for off-screen rendering and texture attachments.
 
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use glow::HasContext;

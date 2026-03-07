@@ -42,8 +42,8 @@ pub fn read_u64<I: Iterator<Item = u8>>(
     ctx: &'static str,
 ) -> Result<u64, WorldLoadError> {
     let mut bytes = [0; 8];
-    for i in 0..8 {
-        bytes[i] = read_u8(data_iter, ctx)?;
+    for byte in &mut bytes {
+        *byte = read_u8(data_iter, ctx)?;
     }
     Ok(u64::from_le_bytes(bytes))
 }

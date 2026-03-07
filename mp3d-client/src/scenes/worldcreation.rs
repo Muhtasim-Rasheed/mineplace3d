@@ -151,21 +151,17 @@ impl super::Scene for WorldCreation {
                 .unwrap_or_else(|| "New_World".to_string()),
         );
 
-        self.container
-            .find_widget_mut::<Label>(&[1, 1])
-            .map(|label| {
-                label.text = self.world_path.display().to_string();
-            });
+        if let Some(label) = self.container
+            .find_widget_mut::<Label>(&[1, 1]) { label.text = self.world_path.display().to_string(); }
 
-        self.container
-            .find_widget_mut::<Button>(&[2, 1])
-            .map(|button| button.disabled = self.world_path.exists());
+        if let Some(create_button) = self.container.find_widget_mut::<Button>(&[2, 1]) {
+            create_button.disabled = self.world_path.exists();
+        }
 
-        if let Some(cancel_button) = self.container.find_widget::<Button>(&[2, 0]) {
-            if cancel_button.is_pressed() {
+        if let Some(cancel_button) = self.container.find_widget::<Button>(&[2, 0])
+            && cancel_button.is_pressed() {
                 return super::SceneSwitch::Pop;
             }
-        }
 
         let seed =
             self.container
@@ -181,8 +177,8 @@ impl super::Scene for WorldCreation {
                     }
                 });
 
-        if let Some(create_button) = self.container.find_widget::<Button>(&[2, 1]) {
-            if create_button.is_pressed() {
+        if let Some(create_button) = self.container.find_widget::<Button>(&[2, 1])
+            && create_button.is_pressed() {
                 return super::SceneSwitch::Replace(Box::new(
                     super::singleplayer::SinglePlayer::new(
                         gl,
@@ -195,7 +191,6 @@ impl super::Scene for WorldCreation {
                     ),
                 ));
             }
-        }
 
         super::SceneSwitch::None
     }

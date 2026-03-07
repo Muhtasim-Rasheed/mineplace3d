@@ -100,7 +100,7 @@ impl ClientPlayer {
 
     pub fn update_from_snapshot(&mut self, snapshot: &[u8]) {
         use mp3d_core::saving::{Saveable, io::*};
-        let mut snapshot = snapshot.into_iter().cloned();
+        let mut snapshot = snapshot.iter().cloned();
         let _entity_id = read_u64(&mut snapshot, "ClientPlayer reading entity_id").unwrap();
         self.position = read_vec3(&mut snapshot, "ClientPlayer reading position").unwrap();
         self.yaw = read_f32(&mut snapshot, "ClientPlayer reading yaw").unwrap();

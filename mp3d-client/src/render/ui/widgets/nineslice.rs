@@ -19,8 +19,7 @@ pub struct NineSlice {
 impl NineSlice {
     pub fn new(
         texture: TextureHandle,
-        uv_top_left: UVec2,
-        uv_size: UVec2,
+        uvs: [UVec2; 2],
         size: Vec2,
         border: UVec4,
         scale: u32,
@@ -29,8 +28,8 @@ impl NineSlice {
     ) -> Self {
         Self {
             texture,
-            uv_top_left,
-            uv_size,
+            uv_top_left: uvs[0],
+            uv_size: uvs[1],
             position: Vec2::ZERO,
             size,
             border,

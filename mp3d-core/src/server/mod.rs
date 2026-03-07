@@ -140,18 +140,15 @@ impl Server {
                 }
             }
             C2SMessage::Disconnect => {
-                let user_id = match self.connections.remove(&connection_id) {
-                    Some(uid) => uid,
-                    None => return None,
-                };
+                let user_id = self.connections.remove(&connection_id)?;
 
                 if let Some(session) = self.sessions.remove(&user_id) {
-                    if let Some(entity) = self.world.remove_entity(session.entity_id) {
-                        if let Ok(player_entity) = entity.into_any().downcast::<PlayerEntity>() {
-                            self.world
-                                .player_cache
-                                .insert(player_entity.username.clone(), *player_entity);
-                        }
+                    if let Some(entity) = self.world.remove_entity(session.entity_id)
+                        && let Ok(player_entity) = entity.into_any().downcast::<PlayerEntity>()
+                    {
+                        self.world
+                            .player_cache
+                            .insert(player_entity.username.clone(), *player_entity);
                     }
 
                     broadcast_message(
@@ -304,15 +301,13 @@ impl Server {
             C2SMessage::InteractBlock { position, face } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
-                {
-                    if !self
+                    && !self
                         .world
                         .block_interaction(session.entity_id, position, face)
-                    {
-                        session
-                            .pending_messages
-                            .push(S2CMessage::NoBlockInteraction { position, face });
-                    }
+                {
+                    session
+                        .pending_messages
+                        .push(S2CMessage::NoBlockInteraction { position, face });
                 }
             }
             C2SMessage::InventoryClick { idx, right } => {
@@ -335,7 +330,7 @@ impl Server {
     pub fn execute_command(
         &mut self,
         command: &str,
-        _connection_id: u64,
+        connection_id: u64,
     ) -> Result<Option<(Vec<S2CMessage>, TextComponent)>, String> {
         if !command.starts_with('/') {
             return Ok(None);
@@ -349,14 +344,12 @@ impl Server {
                 let count: u16 = count_str.parse().map_err(|_| "Invalid count")?;
                 let item =
                     crate::item::Item::from_ident(item_name).ok_or("Unknown item identifier")?;
-                if let Some(user_id) = self.connections.get(&_connection_id)
+                if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
                     && let Some(player_entity) =
                         self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
                 {
-                    player_entity
-                        .inventory
-                        .add_stack(*item, count);
+                    player_entity.inventory.add_stack(*item, count);
                     Ok(Some((
                         vec![S2CMessage::InventoryUpdated {
                             inventory: player_entity.inventory.clone(),

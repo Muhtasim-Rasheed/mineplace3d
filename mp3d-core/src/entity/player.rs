@@ -67,12 +67,11 @@ impl Saveable for PlayerEntity {
         let velocity = read_vec3(data, "Player velocity")?;
         let yaw = read_f32(data, "Player yaw")?;
         let pitch = read_f32(data, "Player pitch")?;
-        let inventory;
-        if version < 2 {
-            inventory = Inventory::new();
+        let inventory = if version < 2 {
+            Inventory::new()
         } else {
-            inventory = Inventory::load(data, version)?;
-        }
+            Inventory::load(data, version)?
+        };
         let flying = read_u8(data, "Player flying state")? != 0;
         Ok(Self {
             entity_id: 0,

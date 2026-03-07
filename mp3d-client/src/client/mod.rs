@@ -16,12 +16,14 @@ use std::{cell::RefCell, rc::Rc};
 use glam::{IVec3, Vec3};
 use mp3d_core::{
     TextComponent,
-    item::Inventory,
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
 };
 
-use crate::{client::{player::ClientInventory, world::ClientWorld}, other::UpdateContext};
+use crate::{
+    client::{player::ClientInventory, world::ClientWorld},
+    other::UpdateContext,
+};
 
 /// The [`Connection`] trait defines the interface for client-server communication.
 pub trait Connection {
@@ -268,8 +270,7 @@ impl<C: Connection> Client<C> {
                 .keyboard
                 .pressed
                 .contains(&sdl2::keyboard::Keycode::Return)
-            {
-                if let Some(message) = self.chat_message.take()
+                && let Some(message) = self.chat_message.take()
                     && !message.trim().is_empty()
                 {
                     self.connection.send(C2SMessage::SendMessage {
@@ -278,7 +279,6 @@ impl<C: Connection> Client<C> {
                     self.chat_open = false;
                     self.chat_message = None;
                 }
-            }
 
             if update_context
                 .keyboard
@@ -293,20 +293,17 @@ impl<C: Connection> Client<C> {
                 .keyboard
                 .pressed
                 .contains(&sdl2::keyboard::Keycode::Backspace)
-            {
-                if let Some(message) = self.chat_message.as_mut() {
+                && let Some(message) = self.chat_message.as_mut() {
                     message.pop();
                 }
-            }
-        } else if self.inventory_open {
-            if update_context
+        } else if self.inventory_open
+            && update_context
                 .keyboard
                 .pressed
                 .contains(&sdl2::keyboard::Keycode::Escape)
             {
                 self.inventory_open = false;
             }
-        }
 
         self.player.optimistic(dt, &self.world);
 
@@ -328,7 +325,8 @@ impl<C: Connection> Client<C> {
 
         let inventory_changes = std::mem::take(&mut self.player.inventory.borrow_mut().clicks);
         for (idx, right) in inventory_changes {
-            self.connection.send(C2SMessage::InventoryClick { idx, right });
+            self.connection
+                .send(C2SMessage::InventoryClick { idx, right });
         }
     }
 
@@ -344,7 +342,10 @@ impl<C: Connection> Client<C> {
                 } => {
                     self.user_id = Some(user_id);
                     self.entity_id = Some(entity_id);
-                    self.player.inventory.borrow_mut().update_from_inventory(inventory);
+                    self.player
+                        .inventory
+                        .borrow_mut()
+                        .update_from_inventory(inventory);
                 }
                 S2CMessage::ConnectionFailed { reason } => {
                     return Err(reason);
@@ -382,7 +383,10 @@ impl<C: Connection> Client<C> {
                     self.player.pitch = pitch;
                 }
                 S2CMessage::InventoryUpdated { inventory } => {
-                    self.player.inventory.borrow_mut().update_from_inventory(inventory);
+                    self.player
+                        .inventory
+                        .borrow_mut()
+                        .update_from_inventory(inventory);
                 }
                 S2CMessage::ChunkData {
                     chunk_position,

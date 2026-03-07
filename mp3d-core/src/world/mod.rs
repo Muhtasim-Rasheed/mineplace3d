@@ -85,7 +85,7 @@ impl World {
 
         self.changes
             .entry(chunk_pos)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(local_pos, (block, state));
         self.pending_changes
             .push((chunk_pos, local_pos, block, state));
@@ -186,15 +186,15 @@ impl World {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
-                    if let Some((block, block_state)) = self.get_block_at(block_pos) {
-                        if block.collides_with_player(
+                    if let Some((block, block_state)) = self.get_block_at(block_pos)
+                        && block.collides_with_player(
                             entity_width,
                             entity_height,
                             entity_pos - block_pos.as_vec3(),
                             *block_state,
-                        ) {
-                            return true;
-                        }
+                        )
+                    {
+                        return true;
                     }
                 }
             }
@@ -211,21 +211,21 @@ impl World {
         block_pos: IVec3,
         _face: u8,
     ) -> bool {
-        if let Some((block, _)) = self.get_block_at(block_pos) {
-            if block.ident == "glungus" {
-                let radius_sq = 4;
-                for x in -2..=2 {
-                    for y in -2..=2 {
-                        for z in -2..=2 {
-                            if x * x + y * y + z * z <= radius_sq {
-                                let pos = block_pos + IVec3::new(x, y, z);
-                                self.set_block_at(pos, Block::AIR, BlockState::none());
-                            }
+        if let Some((block, _)) = self.get_block_at(block_pos)
+            && block.ident == "glungus"
+        {
+            let radius_sq = 4;
+            for x in -2..=2 {
+                for y in -2..=2 {
+                    for z in -2..=2 {
+                        if x * x + y * y + z * z <= radius_sq {
+                            let pos = block_pos + IVec3::new(x, y, z);
+                            self.set_block_at(pos, Block::AIR, BlockState::none());
                         }
                     }
                 }
-                return true;
             }
+            return true;
         }
         false
     }
@@ -354,17 +354,13 @@ impl World {
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
             Some(version) if version <= 2 => load_v0_1_2(path, &mut save_iter, version),
-            Some(version) => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unsupported save version: {}",
-                    version
-                )));
-            }
-            None => {
-                return Err(WorldLoadError::InvalidSaveFormat(
-                    "Save file is empty".to_string(),
-                ));
-            }
+            Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
+                "Unsupported save version: {}",
+                version
+            ))),
+            None => Err(WorldLoadError::InvalidSaveFormat(
+                "Save file is empty".to_string(),
+            )),
         }
     }
 }
@@ -421,7 +417,7 @@ fn load_v0_1_2(
             world
                 .changes
                 .entry(chunk_pos)
-                .or_insert_with(HashMap::new)
+                .or_default()
                 .insert(local_pos, block_and_state);
         }
         let chunk = Chunk::load(&mut chunk_iter, version)?;
@@ -436,6 +432,7 @@ fn load_v0_1_2(
     let entities_data = std::fs::read(entities_path).unwrap();
     let mut entities_iter = entities_data.into_iter();
     let entity_count = read_u64(&mut entities_iter, "Entity count")?;
+    #[allow(clippy::never_loop)]
     #[allow(unreachable_code, unused_variables)]
     for _ in 0..entity_count {
         let entity_type = read_u8(&mut entities_iter, "Entity type")?;

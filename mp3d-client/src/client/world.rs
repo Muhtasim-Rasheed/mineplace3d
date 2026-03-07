@@ -156,8 +156,8 @@ impl ClientWorld {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
-                    if let Some((block, block_state)) = self.get_block_at(block_pos) {
-                        if block.collides_with_player(
+                    if let Some((block, block_state)) = self.get_block_at(block_pos)
+                        && block.collides_with_player(
                             entity_width,
                             entity_height,
                             entity_pos - block_pos.as_vec3(),
@@ -165,7 +165,6 @@ impl ClientWorld {
                         ) {
                             return true;
                         }
-                    }
                 }
             }
         }

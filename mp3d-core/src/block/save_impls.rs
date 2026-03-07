@@ -25,7 +25,6 @@ impl Saveable for Block {
         let ident = get_block_ident(&ident_str).ok_or_else(|| {
             WorldLoadError::InvalidSaveFormat(format!("Unknown block identifier: {}", ident_str))
         })?;
-        let state_type;
         let collision_shape_byte = read_u8(data, "Block::collision_shape")?;
         let collision_shape = match collision_shape_byte {
             0 => CollisionShape::None,
@@ -38,11 +37,11 @@ impl Saveable for Block {
                 )));
             }
         };
-        if version < 1 {
-            state_type = 0;
+        let state_type = if version < 1 {
+            0
         } else {
-            state_type = read_u16(data, "Block::state_type")?;
-        }
+            read_u16(data, "Block::state_type")?
+        };
         Ok(Block {
             visible,
             collision_shape,

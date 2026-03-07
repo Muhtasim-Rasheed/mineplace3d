@@ -4,10 +4,12 @@ use glam::{Mat4, UVec2, UVec4, Vec2, Vec4};
 use mp3d_core::item::*;
 
 use crate::{
-    abs::TextureHandle, client::player::ClientInventory, render::ui::{
+    abs::TextureHandle,
+    client::player::ClientInventory,
+    render::ui::{
         uirenderer::DrawCommand,
         widgets::{Font, NineSlice, Widget},
-    }
+    },
 };
 
 pub const INVENTORY_SLOT_SIZE: Vec2 = Vec2::new(64.0, 64.0);
@@ -29,8 +31,8 @@ impl InventorySlot {
     ) -> Self {
         let nineslice = NineSlice::new(
             texture,
-            UVec2::new(16, 16),
-            UVec2::new(16, 16),
+            [UVec2::new(16, 16),
+            UVec2::new(16, 16)],
             INVENTORY_SLOT_SIZE,
             UVec4::splat(1),
             4,
