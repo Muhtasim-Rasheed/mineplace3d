@@ -204,38 +204,6 @@ impl Server {
                     );
                 }
             }
-            C2SMessage::SetBlock {
-                position,
-                block,
-                block_state,
-            } => {
-                if let Some(user_id) = self.connections.get(&connection_id)
-                    && let Some(session) = self.sessions.get(user_id)
-                    && let Some(player_pos) = self
-                        .world
-                        .get_entity::<PlayerEntity>(session.entity_id)
-                        .map(|e| e.position)
-                {
-                    if position.as_vec3().distance_squared(player_pos) > 25.0 {
-                        return None;
-                    }
-
-                    let old = self.world.get_block_at(position).map_or(
-                        (crate::block::Block::AIR, crate::block::BlockState::none()),
-                        |(b, s)| (*b, *s),
-                    );
-                    self.world.set_block_at(position, block, block_state);
-
-                    if self.world.collides(
-                        player_pos,
-                        PlayerEntity::width(),
-                        PlayerEntity::height(),
-                    ) {
-                        self.world.set_block_at(position, old.0, old.1);
-                    }
-                    return None;
-                }
-            }
             C2SMessage::RequestChunks { chunk_positions } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
@@ -298,16 +266,22 @@ impl Server {
                     }
                 }
             }
-            C2SMessage::InteractBlock { position, face } => {
+            C2SMessage::BlockClick { position, face, right } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
-                    && !self
+                    && let Some(player_pos) = self
                         .world
-                        .block_interaction(session.entity_id, position, face)
+                        .get_entity::<PlayerEntity>(session.entity_id)
+                        .map(|e| e.position)
                 {
-                    session
-                        .pending_messages
-                        .push(S2CMessage::NoBlockInteraction { position, face });
+                    if position.as_vec3().distance_squared(player_pos) > 25.0 {
+                        return None;
+                    }
+                    if right {
+                        self.world.block_interaction(session.entity_id, position, face);
+                    } else {
+                        self.world.set_block_at(position, crate::block::Block::AIR, crate::block::BlockState::none());
+                    }
                 }
             }
             C2SMessage::InventoryClick { idx, right } => {

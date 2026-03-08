@@ -196,12 +196,20 @@ impl<C: Connection> Client<C> {
                 .contains(&sdl2::mouse::MouseButton::Left)
             {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
-                if let Some((block_pos, _)) = raycast_result {
-                    self.world.set_block_at(
-                        block_pos,
-                        mp3d_core::block::Block::AIR,
-                        mp3d_core::block::BlockState::none(),
-                    );
+                if let Some((position, face)) = raycast_result {
+                    self.connection.send(C2SMessage::BlockClick {
+                        position,
+                        face: match face {
+                            IVec3 { z: -1, .. } => 0,
+                            IVec3 { z: 1, .. } => 1,
+                            IVec3 { x: 1, .. } => 2,
+                            IVec3 { x: -1, .. } => 3,
+                            IVec3 { y: 1, .. } => 4,
+                            IVec3 { y: -1, .. } => 5,
+                            _ => unreachable!(),
+                        },
+                        right: false,
+                    });
                 }
             }
 
@@ -212,7 +220,6 @@ impl<C: Connection> Client<C> {
             {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
                 if let Some((block_pos, normal)) = raycast_result {
-                    let place_pos = block_pos + normal;
                     let face_idx = match normal {
                         IVec3 { z: -1, .. } => 0,
                         IVec3 { z: 1, .. } => 1,
@@ -222,18 +229,11 @@ impl<C: Connection> Client<C> {
                         IVec3 { y: -1, .. } => 5,
                         _ => unreachable!(),
                     };
-                    if !self.player.input.sneak {
-                        self.connection.send(C2SMessage::InteractBlock {
-                            position: block_pos,
-                            face: face_idx,
-                        });
-                    } else {
-                        self.world.set_block_at(
-                            place_pos,
-                            mp3d_core::block::Block::GLUNGUS,
-                            mp3d_core::block::BlockState::none(),
-                        );
-                    }
+                    self.connection.send(C2SMessage::BlockClick {
+                        position: block_pos,
+                        face: face_idx,
+                        right: true,
+                    });
                 }
             }
 
@@ -313,15 +313,6 @@ impl<C: Connection> Client<C> {
         self.connection.send(C2SMessage::RequestChunks {
             chunk_positions: needed_chunks,
         });
-
-        let block_changes = std::mem::take(&mut self.world.pending_changes);
-        for (position, (block, block_state)) in block_changes {
-            self.connection.send(C2SMessage::SetBlock {
-                position,
-                block,
-                block_state,
-            });
-        }
 
         let inventory_changes = std::mem::take(&mut self.player.inventory.borrow_mut().clicks);
         for (idx, right) in inventory_changes {
@@ -404,23 +395,6 @@ impl<C: Connection> Client<C> {
                     block_state,
                 } => {
                     self.world.set_block_at(position, block, block_state);
-                }
-                S2CMessage::NoBlockInteraction { position, face } => {
-                    let place_pos = position
-                        + match face {
-                            0 => IVec3::new(0, 0, -1),
-                            1 => IVec3::new(0, 0, 1),
-                            2 => IVec3::new(1, 0, 0),
-                            3 => IVec3::new(-1, 0, 0),
-                            4 => IVec3::new(0, 1, 0),
-                            5 => IVec3::new(0, -1, 0),
-                            _ => unreachable!(),
-                        };
-                    self.world.set_block_at(
-                        place_pos,
-                        mp3d_core::block::Block::GLUNGUS,
-                        mp3d_core::block::BlockState::none(),
-                    );
                 }
                 _ => {}
             }

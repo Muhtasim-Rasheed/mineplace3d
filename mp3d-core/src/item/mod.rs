@@ -292,17 +292,20 @@ impl Inventory {
         }
     }
 
+    /// Adds a specified count of items of a given item to the inventory, splitting it into
+    /// multiple stacks if necessary.
     pub fn add_stack(&mut self, item: Item, mut count: u16) {
-        // Calculate the number of stacks needed
         let n_stacks = count.div_ceil(item.max_stack);
-        let mut stacks = Vec::new();
         for _ in 0..n_stacks {
             let stack_count = count.min(item.max_stack);
-            stacks.push(ItemStack::new(item, stack_count));
+            self.add_stack_single(ItemStack::new(item, stack_count));
             count -= stack_count;
         }
-        for stack in stacks {
-            self.add_stack_single(stack);
-        }
+    }
+
+    /// Gets a specified hotbar slot. The hotbar consists of the last 9 slots of the general
+    /// inventory, so the index is adjusted accordingly.
+    pub fn hotbar_slot(&self, index: usize) -> &ItemStack {
+        &self.main[3 * 9 + index]
     }
 }

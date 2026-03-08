@@ -1,5 +1,3 @@
-// WIP
-
 use crate::item::*;
 use crate::saving::Saveable;
 use crate::saving::WorldLoadError;

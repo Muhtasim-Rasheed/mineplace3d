@@ -36,19 +36,14 @@ pub enum C2SMessage {
     Disconnect,
     /// Request to move the player.
     Move(MoveInstructions),
-    /// Request to set a block at a specified position with a given block.
-    SetBlock {
-        position: IVec3,
-        block: Block,
-        block_state: BlockState,
-    },
     /// Request for chunk data.
     RequestChunks { chunk_positions: Vec<IVec3> },
     /// Request to send a chat message or execute a command.
     SendMessage { message: String },
-    /// Request for interaction with a block. The face is a number from 0 to 5 in the order of
-    /// NSEWUD.
-    InteractBlock { position: IVec3, face: u8 },
+    /// Request for interaction with / placement of / removal of a block. The face is a number
+    /// from 0 to 5 in the order of NSEWUD. No block data is sent with this message, so the server
+    /// will determine the block being placed (if the targetted block is not interactable)
+    BlockClick { position: IVec3, face: u8, right: bool },
     /// Request to click on an inventory slot.
     InventoryClick { idx: usize, right: bool },
 }
@@ -94,6 +89,4 @@ pub enum S2CMessage {
     },
     /// Delivery of a chat message or command output.
     ChatMessage { message: crate::TextComponent },
-    /// Notification of no block interaction being done with the position of the block.
-    NoBlockInteraction { position: IVec3, face: u8 },
 }
