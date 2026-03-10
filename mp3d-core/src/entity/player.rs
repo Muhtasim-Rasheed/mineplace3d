@@ -184,7 +184,7 @@ impl Entity for PlayerEntity {
         ) && self.velocity.y <= 0.0;
         let collide_y = world.collides(self.position, Self::width(), Self::height());
         if collide_y {
-            self.position.y -= self.velocity.y * delta_time;
+            self.position.y -= self.velocity.y * delta_time * 0.8;
             self.velocity.y = 0.0;
         }
         self.position.z += self.velocity.z * delta_time;

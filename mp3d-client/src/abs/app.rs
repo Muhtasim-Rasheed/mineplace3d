@@ -63,6 +63,8 @@ impl App {
         // Create event pump
         let event_pump = sdl.event_pump().unwrap();
 
+        video_subsystem.gl_set_swap_interval(1).unwrap();
+
         Self {
             sdl,
             window,

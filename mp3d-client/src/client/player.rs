@@ -160,7 +160,7 @@ impl ClientPlayer {
             PlayerEntity::height(),
         ) && self.velocity.y <= 0.0;
         if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.y -= self.velocity.y * dt;
+            self.position.y -= self.velocity.y * dt * 0.8;
             self.velocity.y = 0.0;
         }
         self.position.z += self.velocity.z * dt;
