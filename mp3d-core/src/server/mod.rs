@@ -296,6 +296,15 @@ impl Server {
                     });
                 }
             }
+            C2SMessage::HotbarChange { idx } => {
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                    && let Some(player_entity) =
+                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                {
+                    player_entity.hotbar_index = idx;
+                }
+            }
         }
         None
     }

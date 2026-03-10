@@ -46,6 +46,8 @@ pub enum C2SMessage {
     BlockClick { position: IVec3, face: u8, right: bool },
     /// Request to click on an inventory slot.
     InventoryClick { idx: usize, right: bool },
+    /// Request to change the hotbar slot.
+    HotbarChange { idx: usize },
 }
 
 /// Messages sent from the server to the client.
@@ -89,4 +91,6 @@ pub enum S2CMessage {
     },
     /// Delivery of a chat message or command output.
     ChatMessage { message: crate::TextComponent },
+    /// Notification of change of selected hotbar slot.
+    HotbarChanged { idx: usize },
 }

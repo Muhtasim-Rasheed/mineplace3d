@@ -261,6 +261,28 @@ impl<C: Connection> Client<C> {
             {
                 self.inventory_open = !self.inventory_open;
             }
+
+            for (i, numbers) in [
+                sdl2::keyboard::Keycode::Num1,
+                sdl2::keyboard::Keycode::Num2,
+                sdl2::keyboard::Keycode::Num3,
+                sdl2::keyboard::Keycode::Num4,
+                sdl2::keyboard::Keycode::Num5,
+                sdl2::keyboard::Keycode::Num6,
+                sdl2::keyboard::Keycode::Num7,
+                sdl2::keyboard::Keycode::Num8,
+                sdl2::keyboard::Keycode::Num9,
+            ].iter().enumerate() {
+                if update_context
+                    .keyboard
+                    .pressed
+                    .contains(numbers)
+                {
+                    self.connection.send(C2SMessage::HotbarChange { idx: i });
+                    self.player.inventory.borrow_mut().slot = i;
+                    break;
+                }
+            }
         } else if self.chat_open {
             self.chat_message
                 .get_or_insert_with(String::new)
@@ -395,6 +417,9 @@ impl<C: Connection> Client<C> {
                     block_state,
                 } => {
                     self.world.set_block_at(position, block, block_state);
+                }
+                S2CMessage::HotbarChanged { idx } => {
+                    self.player.inventory.borrow_mut().slot = idx;
                 }
                 _ => {}
             }

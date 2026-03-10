@@ -12,6 +12,7 @@ use crate::client::world::ClientWorld;
 pub struct ClientInventory {
     pub inner: Inventory,
     pub clicks: Vec<(usize, bool)>,
+    pub slot: usize,
 }
 
 impl ClientInventory {
@@ -19,6 +20,7 @@ impl ClientInventory {
         Self {
             inner: Inventory::new(),
             clicks: Vec::new(),
+            slot: 0,
         }
     }
 
@@ -108,6 +110,7 @@ impl ClientPlayer {
         self.inventory.borrow_mut().update_from_inventory(
             Inventory::load(&mut snapshot, mp3d_core::saving::SAVE_VERSION).unwrap(),
         );
+        self.inventory.borrow_mut().slot = read_u8(&mut snapshot, "ClientPlayer reading inventory slot").unwrap() as usize;
         self.flying = read_u8(&mut snapshot, "ClientPlayer reading flying").unwrap() != 0;
     }
 

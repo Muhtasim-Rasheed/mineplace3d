@@ -125,6 +125,7 @@ impl Entity for PlayerEntity {
         data.extend_from_slice(&self.yaw.to_le_bytes());
         data.extend_from_slice(&self.pitch.to_le_bytes());
         data.extend_from_slice(&self.inventory.save());
+        data.extend_from_slice(&self.hotbar_index.to_le_bytes());
         data.extend_from_slice(&[self.flying as u8]);
         data
     }
