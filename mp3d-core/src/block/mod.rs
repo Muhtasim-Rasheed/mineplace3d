@@ -43,6 +43,27 @@ impl Block {
         state_type: BlockState::NONE.state_type(),
     };
 
+    pub const COBBLESTONE: Block = Block {
+        visible: true,
+        collision_shape: CollisionShape::FullBlock,
+        ident: "cobblestone",
+        state_type: BlockState::NONE.state_type(),
+    };
+
+    pub const LOG: Block = Block {
+        visible: true,
+        collision_shape: CollisionShape::FullBlock,
+        ident: "log",
+        state_type: BlockState::NONE.state_type(),
+    };
+
+    pub const LEAVES: Block = Block {
+        visible: true,
+        collision_shape: CollisionShape::FullBlock,
+        ident: "leaves",
+        state_type: BlockState::NONE.state_type(),
+    };
+
     pub const GLUNGUS: Block = Block {
         visible: true,
         collision_shape: CollisionShape::FullBlock,
@@ -62,6 +83,9 @@ impl Block {
         Block::GRASS,
         Block::DIRT,
         Block::STONE,
+        Block::COBBLESTONE,
+        Block::LOG,
+        Block::LEAVES,
         Block::GLUNGUS,
         Block::STONE_SLAB,
     ];

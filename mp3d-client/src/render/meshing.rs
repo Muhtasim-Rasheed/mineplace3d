@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use glam::{IVec3, Vec2, Vec3};
+use glam::{IVec3, Vec2, Vec3, Vec3Swizzles};
 use glow::HasContext;
 use mp3d_core::{
     block::{Block, BlockState},
@@ -49,6 +49,23 @@ impl Vertex for ChunkVertex {
     }
 }
 
+/// Gets a rect of a face of a block
+#[inline]
+fn get_face_rect(face_idx: usize, element: &crate::resource::block::BlockElement) -> [Vec2; 2] {
+    match face_idx {
+        0 | 1 => [element.from.xy(), element.to.xy()],
+        2 | 3 => [element.from.zy(), element.to.zy()],
+        4 | 5 => [element.from.xz(), element.to.xz()],
+        _ => unreachable!(),
+    }
+}
+
+/// Determines if the face of block `a` is completely covered by block `b` on the given face index.
+#[inline]
+fn covers(a_min: Vec2, a_max: Vec2, b_min: Vec2, b_max: Vec2) -> bool {
+    a_min.cmple(b_min).all() && a_max.cmpge(b_max).all()
+}
+
 /// Determines if a certain face of block `a` should be occluded by block `b`.
 #[inline]
 fn should_occlude(
@@ -65,12 +82,36 @@ fn should_occlude(
         return false;
     }
 
+    // for a_el in &a_model.elements {
+    //     if !a_el.faces[face_idx].occludes {
+    //         continue;
+    //     }
+    //     for b_el in &b_model.elements {
+    //         if b_el.faces[face_idx ^ 1].cullable {
+    //             return true;
+    //         }
+    //     }
+    // }
+
+    // false
+
+    // Much better approximation: if any face of b covers all faces of a, then occlude.
     for a_el in &a_model.elements {
-        if !a_el.faces[face_idx].occludes {
+        let a_face = &a_el.faces[face_idx];
+        if !a_face.cullable {
             continue;
         }
+
+        let a_rect = get_face_rect(face_idx, a_el);
+
         for b_el in &b_model.elements {
-            if b_el.faces[face_idx ^ 1].cullable {
+            let b_face = &b_el.faces[face_idx ^ 1];
+            if !b_face.occludes {
+                continue;
+            }
+
+            let b_rect = get_face_rect(face_idx ^ 1, b_el);
+            if covers(a_rect[0], a_rect[1], b_rect[0], b_rect[1]) {
                 return true;
             }
         }

@@ -19,64 +19,79 @@ impl Default for Item {
     }
 }
 
-impl Item {
-    pub const AIR: Item = Item {
-        ident: "air",
-        assoc_block: Some(&Block::AIR),
-        max_stack: 64,
-    };
+macro_rules! items {
+    (
+        $(
+            $const_ident:ident => {
+                $ident:literal $(x $stack:expr)?
+                $(, block: $block:expr)?
+            }
+        ),* $(,)?
+    ) => {
+        impl Item {
+            $(
+                items!(@item $const_ident, $ident, $($stack)?, $($block)?);
+            )*
 
-    pub const GRASS_BLOCK: Item = Item {
-        ident: "grass_block",
-        assoc_block: Some(&Block::GRASS),
-        max_stack: 64,
-    };
+            pub const ALL_ITEMS: &[Item] = &[
+                $(Item::$const_ident),*
+            ];
 
-    pub const DIRT: Item = Item {
-        ident: "dirt",
-        assoc_block: Some(&Block::DIRT),
-        max_stack: 64,
-    };
-
-    pub const STONE: Item = Item {
-        ident: "stone",
-        assoc_block: Some(&Block::STONE),
-        max_stack: 64,
-    };
-
-    pub const GLUNGUS_BLOCK: Item = Item {
-        ident: "glungus_block",
-        assoc_block: Some(&Block::GLUNGUS),
-        max_stack: 64,
-    };
-
-    pub const STONE_SLAB: Item = Item {
-        ident: "stone_slab",
-        assoc_block: Some(&Block::STONE_SLAB),
-        max_stack: 64,
-    };
-
-    pub const ALL_ITEMS: &[Item] = &[
-        Item::AIR,
-        Item::GRASS_BLOCK,
-        Item::DIRT,
-        Item::STONE,
-        Item::GLUNGUS_BLOCK,
-        Item::STONE_SLAB,
-    ];
-
-    pub fn from_ident(ident: &str) -> Option<&'static Item> {
-        match ident {
-            "air" => Some(&Item::AIR),
-            "grass_block" => Some(&Item::GRASS_BLOCK),
-            "dirt" => Some(&Item::DIRT),
-            "stone" => Some(&Item::STONE),
-            "glungus_block" => Some(&Item::GLUNGUS_BLOCK),
-            "stone_slab" => Some(&Item::STONE_SLAB),
-            _ => None,
+            pub fn from_ident(ident: &str) -> Option<&'static Item> {
+                match ident {
+                    $(
+                        $ident => Some(&Item::$const_ident),
+                    )*
+                    _ => None,
+                }
+            }
         }
-    }
+    };
+
+    (@item $const_ident:ident, $ident:literal, $stack:expr, $block:expr) => {
+        pub const $const_ident: Item = Item {
+            ident: $ident,
+            assoc_block: $block,
+            max_stack: $stack,
+        };
+    };
+
+    (@item $const_ident:ident, $ident:literal, $stack:expr,) => {
+        pub const $const_ident: Item = Item {
+            ident: $ident,
+            assoc_block: None,
+            max_stack: $stack,
+        };
+    };
+
+    (@item $const_ident:ident, $ident:literal,, $block:expr) => {
+        pub const $const_ident: Item = Item {
+            ident: $ident,
+            assoc_block: $block,
+            max_stack: 64,
+        };
+    };
+
+    (@item $const_ident:ident, $ident:literal,,) => {
+        pub const $const_ident: Item = Item {
+            ident: $ident,
+            assoc_block: None,
+            max_stack: 64,
+        };
+    };
 }
+
+items!(
+    AIR => { "air", block: Some(&Block::AIR) },
+    GRASS_BLOCK => { "grass_block", block: Some(&Block::GRASS) },
+    DIRT => { "dirt", block: Some(&Block::DIRT) },
+    STONE => { "stone", block: Some(&Block::STONE) },
+    COBBLESTONE => { "cobblestone", block: Some(&Block::COBBLESTONE) },
+    LOG => { "log", block: Some(&Block::LOG) },
+    LEAVES => { "leaves", block: Some(&Block::LEAVES) },
+    GLUNGUS_BLOCK => { "glungus_block", block: Some(&Block::GLUNGUS) },
+    STONE_SLAB => { "stone_slab", block: Some(&Block::STONE_SLAB) },
+);
 
 /// A struct representing a stack of items, containing a the item and the count of how many of
 /// that item are in the stack. The count is limited by the max stack size of the item. An empty

@@ -1,0 +1,17 @@
+{
+	"elements": [
+		{
+			"from": [0, 0, 0],
+			"to": [16, 16, 16],
+			"n": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false},
+			"s": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false},
+			"e": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false},
+			"w": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false},
+			"u": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false},
+			"d": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false}
+		}
+	],
+	"textures": {
+		"$a": "leaves"
+	}
+}

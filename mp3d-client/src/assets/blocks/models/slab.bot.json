@@ -3,10 +3,10 @@
 		{
 			"from": [0, 0, 0],
 			"to": [16, 8, 16],
-			"n": {"uv": [0, 0, 16, 8], "texture": "$n", "cullable": false},
-			"s": {"uv": [0, 0, 16, 8], "texture": "$s", "cullable": false},
-			"e": {"uv": [0, 0, 16, 8], "texture": "$e", "cullable": false},
-			"w": {"uv": [0, 0, 16, 8], "texture": "$w", "cullable": false},
+			"n": {"uv": [0, 0, 16, 8], "texture": "$n", "occludes": false},
+			"s": {"uv": [0, 0, 16, 8], "texture": "$s", "occludes": false},
+			"e": {"uv": [0, 0, 16, 8], "texture": "$e", "occludes": false},
+			"w": {"uv": [0, 0, 16, 8], "texture": "$w", "occludes": false},
 			"u": {"uv": [0, 0, 16, 16], "texture": "$u", "occludes": false, "cullable": false},
 			"d": {"uv": [0, 0, 16, 16], "texture": "$d"}
 		}
