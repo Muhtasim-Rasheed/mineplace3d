@@ -205,32 +205,37 @@ impl World {
 
     /// Handles a block interaction at the given world position and face index. If the block is not
     /// interactive, this will attempt to place a block on the face that was clicked.
-    pub fn block_interaction(
-        &mut self,
-        player_entity_id: u64,
-        block_pos: IVec3,
-        face: u8,
-    ) {
+    pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: u8) {
         match self.get_block_at(block_pos).map(|(b, _)| b.ident) {
             Some("glungus") => self.interact_glungus(block_pos),
             _ => {
-                let place_pos = block_pos + match face {
-                    0 => IVec3::new(0, 0, -1),
-                    1 => IVec3::new(0, 0, 1),
-                    2 => IVec3::new(1, 0, 0),
-                    3 => IVec3::new(-1, 0, 0),
-                    4 => IVec3::new(0, 1, 0),
-                    5 => IVec3::new(0, -1, 0),
-                    _ => return,
-                };
+                let place_pos = block_pos
+                    + match face {
+                        0 => IVec3::new(0, 0, -1),
+                        1 => IVec3::new(0, 0, 1),
+                        2 => IVec3::new(1, 0, 0),
+                        3 => IVec3::new(-1, 0, 0),
+                        4 => IVec3::new(0, 1, 0),
+                        5 => IVec3::new(0, -1, 0),
+                        _ => return,
+                    };
                 let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
                     Some(p) => p,
                     None => return,
                 };
                 let player_pos = player.position;
-                let place_block = player.inventory.hotbar_slot(player.hotbar_index).item.assoc_block;
-                if let Some(block) = place_block && let Some(state) = BlockState::default_state(block.state_type) {
-                    let old_block = *self.get_block_at(place_pos).map(|(b, _)| b).unwrap_or(&Block::AIR);
+                let place_block = player
+                    .inventory
+                    .hotbar_slot(player.hotbar_index)
+                    .item
+                    .assoc_block;
+                if let Some(block) = place_block
+                    && let Some(state) = BlockState::default_state(block.state_type)
+                {
+                    let old_block = *self
+                        .get_block_at(place_pos)
+                        .map(|(b, _)| b)
+                        .unwrap_or(&Block::AIR);
                     self.set_block_at(place_pos, *block, state);
                     if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
                         self.set_block_at(place_pos, old_block, BlockState::none());

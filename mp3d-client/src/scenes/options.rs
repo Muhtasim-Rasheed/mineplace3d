@@ -104,9 +104,7 @@ impl Options {
             cursor: Vec2::ZERO,
         });
 
-        Self {
-            container,
-        }
+        Self { container }
     }
 }
 

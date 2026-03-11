@@ -43,7 +43,11 @@ pub enum C2SMessage {
     /// Request for interaction with / placement of / removal of a block. The face is a number
     /// from 0 to 5 in the order of NSEWUD. No block data is sent with this message, so the server
     /// will determine the block being placed (if the targetted block is not interactable)
-    BlockClick { position: IVec3, face: u8, right: bool },
+    BlockClick {
+        position: IVec3,
+        face: u8,
+        right: bool,
+    },
     /// Request to click on an inventory slot.
     InventoryClick { idx: usize, right: bool },
     /// Request to change the hotbar slot.

@@ -162,9 +162,10 @@ impl ClientWorld {
                             entity_height,
                             entity_pos - block_pos.as_vec3(),
                             *block_state,
-                        ) {
-                            return true;
-                        }
+                        )
+                    {
+                        return true;
+                    }
                 }
             }
         }

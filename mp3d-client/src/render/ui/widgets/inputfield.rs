@@ -63,8 +63,7 @@ impl InputField {
         self.stack = Stack::new(super::Alignment::Start, super::Alignment::Center, 0.0);
         self.stack.add_widget(NineSlice::new(
             self.texture,
-            [glam::uvec2(32, 0),
-            glam::uvec2(16, 16)],
+            [glam::uvec2(32, 0), glam::uvec2(16, 16)],
             self.size,
             glam::uvec4(6, 6, 4, 4),
             4,

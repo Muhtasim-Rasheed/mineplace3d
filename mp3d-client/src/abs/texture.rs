@@ -44,6 +44,11 @@ impl Texture {
     pub fn new(gl: &Arc<glow::Context>, image: &DynamicImage) -> Self {
         let (width, height) = image.dimensions();
         let data = image.to_rgba8().into_raw();
+        Self::new_bytes(gl, width, height, data)
+    }
+
+    /// Creates a new texture from the given raw byte data.
+    pub fn new_bytes(gl: &Arc<glow::Context>, width: u32, height: u32, data: Vec<u8>) -> Self {
         unsafe {
             let texture = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D, Some(texture));

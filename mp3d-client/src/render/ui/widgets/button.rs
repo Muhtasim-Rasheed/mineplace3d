@@ -62,12 +62,14 @@ impl Button {
         self.stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
         self.stack.add_widget(NineSlice::new(
             self.texture,
-            [if self.is_down {
-                glam::uvec2(16, 0)
-            } else {
-                glam::uvec2(0, 0)
-            },
-            glam::uvec2(16, 16)],
+            [
+                if self.is_down {
+                    glam::uvec2(16, 0)
+                } else {
+                    glam::uvec2(0, 0)
+                },
+                glam::uvec2(16, 16),
+            ],
             self.size,
             if self.is_down {
                 glam::uvec4(5, 5, 6, 4)

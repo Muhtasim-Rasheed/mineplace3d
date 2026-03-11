@@ -272,12 +272,11 @@ impl<C: Connection> Client<C> {
                 sdl2::keyboard::Keycode::Num7,
                 sdl2::keyboard::Keycode::Num8,
                 sdl2::keyboard::Keycode::Num9,
-            ].iter().enumerate() {
-                if update_context
-                    .keyboard
-                    .pressed
-                    .contains(numbers)
-                {
+            ]
+            .iter()
+            .enumerate()
+            {
+                if update_context.keyboard.pressed.contains(numbers) {
                     self.connection.send(C2SMessage::HotbarChange { idx: i });
                     self.player.inventory.borrow_mut().slot = i;
                     break;
@@ -293,14 +292,14 @@ impl<C: Connection> Client<C> {
                 .pressed
                 .contains(&sdl2::keyboard::Keycode::Return)
                 && let Some(message) = self.chat_message.take()
-                    && !message.trim().is_empty()
-                {
-                    self.connection.send(C2SMessage::SendMessage {
-                        message: message.trim().to_string(),
-                    });
-                    self.chat_open = false;
-                    self.chat_message = None;
-                }
+                && !message.trim().is_empty()
+            {
+                self.connection.send(C2SMessage::SendMessage {
+                    message: message.trim().to_string(),
+                });
+                self.chat_open = false;
+                self.chat_message = None;
+            }
 
             if update_context
                 .keyboard
@@ -315,17 +314,18 @@ impl<C: Connection> Client<C> {
                 .keyboard
                 .pressed
                 .contains(&sdl2::keyboard::Keycode::Backspace)
-                && let Some(message) = self.chat_message.as_mut() {
-                    message.pop();
-                }
+                && let Some(message) = self.chat_message.as_mut()
+            {
+                message.pop();
+            }
         } else if self.inventory_open
             && update_context
                 .keyboard
                 .pressed
                 .contains(&sdl2::keyboard::Keycode::Escape)
-            {
-                self.inventory_open = false;
-            }
+        {
+            self.inventory_open = false;
+        }
 
         self.player.optimistic(dt, &self.world);
 

@@ -110,7 +110,8 @@ impl ClientPlayer {
         self.inventory.borrow_mut().update_from_inventory(
             Inventory::load(&mut snapshot, mp3d_core::saving::SAVE_VERSION).unwrap(),
         );
-        self.inventory.borrow_mut().slot = read_u8(&mut snapshot, "ClientPlayer reading inventory slot").unwrap() as usize;
+        self.inventory.borrow_mut().slot =
+            read_u8(&mut snapshot, "ClientPlayer reading inventory slot").unwrap() as usize;
         self.flying = read_u8(&mut snapshot, "ClientPlayer reading flying").unwrap() != 0;
     }
 

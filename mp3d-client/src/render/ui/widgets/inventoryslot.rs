@@ -31,8 +31,7 @@ impl InventorySlot {
     ) -> Self {
         let nineslice = NineSlice::new(
             texture,
-            [UVec2::new(16, 16),
-            UVec2::new(16, 16)],
+            [UVec2::new(16, 16), UVec2::new(16, 16)],
             INVENTORY_SLOT_SIZE,
             UVec4::splat(1),
             4,

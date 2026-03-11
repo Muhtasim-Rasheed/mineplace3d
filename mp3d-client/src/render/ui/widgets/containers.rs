@@ -724,8 +724,7 @@ impl Widget for Grid {
 
     fn size_hint(&self) -> Vec2 {
         let mut max_col_widths = vec![0.0_f32; self.columns];
-        let mut max_row_heights =
-            vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
+        let mut max_row_heights = vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
 
         for (i, widget) in self.widgets.iter().enumerate() {
             let size = widget.size_hint();
@@ -754,8 +753,7 @@ impl Widget for Grid {
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
         let mut max_col_widths = vec![0.0_f32; self.columns];
-        let mut max_row_heights =
-            vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
+        let mut max_row_heights = vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
 
         for (i, widget) in self.widgets.iter().enumerate() {
             let size = widget.size_hint();

@@ -14,10 +14,7 @@ use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 use crate::{
     abs::{Mesh, ShaderProgram, TextureHandle},
     client::{Client, Connection, LocalConnection},
-    render::{
-        meshing::mesh_world,
-        ui::widgets::{Button, Column, Font, Grid, InventorySlot, Label, Stack, Widget},
-    },
+    render::{clouds::CloudRenderer, meshing::mesh_world, ui::widgets::*},
     shader_program,
 };
 
@@ -38,6 +35,8 @@ pub struct SinglePlayer {
     font: Rc<Font>,
     world_path: PathBuf,
     mouse_pos: Vec2,
+    cloud_renderer: CloudRenderer,
+    total_time: f32,
 }
 
 impl SinglePlayer {
@@ -137,8 +136,7 @@ impl SinglePlayer {
         );
         inventory_stack.add_widget(crate::render::ui::widgets::NineSlice::new(
             gui_tex,
-            [UVec2::new(0, 16),
-            UVec2::new(16, 16)],
+            [UVec2::new(0, 16), UVec2::new(16, 16)],
             inventory_col.size_hint(),
             UVec4::new(4, 4, 3, 3),
             4,
@@ -157,6 +155,9 @@ impl SinglePlayer {
         pause_screen.add_widget(return_to_game);
         pause_screen.add_widget(save);
         pause_screen.add_widget(quit);
+
+        let cloud_renderer = CloudRenderer::new(gl);
+
         Self {
             client,
             chunk_meshes: HashMap::new(),
@@ -173,6 +174,8 @@ impl SinglePlayer {
             font: font.clone(),
             world_path,
             mouse_pos: Vec2::ZERO,
+            cloud_renderer,
+            total_time: 0.0,
         }
     }
 }
@@ -212,6 +215,7 @@ impl super::Scene for SinglePlayer {
         sdl_ctx.mouse().set_relative_mouse_mode(
             self.playing && !self.client.chat_open && !self.client.inventory_open,
         );
+        self.total_time += ctx.delta_time;
         // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
             self.client.send_input(ctx, ctx.delta_time);
@@ -330,7 +334,7 @@ impl super::Scene for SinglePlayer {
             gl.front_face(glow::CCW);
             gl.enable(glow::BLEND);
             gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
-            gl.clear_color(0.1, 0.1, 0.2, 1.0);
+            gl.clear_color(0.7, 0.7, 0.9, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
             self.chunk_shader.use_program();
@@ -362,6 +366,27 @@ impl super::Scene for SinglePlayer {
 
                 mesh.draw();
             }
+
+            gl.disable(glow::CULL_FACE);
+            self.cloud_renderer.shader.use_program();
+            self.cloud_renderer
+                .shader
+                .set_uniform("u_view", self.client.player.view());
+            self.cloud_renderer.shader.set_uniform(
+                "u_projection",
+                self.client
+                    .player
+                    .projection(self.width as f32 / self.height as f32),
+            );
+            self.cloud_renderer
+                .shader
+                .set_uniform("u_camera_pos", self.client.player.position);
+            self.cloud_renderer
+                .shader
+                .set_uniform("u_time", self.total_time);
+            self.cloud_renderer.shader.set_uniform("u_texture", 0);
+            self.cloud_renderer.texture.bind(0);
+            self.cloud_renderer.mesh.draw();
 
             gl.clear(glow::DEPTH_BUFFER_BIT);
             gl.disable(glow::CULL_FACE);

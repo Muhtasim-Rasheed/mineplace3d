@@ -266,7 +266,11 @@ impl Server {
                     }
                 }
             }
-            C2SMessage::BlockClick { position, face, right } => {
+            C2SMessage::BlockClick {
+                position,
+                face,
+                right,
+            } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
                     && let Some(player_pos) = self
@@ -278,9 +282,14 @@ impl Server {
                         return None;
                     }
                     if right {
-                        self.world.block_interaction(session.entity_id, position, face);
+                        self.world
+                            .block_interaction(session.entity_id, position, face);
                     } else {
-                        self.world.set_block_at(position, crate::block::Block::AIR, crate::block::BlockState::none());
+                        self.world.set_block_at(
+                            position,
+                            crate::block::Block::AIR,
+                            crate::block::BlockState::none(),
+                        );
                     }
                 }
             }
