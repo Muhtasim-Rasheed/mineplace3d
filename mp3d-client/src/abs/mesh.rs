@@ -13,6 +13,22 @@ pub trait Vertex {
     fn vertex_attribs(gl: &glow::Context);
 }
 
+impl Vertex for glam::Vec3 {
+    fn vertex_attribs(gl: &glow::Context) {
+        unsafe {
+            gl.enable_vertex_attrib_array(0);
+            gl.vertex_attrib_pointer_f32(
+                0,
+                3,
+                glow::FLOAT,
+                false,
+                3 * std::mem::size_of::<f32>() as i32,
+                0,
+            );
+        }
+    }
+}
+
 /// Represents a mesh stored on the GPU side.
 pub struct Mesh {
     gl: Arc<glow::Context>,

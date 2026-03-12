@@ -12,30 +12,45 @@ use glow::HasContext;
 use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
-    abs::{Mesh, ShaderProgram, TextureHandle},
+    abs::{Mesh, ShaderProgram, Texture, TextureHandle, framebuffer::Framebuffer},
     client::{Client, Connection, LocalConnection},
     render::{clouds::CloudRenderer, meshing::mesh_world, ui::widgets::*},
     shader_program,
 };
 
-/// The [`SinglePlayer`] struct represents the single player scene.
-pub struct SinglePlayer {
-    client: Client<LocalConnection>,
-    chunk_meshes: HashMap<IVec3, Mesh>,
-    chunk_mesh_pool: Vec<Mesh>,
-    chunk_shader: ShaderProgram,
-    width: u32,
-    height: u32,
-    tick_acc: f32,
-    tick_rate: f32,
-    playing: bool,
+struct SinglePlayerUI {
     chat_input_label: Option<Label>,
     pause_screen: Column,
     inventory: Stack,
     font: Rc<Font>,
+}
+
+struct WorldRenderer {
+    chunk_meshes: HashMap<IVec3, Mesh>,
+    chunk_mesh_pool: Vec<Mesh>,
+    cloud_renderer: CloudRenderer,
+    framebuffer: Framebuffer,
+    ssao_framebuffer: Framebuffer,
+    chunk_shader: ShaderProgram,
+    ssao_shader: ShaderProgram,
+    postprocess_shader: ShaderProgram,
+    ssao_kernel: [Vec3; 32],
+    ssao_noise_texture: Texture,
+
+    fullscreen_quad: Mesh,
+}
+
+/// The [`SinglePlayer`] struct represents the single player scene.
+pub struct SinglePlayer {
+    client: Client<LocalConnection>,
+    renderer: WorldRenderer,
+    screen_size: UVec2,
+    tick_acc: f32,
+    tick_rate: f32,
+    playing: bool,
+    ui: SinglePlayerUI,
     world_path: PathBuf,
     mouse_pos: Vec2,
-    cloud_renderer: CloudRenderer,
     total_time: f32,
 }
 
@@ -80,6 +95,36 @@ impl SinglePlayer {
         let connection = LocalConnection::new(server);
         let client = Client::new(connection, username, None);
         let chunk_shader = shader_program!(chunk, gl, "..");
+        let ssao_shader = shader_program!(ssao, gl, "..");
+        let postprocess_shader = shader_program!(postprocess, gl, "..");
+
+        let mut ssao_kernel = [Vec3::ZERO; 32];
+        for (i, sample) in ssao_kernel.iter_mut().enumerate() {
+            *sample = Vec3::new(
+                rand::random::<f32>() * 2.0 - 1.0,
+                rand::random::<f32>() * 2.0 - 1.0,
+                rand::random::<f32>(),
+            );
+            *sample = sample.normalize() * rand::random::<f32>();
+            let scale = i as f32 / 32.0;
+            let scale = 0.1 + 0.9 * scale * scale;
+            *sample *= scale;
+        }
+
+        let mut data = vec![0u8; 4 * 4 * 4];
+        for i in 0..4 * 4 {
+            let noise = Vec3::new(
+                rand::random::<f32>() * 2.0 - 1.0,
+                rand::random::<f32>() * 2.0 - 1.0,
+                0.0,
+            )
+            .normalize();
+            data[i * 4] = ((noise.x * 0.5 + 0.5) * 255.0) as u8;
+            data[i * 4 + 1] = ((noise.y * 0.5 + 0.5) * 255.0) as u8;
+            data[i * 4 + 2] = ((noise.z * 0.5 + 0.5) * 255.0) as u8;
+            data[i * 4 + 3] = 255;
+        }
+        let ssao_noise_texture = Texture::new_bytes(gl, 4, 4, data);
 
         let return_to_game = Button::new(
             "Return to Game",
@@ -160,21 +205,48 @@ impl SinglePlayer {
 
         Self {
             client,
-            chunk_meshes: HashMap::new(),
-            chunk_mesh_pool: Vec::new(),
-            chunk_shader,
-            width: window_size.0,
-            height: window_size.1,
+            renderer: WorldRenderer {
+                chunk_meshes: HashMap::new(),
+                chunk_mesh_pool: Vec::new(),
+                cloud_renderer,
+                framebuffer: Framebuffer::new(
+                    gl,
+                    window_size.0 as i32,
+                    window_size.1 as i32,
+                    true,
+                    &[
+                        // Color texture
+                        crate::abs::framebuffer::ColorUsage::RGBA8,
+                        // Normal texture
+                        crate::abs::framebuffer::ColorUsage::RG16F,
+                    ],
+                ),
+                ssao_framebuffer: Framebuffer::new(
+                    gl,
+                    window_size.0 as i32,
+                    window_size.1 as i32,
+                    false,
+                    &[crate::abs::framebuffer::ColorUsage::R32F],
+                ),
+                chunk_shader,
+                ssao_shader,
+                postprocess_shader,
+                ssao_kernel,
+                ssao_noise_texture,
+                fullscreen_quad: fullscreen_quad_ndc(gl),
+            },
+            screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
             tick_rate: 48.0,
             playing: true,
-            chat_input_label: None,
-            pause_screen,
-            inventory: inventory_stack,
-            font: font.clone(),
+            ui: SinglePlayerUI {
+                chat_input_label: None,
+                pause_screen,
+                inventory: inventory_stack,
+                font: font.clone(),
+            },
             world_path,
             mouse_pos: Vec2::ZERO,
-            cloud_renderer,
             total_time: 0.0,
         }
     }
@@ -187,11 +259,13 @@ impl super::Scene for SinglePlayer {
             ..
         } = event
         {
-            self.width = *width as u32;
-            self.height = *height as u32;
+            self.screen_size.x = *width as u32;
+            self.screen_size.y = *height as u32;
             unsafe {
                 gl.viewport(0, 0, *width, *height);
             }
+            self.renderer.framebuffer.resize(*width, *height);
+            self.renderer.ssao_framebuffer.resize(*width, *height);
         }
         if let sdl2::event::Event::KeyDown { keycode, .. } = event
             && *keycode == Some(sdl2::keyboard::Keycode::Escape)
@@ -216,7 +290,6 @@ impl super::Scene for SinglePlayer {
             self.playing && !self.client.chat_open && !self.client.inventory_open,
         );
         self.total_time += ctx.delta_time;
-        // On single player while the game is paused we do not recieve messages from the server.
         if self.playing {
             self.client.send_input(ctx, ctx.delta_time);
             if let Err(_reason) = self.client.recieve_state() {
@@ -225,13 +298,15 @@ impl super::Scene for SinglePlayer {
         } else {
             self.client.inventory_open = false;
             self.client.chat_open = false;
-            self.pause_screen.update(ctx);
-            self.pause_screen
+            self.ui.pause_screen.update(ctx);
+            self.ui
+                .pause_screen
                 .layout(&crate::render::ui::widgets::LayoutContext {
-                    max_size: Vec2::new(self.width as f32, self.height as f32),
+                    max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
                     cursor: Vec2::ZERO,
                 });
             if self
+                .ui
                 .pause_screen
                 .get_widget::<Button>(0)
                 .is_some_and(|btn| btn.is_released())
@@ -239,6 +314,7 @@ impl super::Scene for SinglePlayer {
                 self.playing = true;
             }
             if self
+                .ui
                 .pause_screen
                 .get_widget::<Button>(1)
                 .is_some_and(|btn| btn.is_released())
@@ -254,6 +330,7 @@ impl super::Scene for SinglePlayer {
                 return super::SceneSwitch::Pop;
             }
             if self
+                .ui
                 .pause_screen
                 .get_widget::<Button>(2)
                 .is_some_and(|btn| btn.is_released())
@@ -271,30 +348,31 @@ impl super::Scene for SinglePlayer {
             self.tick_acc -= tick_time;
         }
         if let Some(chat) = self.client.chat_message.as_ref() {
-            if let Some(label) = self.chat_input_label.as_mut() {
+            if let Some(label) = self.ui.chat_input_label.as_mut() {
                 label.text = chat.clone();
             } else {
-                self.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE, &self.font));
+                self.ui.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE, &self.ui.font));
             }
         } else {
-            self.chat_input_label = None;
+            self.ui.chat_input_label = None;
         }
-        if let Some(label) = self.chat_input_label.as_mut() {
+        if let Some(label) = self.ui.chat_input_label.as_mut() {
             label.update(ctx);
             label.layout(&crate::render::ui::widgets::LayoutContext {
-                max_size: Vec2::new(self.width as f32, self.height as f32),
-                cursor: Vec2::new(10.0, self.height as f32 - 34.0),
+                max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
+                cursor: Vec2::new(10.0, self.screen_size.y as f32 - 34.0),
             });
         }
         if self.client.inventory_open {
-            self.inventory.update(ctx);
-            let inventory_size = self.inventory.size_hint();
-            self.inventory
+            self.ui.inventory.update(ctx);
+            let inventory_size = self.ui.inventory.size_hint();
+            self.ui
+                .inventory
                 .layout(&crate::render::ui::widgets::LayoutContext {
                     max_size: inventory_size,
                     cursor: Vec2::new(
-                        self.width as f32 / 2.0 - inventory_size.x / 2.0,
-                        self.height as f32 / 2.0 - inventory_size.y / 2.0,
+                        self.screen_size.x as f32 / 2.0 - inventory_size.x / 2.0,
+                        self.screen_size.y as f32 / 2.0 - inventory_size.y / 2.0,
                     ),
                 });
         }
@@ -303,15 +381,15 @@ impl super::Scene for SinglePlayer {
             .world
             .unload_chunks(self.client.player.position.as_ivec3());
         for pos in unloaded {
-            if let Some(mesh) = self.chunk_meshes.remove(&pos) {
-                self.chunk_mesh_pool.push(mesh);
+            if let Some(mesh) = self.renderer.chunk_meshes.remove(&pos) {
+                self.renderer.chunk_mesh_pool.push(mesh);
             }
         }
         mesh_world(
             gl,
             &mut self.client.world,
-            &mut self.chunk_meshes,
-            &mut self.chunk_mesh_pool,
+            &mut self.renderer.chunk_meshes,
+            &mut self.renderer.chunk_mesh_pool,
             &assets.block_textures,
             &assets.block_models,
         );
@@ -337,18 +415,24 @@ impl super::Scene for SinglePlayer {
             gl.clear_color(0.7, 0.7, 0.9, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
-            self.chunk_shader.use_program();
-            self.chunk_shader
+            self.renderer.framebuffer.bind();
+
+            gl.clear_color(0.7, 0.7, 0.9, 1.0);
+            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+
+            self.renderer.chunk_shader.use_program();
+            self.renderer
+                .chunk_shader
                 .set_uniform("u_view", self.client.player.view());
-            self.chunk_shader.set_uniform(
+            self.renderer.chunk_shader.set_uniform(
                 "u_projection",
                 self.client
                     .player
-                    .projection(self.width as f32 / self.height as f32),
+                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
             );
-            self.chunk_shader.set_uniform("u_texture", 0);
+            self.renderer.chunk_shader.set_uniform("u_texture", 0);
             assets.block_textures.upload(gl).bind(0);
-            for (pos, mesh) in &self.chunk_meshes {
+            for (pos, mesh) in &self.renderer.chunk_meshes {
                 let [aabb_min, aabb_max] = [
                     pos.as_vec3() * CHUNK_SIZE as f32,
                     (pos.as_vec3() + Vec3::splat(1.0)) * CHUNK_SIZE as f32,
@@ -359,7 +443,7 @@ impl super::Scene for SinglePlayer {
                     &self
                         .client
                         .player
-                        .frustum_planes(self.width as f32 / self.height as f32),
+                        .frustum_planes(self.screen_size.x as f32 / self.screen_size.y as f32),
                 ) {
                     continue;
                 }
@@ -368,28 +452,82 @@ impl super::Scene for SinglePlayer {
             }
 
             gl.disable(glow::CULL_FACE);
-            self.cloud_renderer.shader.use_program();
-            self.cloud_renderer
+            self.renderer.cloud_renderer.shader.use_program();
+            self.renderer
+                .cloud_renderer
                 .shader
                 .set_uniform("u_view", self.client.player.view());
-            self.cloud_renderer.shader.set_uniform(
+            self.renderer.cloud_renderer.shader.set_uniform(
                 "u_projection",
                 self.client
                     .player
-                    .projection(self.width as f32 / self.height as f32),
+                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
             );
-            self.cloud_renderer
+            self.renderer
+                .cloud_renderer
                 .shader
                 .set_uniform("u_camera_pos", self.client.player.position);
-            self.cloud_renderer
+            self.renderer
+                .cloud_renderer
                 .shader
                 .set_uniform("u_time", self.total_time);
-            self.cloud_renderer.shader.set_uniform("u_texture", 0);
-            self.cloud_renderer.texture.bind(0);
-            self.cloud_renderer.mesh.draw();
+            self.renderer
+                .cloud_renderer
+                .shader
+                .set_uniform("u_texture", 0);
+            self.renderer.cloud_renderer.texture.bind(0);
+            self.renderer.cloud_renderer.mesh.draw();
+
+            Framebuffer::unbind(gl);
+
+            gl.disable(glow::CULL_FACE);
+
+            self.renderer.ssao_framebuffer.bind();
+            gl.clear_color(1.0, 1.0, 1.0, 1.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+
+            self.renderer.ssao_shader.use_program();
+            self.renderer.ssao_shader.set_uniform("u_depth", 0);
+            self.renderer.ssao_shader.set_uniform("u_normal", 1);
+            self.renderer.ssao_shader.set_uniform("u_noise", 2);
+            self.renderer.ssao_shader.set_uniform(
+                "u_noise_scale",
+                Vec2::new(
+                    self.screen_size.x as f32 / 4.0,
+                    self.screen_size.y as f32 / 4.0,
+                ),
+            );
+            self.renderer
+                .ssao_shader
+                .set_uniform("u_samples", self.renderer.ssao_kernel);
+            self.renderer.ssao_shader.set_uniform(
+                "u_projection",
+                self.client
+                    .player
+                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
+            );
+            self.renderer.ssao_shader.set_uniform(
+                "u_inv_projection",
+                self.client
+                    .player
+                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32)
+                    .inverse(),
+            );
+            self.renderer.framebuffer.depth_texture().unwrap().bind(0);
+            self.renderer.framebuffer.textures()[1].bind(1);
+            self.renderer.ssao_noise_texture.bind(2);
+            self.renderer.fullscreen_quad.draw();
+
+            Framebuffer::unbind(gl);
+
+            self.renderer.postprocess_shader.use_program();
+            self.renderer.postprocess_shader.set_uniform("u_texture", 0);
+            self.renderer.postprocess_shader.set_uniform("u_ssao", 1);
+            self.renderer.framebuffer.textures()[0].bind(0);
+            self.renderer.ssao_framebuffer.textures()[0].bind(1);
+            self.renderer.fullscreen_quad.draw();
 
             gl.clear(glow::DEPTH_BUFFER_BIT);
-            gl.disable(glow::CULL_FACE);
 
             // draw chat messages
             let messages = self
@@ -401,17 +539,17 @@ impl super::Scene for SinglePlayer {
                 .rev()
                 .cloned()
                 .collect::<Vec<_>>();
-            let message_size = measure_messages(&self.font, &messages, 24.0);
+            let message_size = measure_messages(&self.ui.font, &messages, 24.0);
 
-            let mut messages_start_y = self.height as f32 - message_size.y - 10.0;
+            let mut messages_start_y = self.screen_size.y as f32 - message_size.y - 10.0;
 
-            if let Some(chat) = self.chat_input_label.as_ref() {
+            if let Some(chat) = self.ui.chat_input_label.as_ref() {
                 messages_start_y -= 34.0 + 15.0;
                 let label_size = chat.size_hint();
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [
-                        Vec2::new(5.0, self.height as f32 - label_size.y - 15.0),
-                        Vec2::new(5.0 + label_size.x + 10.0, self.height as f32 - 5.0),
+                        Vec2::new(5.0, self.screen_size.y as f32 - label_size.y - 15.0),
+                        Vec2::new(5.0 + label_size.x + 10.0, self.screen_size.y as f32 - 5.0),
                     ],
                     uv_rect: [Vec2::ZERO, Vec2::ONE],
                     mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
@@ -438,7 +576,7 @@ impl super::Scene for SinglePlayer {
                 layer: 0,
             });
             for cmd in text_messages(
-                &self.font,
+                &self.ui.font,
                 &messages,
                 24.0,
                 Vec2::new(10.0, messages_start_y),
@@ -451,7 +589,7 @@ impl super::Scene for SinglePlayer {
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [
                         Vec2::new(0.0, 0.0),
-                        Vec2::new(self.width as f32, self.height as f32),
+                        Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
                     ],
                     uv_rect: [Vec2::ZERO, Vec2::ONE],
                     mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
@@ -461,11 +599,11 @@ impl super::Scene for SinglePlayer {
                 });
                 ui.finish();
 
-                self.pause_screen.draw(ui, assets);
+                self.ui.pause_screen.draw(ui, assets);
             }
 
             if self.client.inventory_open {
-                self.inventory.draw(ui, assets);
+                self.ui.inventory.draw(ui, assets);
 
                 let temp_stack = &self.client.player.inventory.borrow().inner.temp;
                 if !temp_stack.is_empty() {
@@ -475,7 +613,7 @@ impl super::Scene for SinglePlayer {
                         assets,
                         self.mouse_pos,
                         ui,
-                        &self.font,
+                        &self.ui.font,
                     );
                     for cmd in temp_stack_commands {
                         ui.add_command(cmd);
@@ -549,4 +687,18 @@ fn is_aabb_in_frustum(aabb_min: Vec3, aabb_max: Vec3, planes: &[Vec4; 6]) -> boo
         }
     }
     true
+}
+
+fn fullscreen_quad_ndc(gl: &Arc<glow::Context>) -> Mesh {
+    Mesh::new(
+        gl,
+        &[
+            Vec3::new(-1.0, -1.0, 0.0),
+            Vec3::new(1.0, -1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::new(-1.0, 1.0, 0.0),
+        ],
+        &[0, 1, 2, 2, 3, 0],
+        glow::TRIANGLES,
+    )
 }

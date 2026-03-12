@@ -3,8 +3,6 @@
 //! This module provides functionality to create, bind, and manage OpenGL framebuffers.
 //! It allows for off-screen rendering and texture attachments.
 
-#![allow(dead_code)]
-
 use std::sync::Arc;
 
 use glow::HasContext;
@@ -12,18 +10,21 @@ use glow::HasContext;
 use crate::abs::Texture;
 
 /// How to use which color channels in the framebuffer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ColorUsage {
-    /// Use all color channels (RGBA8).
-    All,
-    /// Use only the red channel floating point (R32F).
-    RedFloat,
+    /// Use all color channels as 8-bit unsigned integers.
+    RGBA8,
+    /// Use only the red and green channels as 16-bit floats.
+    RG16F,
+    /// Use only the red channel as a 32-bit float.
+    R32F,
 }
 
 /// Represents an OpenGL framebuffer.
 pub struct Framebuffer {
     gl: Arc<glow::Context>,
     fbo: glow::Framebuffer,
-    color_tex: Texture,
+    color_texes: Vec<Texture>,
     depth_tex: Option<Texture>,
 }
 
@@ -34,65 +35,85 @@ impl Framebuffer {
         width: i32,
         height: i32,
         use_depth: bool,
-        color_usage: ColorUsage,
+        color_usages: &[ColorUsage],
     ) -> Self {
         unsafe {
             let fbo = gl.create_framebuffer().unwrap();
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fbo));
 
-            let color_tex = {
-                let tex = gl.create_texture().unwrap();
-                gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+            let color_texes = color_usages
+                .iter()
+                .map(|color_usage| {
+                    let tex = gl.create_texture().unwrap();
+                    gl.bind_texture(glow::TEXTURE_2D, Some(tex));
 
-                let (internal, format, ty) = match color_usage {
-                    ColorUsage::All => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
-                    ColorUsage::RedFloat => (glow::R32F as i32, glow::RED, glow::FLOAT),
-                };
+                    let (internal, format, ty) = match color_usage {
+                        ColorUsage::RGBA8 => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
+                        ColorUsage::RG16F => (glow::RG16F as i32, glow::RG, glow::HALF_FLOAT),
+                        ColorUsage::R32F => (glow::R32F as i32, glow::RED, glow::FLOAT),
+                    };
 
-                gl.tex_image_2d(
-                    glow::TEXTURE_2D,
-                    0,
-                    internal,
-                    width,
-                    height,
-                    0,
-                    format,
-                    ty,
-                    glow::PixelUnpackData::Slice(None),
-                );
+                    gl.tex_image_2d(
+                        glow::TEXTURE_2D,
+                        0,
+                        internal,
+                        width,
+                        height,
+                        0,
+                        format,
+                        ty,
+                        glow::PixelUnpackData::Slice(None),
+                    );
 
-                gl.tex_parameter_i32(
-                    glow::TEXTURE_2D,
-                    glow::TEXTURE_MIN_FILTER,
-                    glow::LINEAR as i32,
-                );
-                gl.tex_parameter_i32(
-                    glow::TEXTURE_2D,
-                    glow::TEXTURE_MAG_FILTER,
-                    glow::LINEAR as i32,
-                );
-                gl.tex_parameter_i32(
-                    glow::TEXTURE_2D,
-                    glow::TEXTURE_WRAP_S,
-                    glow::CLAMP_TO_EDGE as i32,
-                );
-                gl.tex_parameter_i32(
-                    glow::TEXTURE_2D,
-                    glow::TEXTURE_WRAP_T,
-                    glow::CLAMP_TO_EDGE as i32,
-                );
+                    gl.tex_parameter_i32(
+                        glow::TEXTURE_2D,
+                        glow::TEXTURE_MIN_FILTER,
+                        glow::LINEAR as i32,
+                    );
+                    gl.tex_parameter_i32(
+                        glow::TEXTURE_2D,
+                        glow::TEXTURE_MAG_FILTER,
+                        glow::LINEAR as i32,
+                    );
+                    gl.tex_parameter_i32(
+                        glow::TEXTURE_2D,
+                        glow::TEXTURE_WRAP_S,
+                        glow::CLAMP_TO_EDGE as i32,
+                    );
+                    gl.tex_parameter_i32(
+                        glow::TEXTURE_2D,
+                        glow::TEXTURE_WRAP_T,
+                        glow::CLAMP_TO_EDGE as i32,
+                    );
 
-                gl.framebuffer_texture_2d(
-                    glow::FRAMEBUFFER,
-                    glow::COLOR_ATTACHMENT0,
-                    glow::TEXTURE_2D,
-                    Some(tex),
-                    0,
-                );
+                    // Attach to framebuffer
+                    let attachment = glow::COLOR_ATTACHMENT0
+                        + color_usages.iter().position(|c| c == color_usage).unwrap() as u32;
+                    gl.framebuffer_texture_2d(
+                        glow::FRAMEBUFFER,
+                        attachment,
+                        glow::TEXTURE_2D,
+                        Some(tex),
+                        0,
+                    );
 
-                gl.bind_texture(glow::TEXTURE_2D, None);
-                tex
-            };
+                    gl.bind_texture(glow::TEXTURE_2D, None);
+                    Texture {
+                        gl: gl.clone(),
+                        id: tex,
+                        width: width as u32,
+                        height: height as u32,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            gl.draw_buffers(
+                &color_usages
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| glow::COLOR_ATTACHMENT0 + i as u32)
+                    .collect::<Vec<_>>(),
+            );
 
             let depth_tex = if use_depth {
                 let tex = gl.create_texture().unwrap();
@@ -141,7 +162,12 @@ impl Framebuffer {
                 );
 
                 gl.bind_texture(glow::TEXTURE_2D, None);
-                Some(tex)
+                Some(Texture {
+                    gl: gl.clone(),
+                    id: tex,
+                    width: width as u32,
+                    height: height as u32,
+                })
             } else {
                 None
             };
@@ -156,18 +182,8 @@ impl Framebuffer {
             Self {
                 gl: gl.clone(),
                 fbo,
-                color_tex: Texture {
-                    gl: gl.clone(),
-                    id: color_tex,
-                    width: width as u32,
-                    height: height as u32,
-                },
-                depth_tex: depth_tex.map(|tex| Texture {
-                    gl: gl.clone(),
-                    id: tex,
-                    width: width as u32,
-                    height: height as u32,
-                }),
+                color_texes,
+                depth_tex,
             }
         }
     }
@@ -189,46 +205,47 @@ impl Framebuffer {
     /// Resizes the framebuffer to the specified width and height.
     pub fn resize(&self, width: i32, height: i32) {
         unsafe {
-            self.gl
-                .bind_texture(glow::TEXTURE_2D, Some(self.color_tex.id));
-            let (internal, format, ty) = match self.depth_tex {
-                Some(_) => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
-                None => (glow::R32F as i32, glow::RED, glow::FLOAT),
-            };
-            self.gl.tex_image_2d(
-                glow::TEXTURE_2D,
-                0,
-                internal,
-                width,
-                height,
-                0,
-                format,
-                ty,
-                glow::PixelUnpackData::Slice(None),
-            );
-            self.gl.bind_texture(glow::TEXTURE_2D, None);
-            if let Some(depth_tex) = &self.depth_tex {
-                self.gl.bind_texture(glow::TEXTURE_2D, Some(depth_tex.id));
+            for color_tex in &self.color_texes {
+                self.gl.bind_texture(glow::TEXTURE_2D, Some(color_tex.id));
+                let (internal, format, ty) = match self.depth_tex {
+                    Some(_) => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
+                    None => (glow::R32F as i32, glow::RED, glow::FLOAT),
+                };
                 self.gl.tex_image_2d(
                     glow::TEXTURE_2D,
                     0,
-                    glow::DEPTH_COMPONENT24 as i32,
+                    internal,
                     width,
                     height,
                     0,
-                    glow::DEPTH_COMPONENT,
-                    glow::UNSIGNED_INT,
+                    format,
+                    ty,
                     glow::PixelUnpackData::Slice(None),
                 );
                 self.gl.bind_texture(glow::TEXTURE_2D, None);
+                if let Some(depth_tex) = &self.depth_tex {
+                    self.gl.bind_texture(glow::TEXTURE_2D, Some(depth_tex.id));
+                    self.gl.tex_image_2d(
+                        glow::TEXTURE_2D,
+                        0,
+                        glow::DEPTH_COMPONENT24 as i32,
+                        width,
+                        height,
+                        0,
+                        glow::DEPTH_COMPONENT,
+                        glow::UNSIGNED_INT,
+                        glow::PixelUnpackData::Slice(None),
+                    );
+                    self.gl.bind_texture(glow::TEXTURE_2D, None);
+                }
+                self.gl.viewport(0, 0, width, height);
             }
-            self.gl.viewport(0, 0, width, height);
         }
     }
 
     /// Returns the color texture of the framebuffer.
-    pub fn texture(&self) -> &Texture {
-        &self.color_tex
+    pub fn textures(&self) -> &[Texture] {
+        &self.color_texes
     }
 
     /// Returns the depth texture of the framebuffer, if it exists.

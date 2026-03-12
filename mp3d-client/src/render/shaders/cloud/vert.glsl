@@ -13,9 +13,9 @@ uniform float u_time;
 
 void main() {
 	vec3 world_pos = vec3(
-			a_pos.x * 200.0 + u_camera_pos.x,
-			100.0,
-			a_pos.y * 200.0 + u_camera_pos.z
+		a_pos.x * 200.0 + u_camera_pos.x,
+		100.0,
+		a_pos.y * 200.0 + u_camera_pos.z
 	);
 
 	gl_Position = u_projection * u_view * vec4(world_pos, 1.0);
