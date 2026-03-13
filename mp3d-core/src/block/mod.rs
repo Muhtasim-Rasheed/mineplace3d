@@ -1,6 +1,6 @@
 //! Blocks for a voxel engine.
 
-use glam::Vec3;
+use glam::{IVec3, Vec3};
 
 mod save_impls;
 
@@ -137,6 +137,42 @@ impl Block {
             }
         }
     }
+
+    /// Returns the normal of the hit face, if it hit anything.
+    pub fn ray_intersect(
+        &self,
+        ray_origin_local: Vec3,
+        ray_direction_local: Vec3,
+        block_state: BlockState,
+    ) -> Option<IVec3> {
+        match self.collision_shape {
+            CollisionShape::None => None,
+            CollisionShape::FullBlock => {
+                let block_min = Vec3::new(0.0, 0.0, 0.0);
+                let block_max = Vec3::new(1.0, 1.0, 1.0);
+                crate::ray_intersect_aabb(
+                    ray_origin_local,
+                    ray_direction_local,
+                    block_min,
+                    block_max,
+                )
+            }
+            CollisionShape::Slab => {
+                if let Some(is_top) = block_state.is_slab() {
+                    let block_min = Vec3::new(0.0, if is_top { 0.5 } else { 0.0 }, 0.0);
+                    let block_max = Vec3::new(1.0, if is_top { 1.0 } else { 0.5 }, 1.0);
+                    crate::ray_intersect_aabb(
+                        ray_origin_local,
+                        ray_direction_local,
+                        block_min,
+                        block_max,
+                    )
+                } else {
+                    None
+                }
+            }
+        }
+    }
 }
 
 impl PartialEq for Block {
@@ -168,7 +204,7 @@ pub enum CollisionShape {
 /// type of the block state is stored in the lower 16 bits, and the data is stored in the upper 16
 /// bits. This allows for up to 65536 different block state types, each with up to 65536 different
 /// data values.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BlockState(u32);
 impl BlockState {
     pub const NONE: BlockState = BlockState::none();

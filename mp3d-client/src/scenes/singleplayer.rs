@@ -515,7 +515,9 @@ impl super::Scene for SinglePlayer {
             );
             self.renderer.ssao_shader.set_uniform(
                 "u_view_normal",
-                glam::Mat3::from_mat4(self.client.player.view()).inverse().transpose(),
+                glam::Mat3::from_mat4(self.client.player.view())
+                    .inverse()
+                    .transpose(),
             );
             self.renderer.framebuffer.depth_texture().unwrap().bind(0);
             self.renderer.framebuffer.textures()[1].bind(1);

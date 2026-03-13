@@ -206,76 +206,96 @@ impl World {
     /// Handles a block interaction at the given world position and face index. If the block is not
     /// interactive, this will attempt to place a block on the face that was clicked.
     pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: u8) {
-    match self.get_block_at(block_pos) {
-        Some((block, _)) if block.ident == "glungus" => {
-            self.interact_glungus(block_pos);
-            return;
-        }
+        match self.get_block_at(block_pos).map(|(b, s)| (b.ident, *s)) {
+            Some(("glungus", _)) => {
+                self.interact_glungus(block_pos);
+                return;
+            }
+            Some((ident, state)) if state == BlockState::slab(false) && face == 4 => {
+                let player = match self.get_entity::<PlayerEntity>(player_entity_id) {
+                    Some(p) => p,
+                    None => return,
+                };
 
-        Some((block, _)) if block.ident.contains("slab") => {
-            let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
-                Some(p) => p,
-                None => return,
-            };
+                let place_block = player
+                    .inventory
+                    .hotbar_slot(player.hotbar_index)
+                    .item
+                    .assoc_block;
 
-            let place_block = player
-                .inventory
-                .hotbar_slot(player.hotbar_index)
-                .item
-                .assoc_block;
-
-            // slab merge logic
-            if let Some(item_block) = place_block {
-                if item_block.ident == block.ident {
-                    self.set_block_at(block_pos, Block::STONE, BlockState::none());
+                if let Some(item_block) = place_block
+                    && item_block.ident == ident
+                {
+                    if ident == "stone_slab" {
+                        self.set_block_at(block_pos, Block::STONE, BlockState::none())
+                    }
                     return;
                 }
             }
+            Some((ident, state)) if state == BlockState::SLAB_TOP && face == 5 => {
+                let player = match self.get_entity::<PlayerEntity>(player_entity_id) {
+                    Some(p) => p,
+                    None => return,
+                };
+
+                let place_block = player
+                    .inventory
+                    .hotbar_slot(player.hotbar_index)
+                    .item
+                    .assoc_block;
+
+                if let Some(item_block) = place_block
+                    && item_block.ident == ident
+                {
+                    if ident == "stone_slab" {
+                        self.set_block_at(block_pos, Block::STONE, BlockState::none())
+                    }
+                    return;
+                }
+            }
+            _ => {}
         }
 
-        _ => {}
-    }
+        // Normal block placement logic
+        let place_pos = block_pos
+            + match face {
+                0 => IVec3::new(0, 0, -1),
+                1 => IVec3::new(0, 0, 1),
+                2 => IVec3::new(1, 0, 0),
+                3 => IVec3::new(-1, 0, 0),
+                4 => IVec3::new(0, 1, 0),
+                5 => IVec3::new(0, -1, 0),
+                _ => return,
+            };
 
-    // Normal block placement logic
-    let place_pos = block_pos
-        + match face {
-            0 => IVec3::new(0, 0, -1),
-            1 => IVec3::new(0, 0, 1),
-            2 => IVec3::new(1, 0, 0),
-            3 => IVec3::new(-1, 0, 0),
-            4 => IVec3::new(0, 1, 0),
-            5 => IVec3::new(0, -1, 0),
-            _ => return,
+        let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
+            Some(p) => p,
+            None => return,
         };
 
-    let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
-        Some(p) => p,
-        None => return,
-    };
+        let player_pos = player.position;
 
-    let player_pos = player.position;
+        let place_block = player
+            .inventory
+            .hotbar_slot(player.hotbar_index)
+            .item
+            .assoc_block;
 
-    let place_block = player
-        .inventory
-        .hotbar_slot(player.hotbar_index)
-        .item
-        .assoc_block;
+        if let Some(block) = place_block
+            && let Some(state) = BlockState::default_state(block.state_type)
+        {
+            let old_block = *self
+                .get_block_at(place_pos)
+                .map(|(b, _)| b)
+                .unwrap_or(&Block::AIR);
 
-    if let Some(block) = place_block
-        && let Some(state) = BlockState::default_state(block.state_type)
-    {
-        let old_block = *self
-            .get_block_at(place_pos)
-            .map(|(b, _)| b)
-            .unwrap_or(&Block::AIR);
+            self.set_block_at(place_pos, *block, state);
 
-        self.set_block_at(place_pos, *block, state);
-
-        if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
-            self.set_block_at(place_pos, old_block, BlockState::none());
+            if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
+                self.set_block_at(place_pos, old_block, BlockState::none());
+            }
         }
     }
-}
 
     fn interact_glungus(&mut self, block_pos: IVec3) {
         let radius_sq = 4;

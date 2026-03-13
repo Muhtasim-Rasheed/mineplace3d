@@ -449,44 +449,20 @@ pub fn cast_ray(
 
     for _ in 0..(max_distance / step) as usize {
         let block_pos = pos.floor().as_ivec3();
-        let block = world.get_block_at(block_pos)?.0;
+
+        let (block, state) = world.get_block_at(block_pos)?;
+
+        let local = pos - block_pos.as_vec3();
 
         if block.visible {
-            let normal = calc_face_normal(pos, block_pos.as_vec3());
-            return Some((block_pos, normal));
+            let ray_intersection = block.ray_intersect(local, direction, *state);
+            if let Some(normal) = ray_intersection {
+                return Some((block_pos, normal));
+            }
         }
 
         pos += direction * step;
     }
 
     None
-}
-
-fn calc_face_normal(hit: Vec3, block: Vec3) -> IVec3 {
-    let rel = hit - block;
-
-    // Distances to faces
-    let dx = rel.x.min(1.0 - rel.x).abs();
-    let dy = rel.y.min(1.0 - rel.y).abs();
-    let dz = rel.z.min(1.0 - rel.z).abs();
-
-    let min = dx.min(dy.min(dz));
-
-    if min == dx {
-        if rel.x < 0.5 {
-            glam::ivec3(-1, 0, 0)
-        } else {
-            glam::ivec3(1, 0, 0)
-        }
-    } else if min == dy {
-        if rel.y < 0.5 {
-            glam::ivec3(0, -1, 0)
-        } else {
-            glam::ivec3(0, 1, 0)
-        }
-    } else if rel.z < 0.5 {
-        glam::ivec3(0, 0, -1)
-    } else {
-        glam::ivec3(0, 0, 1)
-    }
 }
