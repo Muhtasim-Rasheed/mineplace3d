@@ -111,8 +111,8 @@ impl SinglePlayer {
             *sample *= scale;
         }
 
-        let mut data = vec![0u8; 4 * 4 * 4];
-        for i in 0..4 * 4 {
+        let mut data = vec![0u8; 16 * 16 * 4];
+        for i in 0..16 * 16 {
             let noise = Vec3::new(
                 rand::random::<f32>() * 2.0 - 1.0,
                 rand::random::<f32>() * 2.0 - 1.0,
@@ -124,7 +124,7 @@ impl SinglePlayer {
             data[i * 4 + 2] = ((noise.z * 0.5 + 0.5) * 255.0) as u8;
             data[i * 4 + 3] = 255;
         }
-        let ssao_noise_texture = Texture::new_bytes(gl, 4, 4, data);
+        let ssao_noise_texture = Texture::new_bytes(gl, 16, 16, data);
 
         let return_to_game = Button::new(
             "Return to Game",
@@ -493,8 +493,8 @@ impl super::Scene for SinglePlayer {
             self.renderer.ssao_shader.set_uniform(
                 "u_noise_scale",
                 Vec2::new(
-                    self.screen_size.x as f32 / 4.0,
-                    self.screen_size.y as f32 / 4.0,
+                    self.screen_size.x as f32 / 16.0,
+                    self.screen_size.y as f32 / 16.0,
                 ),
             );
             self.renderer
@@ -512,6 +512,10 @@ impl super::Scene for SinglePlayer {
                     .player
                     .projection(self.screen_size.x as f32 / self.screen_size.y as f32)
                     .inverse(),
+            );
+            self.renderer.ssao_shader.set_uniform(
+                "u_view_normal",
+                glam::Mat3::from_mat4(self.client.player.view()).inverse().transpose(),
             );
             self.renderer.framebuffer.depth_texture().unwrap().bind(0);
             self.renderer.framebuffer.textures()[1].bind(1);

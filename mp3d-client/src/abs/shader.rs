@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use glam::{IVec3, Mat4, Vec2, Vec3, Vec4};
+use glam::{IVec3, Mat3, Mat4, Vec2, Vec3, Vec4};
 use glow::HasContext;
 
 /// Represents an individual OpenGL shader.
@@ -125,6 +125,17 @@ impl Uniform for Vec4 {
             let location = gl.get_uniform_location(program, name);
             if let Some(loc) = location {
                 gl.uniform_4_f32(Some(&loc), self.x, self.y, self.z, self.w);
+            }
+        }
+    }
+}
+
+impl Uniform for Mat3 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
+        unsafe {
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_matrix_3_f32_slice(Some(&loc), false, self.as_ref());
             }
         }
     }

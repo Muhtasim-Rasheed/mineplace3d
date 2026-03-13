@@ -13,6 +13,7 @@ uniform vec2 u_noise_scale;
 uniform vec3 u_samples[32];
 uniform mat4 u_projection;
 uniform mat4 u_inv_projection;
+uniform mat3 u_view_normal;
 
 vec3 get_position(vec2 uv) {
 	float depth = texture(u_depth, uv).r;
@@ -27,15 +28,18 @@ vec3 decode_normal(vec2 encoded) {
 	vec3 normal;
 	normal.xy = encoded * 2.0 - 1.0;
 	normal.z = 1.0 - abs(normal.x) - abs(normal.y);
-	if (normal.z < 0.0) {
-		normal.xy = (1.0 - abs(normal.yx)) * sign(normal.xy);
-	}
 	return normalize(normal);
 }
 
 vec3 get_normal(vec2 uv) {
 	vec2 encoded = texture(u_normal, uv).xy;
-	return decode_normal(encoded);
+	vec3 n = decode_normal(encoded);
+	// n.z = -abs(n.z);
+	if (abs(n.z) > 0.0) {
+		n.z = -n.z;
+	}
+	n = normalize(u_view_normal * n);
+	return n;
 }
 
 void main() {
@@ -78,6 +82,11 @@ void main() {
 		}
 
 		offset.xyz /= offset.w;
+
+		if (!all(equal(offset.xyz, offset.xyz))) {
+			continue;
+		}
+
 		offset.xyz = offset.xyz * 0.5 + 0.5;
 
 		if (any(lessThan(offset.xy, vec2(0.0))) || any(greaterThan(offset.xy, vec2(1.0))))
@@ -94,5 +103,5 @@ void main() {
 	}
 
 	occlusion = 1.0 - occlusion / 32.0;
-	frag_occlusion = vec4(vec3(pow(occlusion, 0.5)), 1.0);
+	frag_occlusion = vec4(vec3(occlusion), 1.0);
 }
