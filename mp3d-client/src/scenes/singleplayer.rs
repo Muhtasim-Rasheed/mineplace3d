@@ -218,7 +218,7 @@ impl SinglePlayer {
                         // Color texture
                         crate::abs::framebuffer::ColorUsage::RGBA8,
                         // Normal texture
-                        crate::abs::framebuffer::ColorUsage::RG16F,
+                        crate::abs::framebuffer::ColorUsage::RGB16F,
                     ],
                 ),
                 ssao_framebuffer: Framebuffer::new(

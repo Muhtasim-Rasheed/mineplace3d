@@ -11,11 +11,14 @@ use crate::abs::Texture;
 
 /// How to use which color channels in the framebuffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 pub enum ColorUsage {
     /// Use all color channels as 8-bit unsigned integers.
     RGBA8,
     /// Use only the red and green channels as 16-bit floats.
     RG16F,
+    /// Use only the red, green, and blue channels as 16-bit floats.
+    RGB16F,
     /// Use only the red channel as a 32-bit float.
     R32F,
 }
@@ -50,6 +53,7 @@ impl Framebuffer {
                     let (internal, format, ty) = match color_usage {
                         ColorUsage::RGBA8 => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
                         ColorUsage::RG16F => (glow::RG16F as i32, glow::RG, glow::HALF_FLOAT),
+                        ColorUsage::RGB16F => (glow::RGB16F as i32, glow::RGB, glow::HALF_FLOAT),
                         ColorUsage::R32F => (glow::R32F as i32, glow::RED, glow::FLOAT),
                     };
 

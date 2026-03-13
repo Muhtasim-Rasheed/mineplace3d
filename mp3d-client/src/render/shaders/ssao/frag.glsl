@@ -24,20 +24,8 @@ vec3 get_position(vec2 uv) {
 	return view.xyz / view.w;
 }
 
-vec3 decode_normal(vec2 encoded) {
-	vec3 normal;
-	normal.xy = encoded * 2.0 - 1.0;
-	normal.z = 1.0 - abs(normal.x) - abs(normal.y);
-	return normalize(normal);
-}
-
 vec3 get_normal(vec2 uv) {
-	vec2 encoded = texture(u_normal, uv).xy;
-	vec3 n = decode_normal(encoded);
-	// n.z = -abs(n.z);
-	if (abs(n.z) > 0.0) {
-		n.z = -n.z;
-	}
+	vec3 n = texture(u_normal, uv).xyz * 2.0 - 1.0;
 	n = normalize(u_view_normal * n);
 	return n;
 }
@@ -95,7 +83,7 @@ void main() {
 		vec3 sample_view_pos = get_position(offset.xy);
 		float sample_depth = sample_view_pos.z;
 
-		float range_check = smoothstep(0.0, 1.0, radius / abs(pos.z - sample_depth + 0.0001));
+		float range_check = smoothstep(0.0, 1.0, radius / (abs(pos.z - sample_depth) + 0.0001));
 
 		if (sample_depth >= sample_pos.z + bias) {
 			occlusion += range_check;
@@ -103,5 +91,5 @@ void main() {
 	}
 
 	occlusion = 1.0 - occlusion / 32.0;
-	frag_occlusion = vec4(vec3(occlusion), 1.0);
+	frag_occlusion = vec4(occlusion, vec3(1.0));
 }
