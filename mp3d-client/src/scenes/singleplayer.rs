@@ -528,9 +528,11 @@ impl super::Scene for SinglePlayer {
 
             self.renderer.postprocess_shader.use_program();
             self.renderer.postprocess_shader.set_uniform("u_texture", 0);
-            self.renderer.postprocess_shader.set_uniform("u_ssao", 1);
+            self.renderer.postprocess_shader.set_uniform("u_depth", 1);
+            self.renderer.postprocess_shader.set_uniform("u_ssao", 2);
             self.renderer.framebuffer.textures()[0].bind(0);
-            self.renderer.ssao_framebuffer.textures()[0].bind(1);
+            self.renderer.framebuffer.depth_texture().unwrap().bind(1);
+            self.renderer.ssao_framebuffer.textures()[0].bind(2);
             self.renderer.fullscreen_quad.draw();
 
             gl.clear(glow::DEPTH_BUFFER_BIT);
