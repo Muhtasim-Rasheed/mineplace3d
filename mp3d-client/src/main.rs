@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::{path::PathBuf, rc::Rc, sync::OnceLock};
 
 use glam::{Mat4, Vec2};

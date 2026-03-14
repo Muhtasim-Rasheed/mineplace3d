@@ -15,8 +15,8 @@ use crate::abs::Texture;
 pub enum ColorUsage {
     /// Use all color channels as 8-bit unsigned integers.
     RGBA8,
-    /// Use only the red and green channels as 16-bit floats.
-    RG16F,
+    /// Use only the red channel as a byte.
+    R8,
     /// Use only the red, green, and blue channels as 16-bit floats.
     RGB16F,
     /// Use only the red channel as a 32-bit float.
@@ -29,6 +29,8 @@ pub struct Framebuffer {
     fbo: glow::Framebuffer,
     color_texes: Vec<Texture>,
     depth_tex: Option<Texture>,
+    width: i32,
+    height: i32,
 }
 
 impl Framebuffer {
@@ -52,7 +54,7 @@ impl Framebuffer {
 
                     let (internal, format, ty) = match color_usage {
                         ColorUsage::RGBA8 => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
-                        ColorUsage::RG16F => (glow::RG16F as i32, glow::RG, glow::HALF_FLOAT),
+                        ColorUsage::R8 => (glow::R8 as i32, glow::RED, glow::UNSIGNED_BYTE),
                         ColorUsage::RGB16F => (glow::RGB16F as i32, glow::RGB, glow::HALF_FLOAT),
                         ColorUsage::R32F => (glow::R32F as i32, glow::RED, glow::FLOAT),
                     };
@@ -188,6 +190,8 @@ impl Framebuffer {
                 fbo,
                 color_texes,
                 depth_tex,
+                width,
+                height,
             }
         }
     }
@@ -196,18 +200,20 @@ impl Framebuffer {
     pub fn bind(&self) {
         unsafe {
             self.gl.bind_framebuffer(glow::FRAMEBUFFER, Some(self.fbo));
+            self.gl.viewport(0, 0, self.width, self.height);
         }
     }
 
     /// Unbinds the framebuffer, reverting to the default framebuffer.
-    pub fn unbind(gl: &glow::Context) {
+    pub fn unbind(gl: &glow::Context, width: i32, height: i32) {
         unsafe {
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+            gl.viewport(0, 0, width, height);
         }
     }
 
     /// Resizes the framebuffer to the specified width and height.
-    pub fn resize(&self, width: i32, height: i32) {
+    pub fn resize(&mut self, width: i32, height: i32) {
         unsafe {
             for color_tex in &self.color_texes {
                 self.gl.bind_texture(glow::TEXTURE_2D, Some(color_tex.id));
@@ -243,6 +249,8 @@ impl Framebuffer {
                     self.gl.bind_texture(glow::TEXTURE_2D, None);
                 }
                 self.gl.viewport(0, 0, width, height);
+                self.width = width;
+                self.height = height;
             }
         }
     }

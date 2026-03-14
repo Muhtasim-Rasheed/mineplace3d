@@ -223,8 +223,8 @@ impl SinglePlayer {
                 ),
                 ssao_framebuffer: Framebuffer::new(
                     gl,
-                    window_size.0 as i32,
-                    window_size.1 as i32,
+                    window_size.0 as i32 / 2,
+                    window_size.1 as i32 / 2,
                     false,
                     &[crate::abs::framebuffer::ColorUsage::R32F],
                 ),
@@ -265,7 +265,7 @@ impl super::Scene for SinglePlayer {
                 gl.viewport(0, 0, *width, *height);
             }
             self.renderer.framebuffer.resize(*width, *height);
-            self.renderer.ssao_framebuffer.resize(*width, *height);
+            self.renderer.ssao_framebuffer.resize(*width / 2, *height / 2);
         }
         if let sdl2::event::Event::KeyDown { keycode, .. } = event
             && *keycode == Some(sdl2::keyboard::Keycode::Escape)
@@ -452,6 +452,7 @@ impl super::Scene for SinglePlayer {
             }
 
             gl.disable(glow::CULL_FACE);
+            gl.depth_mask(false);
             self.renderer.cloud_renderer.shader.use_program();
             self.renderer
                 .cloud_renderer
@@ -478,7 +479,7 @@ impl super::Scene for SinglePlayer {
             self.renderer.cloud_renderer.texture.bind(0);
             self.renderer.cloud_renderer.mesh.draw();
 
-            Framebuffer::unbind(gl);
+            Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
 
             gl.disable(glow::CULL_FACE);
 
@@ -524,12 +525,14 @@ impl super::Scene for SinglePlayer {
             self.renderer.ssao_noise_texture.bind(2);
             self.renderer.fullscreen_quad.draw();
 
-            Framebuffer::unbind(gl);
+            Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
+            gl.depth_mask(false);
 
             self.renderer.postprocess_shader.use_program();
             self.renderer.postprocess_shader.set_uniform("u_texture", 0);
             self.renderer.postprocess_shader.set_uniform("u_depth", 1);
             self.renderer.postprocess_shader.set_uniform("u_ssao", 2);
+            self.renderer.postprocess_shader.set_uniform("u_time", self.total_time);
             self.renderer.framebuffer.textures()[0].bind(0);
             self.renderer.framebuffer.depth_texture().unwrap().bind(1);
             self.renderer.ssao_framebuffer.textures()[0].bind(2);

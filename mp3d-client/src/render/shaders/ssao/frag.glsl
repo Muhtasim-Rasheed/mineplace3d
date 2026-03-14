@@ -31,12 +31,12 @@ vec3 get_normal(vec2 uv) {
 }
 
 void main() {
-	vec3 pos = get_position(v_uv);
-
-	if (pos.z >= 0.99999) {
+	if (texture(u_depth, v_uv).r >= 0.99999) {
 		frag_occlusion = vec4(1.0);
 		return;
 	}
+
+	vec3 pos = get_position(v_uv);
 
 	if (!all(equal(pos, pos))) {
 		frag_occlusion = vec4(1.0);
@@ -50,7 +50,7 @@ void main() {
 		return;
 	}
 
-	vec3 random = texture(u_noise, v_uv * u_noise_scale).xyz;
+	vec3 random = texture(u_noise, v_uv * u_noise_scale).xyz * 2.0 - 1.0;
 
 	vec3 tangent = normalize(random - normal * dot(random, normal));
 	vec3 bitangent = cross(normal, tangent);

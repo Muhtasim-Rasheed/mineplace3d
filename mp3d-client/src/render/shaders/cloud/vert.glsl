@@ -14,7 +14,7 @@ uniform float u_time;
 void main() {
 	vec3 world_pos = vec3(
 		a_pos.x * 200.0 + u_camera_pos.x,
-		100.0,
+		99.5, // Slight offset to prevent z-fighting with the blocks.
 		a_pos.y * 200.0 + u_camera_pos.z
 	);
 
