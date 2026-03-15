@@ -69,8 +69,7 @@ impl InventorySlot {
                     &assets.block_textures,
                     position,
                     INVENTORY_SLOT_SIZE / 1.75,
-                    Mat4::from_rotation_z(180f32.to_radians())
-                        * Mat4::from_rotation_x(30f32.to_radians())
+                    Mat4::from_rotation_x(30f32.to_radians())
                         * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
                 ));
             }

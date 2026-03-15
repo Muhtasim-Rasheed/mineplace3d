@@ -550,6 +550,7 @@ impl super::Scene for SinglePlayer {
             self.renderer.fullscreen_quad.draw();
 
             gl.clear(glow::DEPTH_BUFFER_BIT);
+            gl.disable(glow::DEPTH_TEST);
 
             // draw chat messages
             let messages = self
@@ -642,6 +643,8 @@ impl super::Scene for SinglePlayer {
                     }
                 }
             }
+
+            ui.finish();
         }
     }
 }

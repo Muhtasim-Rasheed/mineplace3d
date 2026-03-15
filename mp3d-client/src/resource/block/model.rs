@@ -157,17 +157,19 @@ impl BlockModel {
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
-                    Vec2::new(uv_max.x, uv_min.y),
-                    Vec2::new(uv_min.x, uv_min.y),
                     Vec2::new(uv_min.x, uv_max.y),
                     Vec2::new(uv_max.x, uv_max.y),
+                    Vec2::new(uv_max.x, uv_min.y),
+                    Vec2::new(uv_min.x, uv_min.y),
                 ];
 
                 let mut vertices = Vec::new();
 
-                for (vert, uv) in FACE_VERTS[i].iter().zip(uvs.iter()) {
+                for (vert, uv) in FACE_VERTS[i ^ 1].iter().zip(uvs.iter()) {
+                    let from = element.from + 0.5;
+                    let to = element.to + 0.5;
                     let rotated = rotation
-                        .transform_point3(*vert - (element.to - element.from) + element.from);
+                        .transform_point3(*vert - (to - from) + from);
                     vertices.push(crate::render::ui::UIVertex {
                         position: (position + rotated.truncate() * size).extend(rotated.z + 2.0),
                         uv: *uv,
