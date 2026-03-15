@@ -265,7 +265,9 @@ impl super::Scene for SinglePlayer {
                 gl.viewport(0, 0, *width, *height);
             }
             self.renderer.framebuffer.resize(*width, *height);
-            self.renderer.ssao_framebuffer.resize(*width / 2, *height / 2);
+            self.renderer
+                .ssao_framebuffer
+                .resize(*width / 2, *height / 2);
         }
         if let sdl2::event::Event::KeyDown { keycode, .. } = event
             && *keycode == Some(sdl2::keyboard::Keycode::Escape)
@@ -385,14 +387,21 @@ impl super::Scene for SinglePlayer {
                 self.renderer.chunk_mesh_pool.push(mesh);
             }
         }
-        mesh_world(
-            gl,
-            &mut self.client.world,
-            &mut self.renderer.chunk_meshes,
-            &mut self.renderer.chunk_mesh_pool,
-            &assets.block_textures,
-            &assets.block_models,
-        );
+        if !self.client.world.remesh_queue.is_empty() {
+            mesh_world(
+                gl,
+                &mut self.client.world,
+                &mut self.renderer.chunk_meshes,
+                &mut self.renderer.chunk_mesh_pool,
+                &assets.block_textures,
+                &assets.block_models,
+                self.client
+                    .player
+                    .position
+                    .as_ivec3()
+                    .div_euclid(IVec3::splat(CHUNK_SIZE as i32)),
+            );
+        }
         self.mouse_pos = ctx.mouse.position;
         super::SceneSwitch::None
     }
@@ -532,7 +541,9 @@ impl super::Scene for SinglePlayer {
             self.renderer.postprocess_shader.set_uniform("u_texture", 0);
             self.renderer.postprocess_shader.set_uniform("u_depth", 1);
             self.renderer.postprocess_shader.set_uniform("u_ssao", 2);
-            self.renderer.postprocess_shader.set_uniform("u_time", self.total_time);
+            self.renderer
+                .postprocess_shader
+                .set_uniform("u_time", self.total_time);
             self.renderer.framebuffer.textures()[0].bind(0);
             self.renderer.framebuffer.depth_texture().unwrap().bind(1);
             self.renderer.ssao_framebuffer.textures()[0].bind(2);

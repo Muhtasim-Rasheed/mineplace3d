@@ -406,7 +406,7 @@ impl<C: Connection> Client<C> {
                     chunk,
                 } => {
                     self.world.chunks.insert(chunk_position, (*chunk).into());
-                    self.world.remesh_queue.insert(chunk_position);
+                    self.world.remesh_queue.push(chunk_position);
                 }
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);

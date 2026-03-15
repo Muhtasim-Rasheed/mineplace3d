@@ -1,9 +1,10 @@
 //! Client-side world representation.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
+    UniqueQueue,
     block::{Block, BlockState},
     world::chunk::CHUNK_SIZE,
 };
@@ -23,7 +24,8 @@ pub struct ClientWorld {
     /// Changes done to the world that haven't been sent to the server yet.
     pub pending_changes: Vec<(IVec3, (Block, BlockState))>,
     /// Queue of chunks that need to be remeshed.
-    pub remesh_queue: HashSet<IVec3>,
+    // pub remesh_queue: HashSet<IVec3>,
+    pub remesh_queue: UniqueQueue<IVec3>,
 }
 
 impl ClientWorld {
@@ -32,7 +34,7 @@ impl ClientWorld {
         Self {
             chunks: HashMap::new(),
             pending_changes: Vec::new(),
-            remesh_queue: HashSet::new(),
+            remesh_queue: UniqueQueue::new(),
         }
     }
 
@@ -54,7 +56,7 @@ impl ClientWorld {
         if let Some(chunk) = chunk {
             chunk.set_block(local_pos, block, state);
             chunk.dirty = true;
-            self.remesh_queue.insert(chunk_pos);
+            self.remesh_queue.push(chunk_pos);
         }
         self.pending_changes.push((world_pos, (block, state)));
 
@@ -62,37 +64,37 @@ impl ClientWorld {
         if local_pos.x == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(-1, 0, 0))) {
                 neighbor.dirty = true;
-                self.remesh_queue.insert(chunk_pos + IVec3::new(-1, 0, 0));
+                self.remesh_queue.push(chunk_pos + IVec3::new(-1, 0, 0));
             }
         } else if local_pos.x == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(1, 0, 0)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.insert(chunk_pos + IVec3::new(1, 0, 0));
+            self.remesh_queue.push(chunk_pos + IVec3::new(1, 0, 0));
         }
 
         if local_pos.y == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, -1, 0))) {
                 neighbor.dirty = true;
-                self.remesh_queue.insert(chunk_pos + IVec3::new(0, -1, 0));
+                self.remesh_queue.push(chunk_pos + IVec3::new(0, -1, 0));
             }
         } else if local_pos.y == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 1, 0)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.insert(chunk_pos + IVec3::new(0, 1, 0));
+            self.remesh_queue.push(chunk_pos + IVec3::new(0, 1, 0));
         }
 
         if local_pos.z == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, -1))) {
                 neighbor.dirty = true;
-                self.remesh_queue.insert(chunk_pos + IVec3::new(0, 0, -1));
+                self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, -1));
             }
         } else if local_pos.z == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, 1)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.insert(chunk_pos + IVec3::new(0, 0, 1));
+            self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, 1));
         }
     }
 
@@ -116,6 +118,8 @@ impl ClientWorld {
                 }
             }
         }
+
+        chunks.sort_by_key(|c| c.distance_squared(chunk_pos));
 
         chunks
     }

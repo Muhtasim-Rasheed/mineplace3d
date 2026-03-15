@@ -82,20 +82,6 @@ fn should_occlude(
         return false;
     }
 
-    // for a_el in &a_model.elements {
-    //     if !a_el.faces[face_idx].occludes {
-    //         continue;
-    //     }
-    //     for b_el in &b_model.elements {
-    //         if b_el.faces[face_idx ^ 1].cullable {
-    //             return true;
-    //         }
-    //     }
-    // }
-
-    // false
-
-    // Much better approximation: if any face of b covers all faces of a, then occlude.
     for a_el in &a_model.elements {
         let a_face = &a_el.faces[face_idx];
         if !a_face.cullable {
@@ -184,26 +170,40 @@ pub fn mesh_world(
     chunk_mesh_pool: &mut Vec<Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
+    player_pos_chunk: IVec3,
 ) {
     use rayon::prelude::*;
 
-    let remesh_queue = std::mem::take(&mut world.remesh_queue);
+    const MAX_MESHES_PER_FRAME: usize = 6;
+
+    if world.remesh_queue.is_empty() {
+        return;
+    }
+
+    let batch_size = world.remesh_queue.len().min(MAX_MESHES_PER_FRAME);
+
+    let mut batch: Vec<IVec3> = world.remesh_queue.drain(batch_size);
+    batch.sort_unstable_by(|a, b| {
+        let da = (*a - player_pos_chunk).length_squared();
+        let db = (*b - player_pos_chunk).length_squared();
+        da.cmp(&db)
+    });
 
     let world_ref = &*world;
 
-    let new_meshes: Vec<(IVec3, Vec<ChunkVertex>, Vec<u32>)> = remesh_queue
+    let new_meshes: Vec<(IVec3, Vec<ChunkVertex>, Vec<u32>)> = batch
         .par_iter()
         .map(|chunk_pos| {
-            let chunk_pos = *chunk_pos;
-            let chunk = world_ref.chunks.get(&chunk_pos).unwrap();
+            let chunk = world_ref.chunks.get(chunk_pos).unwrap();
             let (chunk_vertices, chunk_indices) =
-                mesh_chunk(chunk, chunk_pos, world_ref, block_textures, block_models);
-            (chunk_pos, chunk_vertices, chunk_indices)
+                mesh_chunk(chunk, *chunk_pos, world_ref, block_textures, block_models);
+            (*chunk_pos, chunk_vertices, chunk_indices)
         })
         .collect();
 
     for (chunk_pos, chunk_vertices, chunk_indices) in new_meshes {
         world.chunks.get_mut(&chunk_pos).unwrap().dirty = false;
+
         if let Some(mut mesh) = chunk_mesh_pool.pop() {
             mesh.update(&chunk_vertices, &chunk_indices);
             chunk_meshes.insert(chunk_pos, mesh);
@@ -223,30 +223,61 @@ fn mesh_chunk(
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
-    let mut vertices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 6);
-    let mut indices = Vec::with_capacity(vertices.capacity() * 2);
+    let mut vertices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 24);
+    let mut indices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 36);
+
+    let neighbors = [
+        chunk_pos + IVec3::new(0, 0, -1), // North
+        chunk_pos + IVec3::new(0, 0, 1),  // South
+        chunk_pos + IVec3::new(1, 0, 0),  // East
+        chunk_pos + IVec3::new(-1, 0, 0), // West
+        chunk_pos + IVec3::new(0, 1, 0),  // Up
+        chunk_pos + IVec3::new(0, -1, 0), // Down
+    ]
+    .map(|pos| world.chunks.get(&pos));
 
     fn get_block<'a>(
         chunk: &'a ClientChunk,
-        world: &'a ClientWorld,
         chunk_pos: IVec3,
         world_pos: IVec3,
+        neighbors: [Option<&'a ClientChunk>; 6],
     ) -> Option<(&'a Block, &'a BlockState)> {
         let local_x = world_pos.x - chunk_pos.x * (CHUNK_SIZE as i32);
         let local_y = world_pos.y - chunk_pos.y * (CHUNK_SIZE as i32);
         let local_z = world_pos.z - chunk_pos.z * (CHUNK_SIZE as i32);
+        let local = IVec3::new(local_x, local_y, local_z);
 
-        if local_x >= 0
-            && local_x < CHUNK_SIZE as i32
-            && local_y >= 0
-            && local_y < CHUNK_SIZE as i32
-            && local_z >= 0
-            && local_z < CHUNK_SIZE as i32
+        if local.x >= 0
+            && local.x < CHUNK_SIZE as i32
+            && local.y >= 0
+            && local.y < CHUNK_SIZE as i32
+            && local.z >= 0
+            && local.z < CHUNK_SIZE as i32
         {
-            let local_pos = IVec3::new(local_x, local_y, local_z);
-            Some(chunk.get_block(local_pos))
+            Some(chunk.get_block(local))
         } else {
-            world.get_block_at(world_pos)
+            let neighbor_idx = match (local.x, local.y, local.z) {
+                (x, y, z) if z < 0 => 0,                  // North
+                (x, y, z) if z >= CHUNK_SIZE as i32 => 1, // South
+                (x, y, z) if x >= CHUNK_SIZE as i32 => 2, // East
+                (x, y, z) if x < 0 => 3,                  // West
+                (x, y, z) if y >= CHUNK_SIZE as i32 => 4, // Up
+                (x, y, z) if y < 0 => 5,                  // Down
+                _ => unreachable!(),
+            };
+
+            neighbors[neighbor_idx].map(|neighbor_chunk| {
+                let neighbor_local = match neighbor_idx {
+                    0 => IVec3::new(local.x, local.y, CHUNK_SIZE as i32 - 1), // North
+                    1 => IVec3::new(local.x, local.y, 0),                     // South
+                    2 => IVec3::new(0, local.y, local.z),                     // East
+                    3 => IVec3::new(CHUNK_SIZE as i32 - 1, local.y, local.z), // West
+                    4 => IVec3::new(local.x, 0, local.z),                     // Up
+                    5 => IVec3::new(local.x, CHUNK_SIZE as i32 - 1, local.z), // Down
+                    _ => unreachable!(),
+                };
+                neighbor_chunk.get_block(neighbor_local)
+            })
         }
     }
 
@@ -289,10 +320,9 @@ fn mesh_chunk(
                     let neighbor_pos = glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
 
                     // Create face the neighboring block is air or doesn't occlude this face.
-                    let neighbor_block = get_block(chunk, world, chunk_pos, neighbor_pos);
+                    let neighbor_block = get_block(chunk, chunk_pos, neighbor_pos, neighbors);
                     let neighbor_state = neighbor_block.map(|(_, state)| state);
                     let neighbor_block = neighbor_block.map(|(block, _)| block);
-                    // let neighbor_model = neighbor_block.and_then(|b| block_models.get(b.ident));
                     let neighbor_model = neighbor_block
                         .and_then(|b| neighbor_state.map(|s| ident(b, s)))
                         .and_then(|ident| block_models.get(&ident));
