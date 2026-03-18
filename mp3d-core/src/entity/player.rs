@@ -150,9 +150,7 @@ impl Entity for PlayerEntity {
         false
     }
 
-    fn tick(&mut self, world: &mut World, tps: u8) {
-        let delta_time = 1.0 / tps as f32;
-
+    fn tick(&mut self, world: &mut World, dt: f32) {
         self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw = self.yaw.rem_euclid(360.0);
 
@@ -160,19 +158,19 @@ impl Entity for PlayerEntity {
             if self.on_ground {
                 self.velocity.y = 0.0;
             } else {
-                self.velocity.y -= GRAVITY * delta_time;
+                self.velocity.y -= GRAVITY * dt;
             }
         }
 
         self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
-        self.position.x += self.velocity.x * delta_time;
+        self.position.x += self.velocity.x * dt;
         let collide_x = world.collides(self.position, Self::width(), Self::height());
         if collide_x {
-            self.position.x -= self.velocity.x * delta_time;
+            self.position.x -= self.velocity.x * dt;
             self.velocity.x = 0.0;
         }
-        self.position.y += self.velocity.y * delta_time;
+        self.position.y += self.velocity.y * dt;
         self.on_ground = world.collides(
             Vec3::new(
                 self.position.x,
@@ -184,17 +182,17 @@ impl Entity for PlayerEntity {
         ) && self.velocity.y <= 0.0;
         let collide_y = world.collides(self.position, Self::width(), Self::height());
         if collide_y {
-            self.position.y -= self.velocity.y * delta_time * 0.8;
+            self.position.y -= self.velocity.y * dt * 0.8;
             self.velocity.y = 0.0;
         }
-        self.position.z += self.velocity.z * delta_time;
+        self.position.z += self.velocity.z * dt;
         let collide_z = world.collides(self.position, Self::width(), Self::height());
         if collide_z {
-            self.position.z -= self.velocity.z * delta_time;
+            self.position.z -= self.velocity.z * dt;
             self.velocity.z = 0.0;
         }
 
-        let d = 0.75_f32.powf(delta_time * 50.0);
+        let d = 0.75_f32.powf(dt * 50.0);
         self.velocity.x *= d;
         self.velocity.z *= d;
     }

@@ -157,11 +157,11 @@ impl World {
     }
 
     /// Updates the world. The optimal TPS (Ticks Per Second) is 48.
-    pub fn tick(&mut self, tps: u8) {
+    pub fn tick(&mut self, dt: f32) {
         let entity_ids: Vec<u64> = self.entities.keys().cloned().collect();
         for entity_id in entity_ids {
             if let Some(mut entity) = self.entities.remove(&entity_id) {
-                entity.tick(self, tps);
+                entity.tick(self, dt);
 
                 if !entity.requests_removal() {
                     self.entities.insert(entity_id, entity);

@@ -346,7 +346,8 @@ impl super::Scene for SinglePlayer {
             self.tick_acc = tick_time * 5.0;
         }
         while self.tick_acc >= tick_time {
-            self.client.connection.tick(self.tick_rate as u8);
+            // self.client.connection.tick(self.tick_rate as u8);
+            self.client.connection.tick(ctx.delta_time);
             self.tick_acc -= tick_time;
         }
         if let Some(chat) = self.client.chat_message.as_ref() {

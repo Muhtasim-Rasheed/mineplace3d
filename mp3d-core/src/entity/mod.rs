@@ -36,7 +36,7 @@ pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
         false
     }
     /// Called every 48 ticks per second.
-    fn tick(&mut self, world: &mut World, tps: u8);
+    fn tick(&mut self, world: &mut World, dt: f32);
 }
 
 pub mod player;
