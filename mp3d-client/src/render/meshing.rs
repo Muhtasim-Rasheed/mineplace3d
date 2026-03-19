@@ -257,12 +257,12 @@ fn mesh_chunk(
             Some(chunk.get_block(local))
         } else {
             let neighbor_idx = match (local.x, local.y, local.z) {
-                (x, y, z) if z < 0 => 0,                  // North
-                (x, y, z) if z >= CHUNK_SIZE as i32 => 1, // South
-                (x, y, z) if x >= CHUNK_SIZE as i32 => 2, // East
-                (x, y, z) if x < 0 => 3,                  // West
-                (x, y, z) if y >= CHUNK_SIZE as i32 => 4, // Up
-                (x, y, z) if y < 0 => 5,                  // Down
+                (_, _, z) if z < 0 => 0,                  // North
+                (_, _, z) if z >= CHUNK_SIZE as i32 => 1, // South
+                (x, _, _) if x >= CHUNK_SIZE as i32 => 2, // East
+                (x, _, _) if x < 0 => 3,                  // West
+                (_, y, _) if y >= CHUNK_SIZE as i32 => 4, // Up
+                (_, y, _) if y < 0 => 5,                  // Down
                 _ => unreachable!(),
             };
 
