@@ -51,7 +51,7 @@ pub struct Server {
     pub singleplayer: bool,
     pub save_path: PathBuf,
     pub user_db: user::UserDatabase,
-    pub dt: f32,
+    pub tps: u8,
 }
 
 impl Server {
@@ -65,7 +65,7 @@ impl Server {
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),
-            dt: 0.0,
+            tps: 48,
         }
     }
 
@@ -190,7 +190,7 @@ impl Server {
                     if sneak && entity.flying {
                         movement.y -= 0.8;
                     }
-                    let dt = self.dt;
+                    let dt = 1.0 / (self.tps as f32);
                     entity.apply_velocity(movement * dt * 50.0);
                     broadcast_message(
                         &mut self.sessions,
@@ -359,7 +359,7 @@ impl Server {
     }
 
     /// Ticks the server.
-    pub fn tick(&mut self, dt: f32) {
+    pub fn tick(&mut self, tps: u8) {
         // Unload chunks that have no players nearby
         let player_positions: Vec<_> = self
             .sessions
@@ -376,8 +376,8 @@ impl Server {
                 .any(|player_pos| pos.distance_squared(*player_pos) <= MAX_RENDER_DIST_SQ)
         });
 
-        self.dt = dt;
-        self.world.tick(dt);
+        self.tps = tps;
+        self.world.tick(tps);
 
         let pending_changes = std::mem::take(&mut self.world.pending_changes);
         for change in pending_changes {
@@ -413,7 +413,7 @@ impl Server {
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),
-            dt: 0.0,
+            tps: 48,
         })
     }
 }

@@ -31,7 +31,7 @@ pub trait Connection {
     fn send(&mut self, message: C2SMessage);
 
     /// Ticks the connection to update its state.
-    fn tick(&mut self, _dt: f32) {}
+    fn tick(&mut self, _tps: u8) {}
 
     // Receives messages from the server.
     fn receive(&mut self) -> Vec<S2CMessage>;
@@ -62,8 +62,8 @@ impl Connection for LocalConnection {
         self.message = self.server.handle_message(0, message);
     }
 
-    fn tick(&mut self, dt: f32) {
-        self.server.tick(dt);
+    fn tick(&mut self, tps: u8) {
+        self.server.tick(tps);
     }
 
     fn receive(&mut self) -> Vec<S2CMessage> {
