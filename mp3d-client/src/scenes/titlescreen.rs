@@ -24,6 +24,21 @@ impl TitleScreen {
     /// Creates a new [`TitleScreen`] instance.
     pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
         let header = Label::new("Mineplace3D", 72.0, Vec4::ONE, font);
+        let splash = Label::new(
+            "Insert splash here",
+            24.0,
+            Vec4::new(1.0, 1.0, 0.0, 1.0),
+            font,
+        );
+        let mut header_container = Column::new(
+            5.0,
+            Alignment::Center,
+            Vec4::ZERO,
+            Justification::Start,
+            None,
+        );
+        header_container.add_widget(header);
+        header_container.add_widget(splash);
 
         let play;
         let options;
@@ -124,7 +139,7 @@ impl TitleScreen {
             None,
         );
 
-        container.add_widget(header);
+        container.add_widget(header_container);
         container.add_widget(buttons);
         container.add_widget(footer);
 

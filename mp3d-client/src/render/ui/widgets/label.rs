@@ -12,14 +12,21 @@ pub struct Font {
     atlas: Texture,
     char_size: Vec2,
     first_char: char,
+    strikethrough: Option<u32>,
 }
 
 impl Font {
-    pub fn new(atlas: Texture, char_size: Vec2, first_char: char) -> Self {
+    pub fn new(
+        atlas: Texture,
+        char_size: Vec2,
+        first_char: char,
+        strikethrough: Option<u32>,
+    ) -> Self {
         Self {
             atlas,
             char_size,
             first_char,
+            strikethrough,
         }
     }
 
@@ -28,7 +35,10 @@ impl Font {
     }
 
     pub fn glyph_uvs(&self, c: char) -> Option<[Vec2; 2]> {
-        let index = c as u32 - self.first_char as u32;
+        let index = match c {
+            '\u{0336}' => self.strikethrough?,
+            _ => c as u32 - self.first_char as u32,
+        };
         let cols = self.atlas.width() / self.char_size.x as u32;
         let rows = self.atlas.height() / self.char_size.y as u32;
 
@@ -47,13 +57,27 @@ impl Font {
     }
 
     pub fn measure_text(&self, text: &str, font_size: f32) -> Vec2 {
-        let lines: Vec<&str> = text.split('\n').collect();
-        let line_height = font_size;
-        let max_width = lines
-            .iter()
-            .map(|line| line.len() as f32 * font_size * (self.char_size.x / self.char_size.y))
-            .fold(0.0, f32::max);
-        Vec2::new(max_width, lines.len() as f32 * line_height)
+        let mut max_width = 0.0_f32;
+        let mut line_width = 0.0;
+        let mut line_count = 1;
+        for c in text.chars() {
+            if c == '\n' {
+                max_width = max_width.max(line_width);
+                line_width = 0.0;
+                line_count += 1;
+            } else if c != '\u{0336}' {
+                line_width += font_size * (self.char_size.x / self.char_size.y);
+            }
+        }
+        max_width = max_width.max(line_width);
+        Vec2::new(max_width, line_count as f32 * font_size)
+    }
+
+    fn char_back(&self, font_size: f32, c: char) -> f32 {
+        match c {
+            '\u{0336}' => font_size * (self.char_size.x / self.char_size.y),
+            _ => 0.0
+        }
     }
 
     pub fn char_size(&self, font_size: f32) -> Vec2 {
@@ -68,6 +92,8 @@ impl Font {
         for line in text.lines() {
             for c in line.chars() {
                 if let Some(uvs) = self.glyph_uvs(c) {
+                    cursor.x -= self.char_back(font_size, c);
+
                     let pos_min = cursor;
                     let pos_max = cursor + char_size;
 

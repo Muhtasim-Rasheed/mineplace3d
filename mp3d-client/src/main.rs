@@ -184,6 +184,7 @@ fn main() {
         ),
         glam::Vec2::new(7.0, 12.0),
         ' ',
+        Some(95),
     ));
 
     let gui_tex = Texture::new(

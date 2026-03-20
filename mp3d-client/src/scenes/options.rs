@@ -77,6 +77,15 @@ impl Options {
         username_input.text = config.read().unwrap().username.clone();
         username_input.cursor_pos = username_input.text.len();
 
+        let clear_logs_button = Button::new(
+            "Clear Logs",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(500.0, 80.0),
+            font,
+            gui_tex,
+        );
+
         let back_button = Button::new(
             "Back",
             Vec4::ONE,
@@ -87,6 +96,7 @@ impl Options {
         );
 
         options_container.add_widget(username_input);
+        options_container.add_widget(clear_logs_button);
         options_container.add_widget(back_button);
 
         let mut container = Column::new(
@@ -134,13 +144,27 @@ impl super::Scene for Options {
             .clone();
 
         self.container
-            .find_widget_mut::<Button>(&[1, 1])
+            .find_widget_mut::<Button>(&[1, 2])
             .unwrap()
             .disabled = input_text.trim().is_empty();
 
+        if self.container.find_widget::<Button>(&[1, 1]).unwrap().is_released() {
+            let game_dir = crate::get_game_dir();
+            if let Ok(entries) = std::fs::read_dir(game_dir) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.extension().and_then(|s| s.to_str()) == Some("log") {
+                            let _ = std::fs::remove_file(path);
+                        }
+                    }
+                }
+            }
+        }
+
         if self
             .container
-            .find_widget::<Button>(&[1, 1])
+            .find_widget::<Button>(&[1, 2])
             .unwrap()
             .is_released()
         {
