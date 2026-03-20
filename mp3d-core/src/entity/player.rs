@@ -164,6 +164,9 @@ impl Entity for PlayerEntity {
             }
         }
 
+        if self.velocity.length_squared() > 10000.0 {
+            log::warn!("High velocity: {}", self.velocity);
+        }
         self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
         self.position.x += self.velocity.x * delta_time;

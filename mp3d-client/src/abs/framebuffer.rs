@@ -29,6 +29,7 @@ pub struct Framebuffer {
     fbo: glow::Framebuffer,
     color_texes: Vec<Texture>,
     depth_tex: Option<Texture>,
+    color_usages: Vec<ColorUsage>,
     width: i32,
     height: i32,
 }
@@ -44,11 +45,19 @@ impl Framebuffer {
     ) -> Self {
         unsafe {
             let fbo = gl.create_framebuffer().unwrap();
+            log::info!(
+                "Creating framebuffer: size={}x{}, use_depth={}, color_usages={:?}",
+                width,
+                height,
+                use_depth,
+                color_usages
+            );
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fbo));
 
             let color_texes = color_usages
                 .iter()
-                .map(|color_usage| {
+                .enumerate()
+                .map(|(i, color_usage)| {
                     let tex = gl.create_texture().unwrap();
                     gl.bind_texture(glow::TEXTURE_2D, Some(tex));
 
@@ -93,8 +102,7 @@ impl Framebuffer {
                     );
 
                     // Attach to framebuffer
-                    let attachment = glow::COLOR_ATTACHMENT0
-                        + color_usages.iter().position(|c| c == color_usage).unwrap() as u32;
+                    let attachment = glow::COLOR_ATTACHMENT0 + i as u32;
                     gl.framebuffer_texture_2d(
                         glow::FRAMEBUFFER,
                         attachment,
@@ -178,10 +186,22 @@ impl Framebuffer {
                 None
             };
 
-            assert!(
-                gl.check_framebuffer_status(glow::FRAMEBUFFER) == glow::FRAMEBUFFER_COMPLETE,
-                "Framebuffer incomplete"
-            );
+            let status = gl.check_framebuffer_status(glow::FRAMEBUFFER);
+            if status != glow::FRAMEBUFFER_COMPLETE {
+                panic!("Framebuffer incomplete: status={:#X}", status);
+            }
+
+            if use_depth {
+                log::info!(
+                    "Framebuffer with {} color attachment(s) and depth attachment created successfully",
+                    color_texes.len()
+                );
+            } else {
+                log::info!(
+                    "Framebuffer with {} color attachment(s) created successfully",
+                    color_texes.len()
+                );
+            }
 
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
 
@@ -190,6 +210,7 @@ impl Framebuffer {
                 fbo,
                 color_texes,
                 depth_tex,
+                color_usages: color_usages.to_vec(),
                 width,
                 height,
             }
@@ -215,11 +236,13 @@ impl Framebuffer {
     /// Resizes the framebuffer to the specified width and height.
     pub fn resize(&mut self, width: i32, height: i32) {
         unsafe {
-            for color_tex in &self.color_texes {
+            for (i, color_tex) in self.color_texes.iter().enumerate() {
                 self.gl.bind_texture(glow::TEXTURE_2D, Some(color_tex.id));
-                let (internal, format, ty) = match self.depth_tex {
-                    Some(_) => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
-                    None => (glow::R32F as i32, glow::RED, glow::FLOAT),
+                let (internal, format, ty) = match self.color_usages[i] {
+                    ColorUsage::RGBA8 => (glow::RGBA8 as i32, glow::RGBA, glow::UNSIGNED_BYTE),
+                    ColorUsage::R8 => (glow::R8 as i32, glow::RED, glow::UNSIGNED_BYTE),
+                    ColorUsage::RGB16F => (glow::RGB16F as i32, glow::RGB, glow::HALF_FLOAT),
+                    ColorUsage::R32F => (glow::R32F as i32, glow::RED, glow::FLOAT),
                 };
                 self.gl.tex_image_2d(
                     glow::TEXTURE_2D,

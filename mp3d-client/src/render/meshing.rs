@@ -236,6 +236,7 @@ fn mesh_chunk(
     ]
     .map(|pos| world.chunks.get(&pos));
 
+    #[inline(always)]
     fn get_block<'a>(
         chunk: &'a ClientChunk,
         chunk_pos: IVec3,
@@ -281,6 +282,7 @@ fn mesh_chunk(
         }
     }
 
+    #[inline(always)]
     fn ident(block: &Block, state: &BlockState) -> (&'static str, &'static str) {
         (
             block.ident,

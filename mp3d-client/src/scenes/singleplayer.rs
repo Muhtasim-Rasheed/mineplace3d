@@ -321,6 +321,7 @@ impl super::Scene for SinglePlayer {
                 .get_widget::<Button>(1)
                 .is_some_and(|btn| btn.is_released())
             {
+                log::info!("Saving world...");
                 std::fs::create_dir_all(&self.world_path)
                     .expect("Failed to create world directory");
                 self.client

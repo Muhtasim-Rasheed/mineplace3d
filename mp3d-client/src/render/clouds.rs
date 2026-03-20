@@ -33,6 +33,7 @@ pub struct CloudRenderer {
 impl CloudRenderer {
     pub fn new(gl: &std::sync::Arc<glow::Context>) -> Self {
         let seed = rand::random::<i32>();
+        log::info!("Generating cloud texture with seed: {}", seed);
         let mut noise = fastnoise_lite::FastNoiseLite::new();
         noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
         noise.set_fractal_type(Some(fastnoise_lite::FractalType::FBm));

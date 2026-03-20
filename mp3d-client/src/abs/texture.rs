@@ -51,6 +51,7 @@ impl Texture {
     pub fn new_bytes(gl: &Arc<glow::Context>, width: u32, height: u32, data: Vec<u8>) -> Self {
         unsafe {
             let texture = gl.create_texture().unwrap();
+            log::info!("Creating texture: size={}x{}", width, height);
             gl.bind_texture(glow::TEXTURE_2D, Some(texture));
             gl.tex_image_2d(
                 glow::TEXTURE_2D,
@@ -76,6 +77,8 @@ impl Texture {
                 glow::NEAREST as i32,
             );
             gl.bind_texture(glow::TEXTURE_2D, None);
+
+            log::info!("Created texture with ID {}", texture.0);
 
             Self {
                 gl: Arc::clone(gl),

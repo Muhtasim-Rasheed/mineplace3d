@@ -362,6 +362,8 @@ impl World {
         std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
         std::io::Write::write_all(&mut save_file, &self.noise.seed.to_le_bytes())?;
 
+        log::info!("Saved save.bin");
+
         std::fs::create_dir_all(path.join("chunks"))?;
         for (chunk_pos, changes) in &self.changes {
             let mut chunk = Chunk::new(*chunk_pos, &self.noise);
@@ -386,6 +388,8 @@ impl World {
             }
             std::io::Write::write_all(&mut chunk_file, &chunk_data)?;
         }
+
+        log::info!("Saved chunks");
 
         let mut entities_file = std::fs::File::create(path.join("entities.bin"))?;
         std::fs::create_dir_all(path.join("players"))?;
@@ -414,6 +418,9 @@ impl World {
                 std::io::Write::write_all(&mut entities_file, &entity_data)?;
             }
         }
+
+        log::info!("Saved entities and logged-in players");
+
         for cached in self.player_cache.values() {
             let player_data = cached.save();
             let hashed_username = fxhash::hash64(cached.username.as_bytes());
@@ -423,6 +430,8 @@ impl World {
             let mut player_file = std::fs::File::create(player_path)?;
             std::io::Write::write_all(&mut player_file, &player_data)?;
         }
+
+        log::info!("Saved logged-off players");
 
         Ok(())
     }

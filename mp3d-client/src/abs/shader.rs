@@ -19,16 +19,29 @@ pub struct Shader {
 impl Shader {
     /// Compiles a new shader from the given source code.
     pub fn new(gl: &Arc<glow::Context>, shader_type: u32, source: &str) -> Result<Self, String> {
+        let kind = match shader_type {
+            glow::VERTEX_SHADER => "vertex",
+            glow::FRAGMENT_SHADER => "fragment",
+            glow::GEOMETRY_SHADER => "geometry",
+            glow::TESS_EVALUATION_SHADER => "tessellation evaluation",
+            glow::TESS_CONTROL_SHADER => "tessellation control",
+            glow::COMPUTE_SHADER => "compute",
+            _ => "unknown",
+        };
         unsafe {
-            let shader = gl.create_shader(shader_type).map_err(|e| e.to_string())?;
+            let shader = gl
+                .create_shader(shader_type)
+                .map_err(|e| format!("Failed to create {} shader: {}", kind, e))?;
             gl.shader_source(shader, source);
             gl.compile_shader(shader);
 
             if !gl.get_shader_compile_status(shader) {
                 let log = gl.get_shader_info_log(shader);
                 gl.delete_shader(shader);
-                return Err(log);
+                return Err(format!("Failed to compile {} shader: {}", kind, log));
             }
+
+            log::info!("Compiled {} shader", kind);
 
             Ok(Self {
                 gl: Arc::clone(gl),
@@ -186,6 +199,7 @@ impl ShaderProgram {
     pub fn new(gl: &Arc<glow::Context>, shaders: &[&Shader]) -> Result<Self, String> {
         unsafe {
             let program = gl.create_program().map_err(|e| e.to_string())?;
+            log::info!("Linking shader program with {} shaders", shaders.len());
 
             for shader in shaders {
                 gl.attach_shader(program, shader.id);
@@ -202,6 +216,8 @@ impl ShaderProgram {
             for shader in shaders {
                 gl.detach_shader(program, shader.id);
             }
+
+            log::info!("Linked shader program successfully");
 
             Ok(Self {
                 gl: Arc::clone(gl),

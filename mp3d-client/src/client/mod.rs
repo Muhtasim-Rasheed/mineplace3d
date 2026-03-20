@@ -50,6 +50,8 @@ pub struct LocalConnection {
 impl LocalConnection {
     /// Creates a new `LocalConnection` with the given server and user ID.
     pub fn new(server: Server) -> Self {
+        log::info!("Creating local connection");
+
         Self {
             server,
             message: None,
@@ -97,6 +99,8 @@ impl<C: Connection> Client<C> {
     /// will use default password "SINGLEPLAYER". The client will send a `Connect` message to the
     /// server with the provided credentials upon initialization.
     pub fn new(mut connection: C, username: String, password: Option<String>) -> Self {
+        log::info!("Creating client with username '{}'", username);
+
         if let Some(password) = password {
             connection.send(C2SMessage::Connect { username, password });
         } else {
@@ -353,6 +357,11 @@ impl<C: Connection> Client<C> {
                     entity_id,
                     inventory,
                 } => {
+                    log::info!(
+                        "Connected to server with user ID {} and entity ID {}",
+                        user_id,
+                        entity_id
+                    );
                     self.user_id = Some(user_id);
                     self.entity_id = Some(entity_id);
                     self.player
@@ -361,6 +370,7 @@ impl<C: Connection> Client<C> {
                         .update_from_inventory(inventory);
                 }
                 S2CMessage::ConnectionFailed { reason } => {
+                    log::error!("Connection failed!");
                     return Err(reason);
                 }
                 S2CMessage::EntitySpawned {
@@ -369,7 +379,7 @@ impl<C: Connection> Client<C> {
                     entity_snapshot,
                 } => {
                     if entity_type == mp3d_core::entity::EntityType::Player as u8 {
-                        println!("Player snapshot {:?}", entity_snapshot);
+                        log::info!("Player snapshot received, {} bytes", entity_snapshot.len());
                         if u64::from_le_bytes(entity_snapshot[0..8].try_into().unwrap())
                             == self.entity_id.unwrap()
                         {

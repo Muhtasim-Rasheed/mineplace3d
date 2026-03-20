@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{path::PathBuf, rc::Rc, sync::OnceLock};
 
@@ -20,6 +20,7 @@ mod scenes;
 #[macro_export]
 macro_rules! shader_program {
     ($name:ident, $gl:expr, $path_prefix:literal) => {{
+        log::info!("Loading shader program: {}", stringify!($name));
         let vert = $crate::abs::Shader::new(
             &$gl,
             glow::VERTEX_SHADER,
@@ -30,7 +31,7 @@ macro_rules! shader_program {
                 "/vert.glsl"
             )),
         )
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{}", e));
         let frag = $crate::abs::Shader::new(
             &$gl,
             glow::FRAGMENT_SHADER,
@@ -41,7 +42,7 @@ macro_rules! shader_program {
                 "/frag.glsl"
             )),
         )
-        .unwrap();
+        .unwrap_or_else(|e| panic!("{}", e));
         ShaderProgram::new(&$gl, &[&vert, &frag]).unwrap()
     }};
 }
@@ -80,7 +81,75 @@ pub fn get_config_path() -> PathBuf {
 }
 
 fn main() {
+    let log_file_path = get_game_dir().join("game.log");
+
+    if log_file_path.exists() {
+        let birth = std::fs::metadata(&log_file_path)
+            .and_then(|meta| meta.created())
+            .unwrap_or_else(|_| std::time::SystemTime::now());
+        let timestamp = chrono::DateTime::<chrono::Local>::from(birth).format("%Y-%m-%d_%H-%M-%S");
+        let new_log_file_path = get_game_dir().join(format!("game-{}.log", timestamp));
+        std::fs::rename(&log_file_path, new_log_file_path).expect("Failed to rotate log file");
+    }
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}][{}][{}] {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Info)
+        .chain(std::io::stdout())
+        .chain(fern::log_file(log_file_path).unwrap())
+        .apply()
+        .unwrap();
+
+    std::panic::set_hook(Box::new(|info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            *s
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.as_str()
+        } else {
+            "non-string panic payload"
+        };
+
+        log::error!("panic at {}: {}", location, payload);
+        log::error!("backtrace:\n{}", std::backtrace::Backtrace::force_capture());
+    }));
+
+    log::info!("Mineplace3D {}", env!("CARGO_PKG_VERSION"));
+
     let mut app = App::new("Mineplace3D", 1280, 720, false);
+
+    log::info!("Initialized SDL2 and OpenGL context");
+    unsafe {
+        let version = app.gl.get_parameter_string(glow::VERSION);
+        let renderer = app.gl.get_parameter_string(glow::RENDERER);
+        let vendor = app.gl.get_parameter_string(glow::VENDOR);
+        let shading_lang_version = app.gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION);
+        log::info!("GL Version: {}", version);
+        log::info!("GL Renderer: {}", renderer);
+        log::info!("GL Vendor: {}", vendor);
+        log::info!("GL Shading Language Version: {}", shading_lang_version);
+        log::info!(
+            "GL Max Texture Size: {}",
+            app.gl.get_parameter_i32(glow::MAX_TEXTURE_SIZE)
+        );
+        log::info!(
+            "GL Max Vertex Attribs: {}",
+            app.gl.get_parameter_i32(glow::MAX_VERTEX_ATTRIBS)
+        );
+    }
+    log::info!("SDL2 Version: {}", sdl2::version::version());
 
     unsafe {
         app.gl.enable(glow::DEPTH_TEST);
@@ -103,6 +172,7 @@ fn main() {
         Mat4::orthographic_rh_gl(0.0, 1280.0, 720.0, 0.0, -20.0, 20.0),
     );
 
+    log::info!("Loading assets...");
     let font = Rc::new(Font::new(
         Texture::new(
             &app.gl,
@@ -229,4 +299,6 @@ fn main() {
         scene_manager.render(&app.gl, &mut ui_renderer);
         app.window.gl_swap_window();
     }
+
+    log::info!("Quitting!");
 }

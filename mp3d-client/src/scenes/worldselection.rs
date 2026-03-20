@@ -240,6 +240,7 @@ impl super::Scene for WorldSelection {
             .unwrap()
             .is_released()
         {
+            log::info!("Creating new world");
             return super::SceneSwitch::Push(Box::new(super::worldcreation::WorldCreation::new(
                 &self.font,
                 self.texture,
@@ -254,6 +255,7 @@ impl super::Scene for WorldSelection {
             .is_released()
         {
             let world_name = self.previous_worlds[self.selected.unwrap()].clone();
+            log::info!("Joining world {}", world_name);
             return super::SceneSwitch::Push(Box::new(super::singleplayer::SinglePlayer::load(
                 gl,
                 &self.font,

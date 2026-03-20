@@ -125,18 +125,14 @@ impl UIRenderer {
             }
 
             match last_command {
-                DrawCommand::Quad { .. } => {
-                    unsafe {
-                        self.gl.disable(glow::DEPTH_TEST);
-                        self.gl.disable(glow::CULL_FACE);
-                    }
-                }
-                DrawCommand::Mesh { .. } => {
-                    unsafe {
-                        self.gl.enable(glow::DEPTH_TEST);
-                        self.gl.enable(glow::CULL_FACE);
-                    }
-                }
+                DrawCommand::Quad { .. } => unsafe {
+                    self.gl.disable(glow::DEPTH_TEST);
+                    self.gl.disable(glow::CULL_FACE);
+                },
+                DrawCommand::Mesh { .. } => unsafe {
+                    self.gl.enable(glow::DEPTH_TEST);
+                    self.gl.enable(glow::CULL_FACE);
+                },
             };
 
             let mode = match last_command {

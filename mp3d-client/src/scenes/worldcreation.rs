@@ -182,6 +182,11 @@ impl super::Scene for WorldCreation {
         if let Some(create_button) = self.container.find_widget::<Button>(&[2, 1])
             && create_button.is_pressed()
         {
+            log::info!(
+                "New world at {} with seed {}",
+                self.world_path.display(),
+                seed
+            );
             return super::SceneSwitch::Replace(Box::new(super::singleplayer::SinglePlayer::new(
                 gl,
                 &self.font,

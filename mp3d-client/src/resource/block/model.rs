@@ -168,8 +168,7 @@ impl BlockModel {
                 for (vert, uv) in FACE_VERTS[i ^ 1].iter().zip(uvs.iter()) {
                     let from = element.from + 0.5;
                     let to = element.to + 0.5;
-                    let rotated = rotation
-                        .transform_point3(*vert - (to - from) + from);
+                    let rotated = rotation.transform_point3(*vert - (to - from) + from);
                     vertices.push(crate::render::ui::UIVertex {
                         position: (position + rotated.truncate() * size).extend(rotated.z + 2.0),
                         uv: *uv,

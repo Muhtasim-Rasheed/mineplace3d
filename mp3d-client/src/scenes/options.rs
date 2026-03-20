@@ -148,6 +148,8 @@ impl super::Scene for Options {
             config_guard.username = input_text;
             config_guard.save();
 
+            log::info!("Saved config: {:?}", *config_guard);
+
             return crate::scenes::SceneSwitch::Pop;
         }
 

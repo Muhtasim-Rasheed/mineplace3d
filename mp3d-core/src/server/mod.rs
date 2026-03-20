@@ -87,7 +87,18 @@ impl Server {
     ) -> Option<S2CMessage> {
         match message {
             C2SMessage::Connect { username, password } => {
+                log::info!(
+                    "Connection attempt from {} with username '{}'",
+                    connection_id,
+                    username
+                );
+
                 if self.singleplayer && !self.sessions.is_empty() {
+                    log::warn!(
+                        "Connection from {} rejected: singleplayer mode only allows one player",
+                        connection_id
+                    );
+
                     return Some(S2CMessage::ConnectionFailed {
                         reason: "Singleplayer mode only allows one player".to_string(),
                     });
@@ -97,6 +108,11 @@ impl Server {
 
                 match auth_result {
                     Ok(_) => {
+                        log::info!(
+                            "Connection from {} accepted for username '{}'",
+                            connection_id,
+                            username
+                        );
                         let user_id = self.next_user_id();
                         let entity = if let Some(entity) = self.world.player_cache.remove(&username)
                         {
@@ -133,8 +149,15 @@ impl Server {
                                     .snapshot(),
                             },
                         );
+                        log::info!(
+                            "User '{}' connected with user ID {} and entity ID {}",
+                            username,
+                            user_id,
+                            entity_id
+                        );
                     }
                     Err(reason) => {
+                        log::warn!("Connection from {} rejected: {}", connection_id, reason);
                         return Some(S2CMessage::ConnectionFailed { reason });
                     }
                 }
@@ -155,6 +178,11 @@ impl Server {
                         &mut self.sessions,
                         None,
                         S2CMessage::Disconnected { user_id },
+                    );
+                    log::info!(
+                        "User '{}' with user ID {} disconnected",
+                        session.username,
+                        user_id
                     );
                 }
             }
@@ -230,39 +258,54 @@ impl Server {
                     None => return None,
                 };
                 let status = self.execute_command(&message, connection_id);
-                if let Err(err) = status {
-                    if let Some(user_id) = self.connections.get(&connection_id)
-                        && let Some(session) = self.sessions.get_mut(user_id)
-                    {
-                        session.pending_messages.push(S2CMessage::ChatMessage {
-                            message: format!("%bC3Error executing command: %bD3{}%r", err)
-                                .parse()
-                                .unwrap(),
-                        });
-                    }
-                } else if let Some((other_msgs, success)) = status.unwrap() {
-                    if let Some(user_id) = self.connections.get(&connection_id)
-                        && let Some(session) = self.sessions.get_mut(user_id)
-                    {
-                        for msg in other_msgs {
-                            session.pending_messages.push(msg);
+                match status {
+                    Ok(Some((other_msgs, success))) => {
+                        if let Some(session) = self.sessions.get_mut(&user_id) {
+                            log::info!("{} issued server command: {}", session.username, message);
+                            for msg in other_msgs {
+                                session.pending_messages.push(msg);
+                            }
+                            session
+                                .pending_messages
+                                .push(S2CMessage::ChatMessage { message: success });
                         }
-                        session
-                            .pending_messages
-                            .push(S2CMessage::ChatMessage { message: success });
                     }
-                } else if let Some(session) = self.sessions.get_mut(&user_id) {
-                    let username = session.username.clone();
-                    if let Ok(c) = format!("{}%r: {}", username, message).parse() {
-                        broadcast_message(
-                            &mut self.sessions,
-                            None,
-                            S2CMessage::ChatMessage { message: c },
-                        );
-                    } else {
-                        session.pending_messages.push(S2CMessage::ChatMessage {
-                            message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
-                        });
+                    Ok(None) => {
+                        if let Some(session) = self.sessions.get_mut(&user_id) {
+                            let username = session.username.clone();
+                            if let Ok(c) = format!("{}%r: {}", username, message).parse() {
+                                broadcast_message(
+                                    &mut self.sessions,
+                                    None,
+                                    S2CMessage::ChatMessage { message: c },
+                                );
+                                log::info!("{}: {}", username, message);
+                            } else {
+                                session.pending_messages.push(S2CMessage::ChatMessage {
+                                    message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
+                                });
+                                log::warn!(
+                                    "{} attempted to send a message with invalid formatting codes: {}",
+                                    username,
+                                    message
+                                );
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        if let Some(session) = self.sessions.get_mut(&user_id) {
+                            log::warn!(
+                                "{} issued invalid server command: {}. Error: {}",
+                                session.username,
+                                message,
+                                err
+                            );
+                            session.pending_messages.push(S2CMessage::ChatMessage {
+                                message: format!("%bC3Error executing command: %bD3{}%r", err)
+                                    .parse()
+                                    .unwrap(),
+                            });
+                        }
                     }
                 }
             }

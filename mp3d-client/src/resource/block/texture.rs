@@ -97,6 +97,23 @@ impl TextureAtlas {
         let x = self.cursor.x;
         let y = self.cursor.y;
 
+        if texture.width() != texture.height() {
+            log::warn!(
+                "Texture '{}' is not square ({}x{})",
+                name,
+                texture.width(),
+                texture.height()
+            );
+        }
+        if texture.width() > TEXTURE_SIZE || texture.height() > TEXTURE_SIZE {
+            log::warn!(
+                "Texture '{}' is larger than the atlas tile size ({}x{})",
+                name,
+                texture.width(),
+                texture.height()
+            );
+        }
+
         image::imageops::replace(
             &mut self.image,
             &image::imageops::resize(
@@ -159,5 +176,10 @@ impl TextureAtlas {
     /// already been uploaded to the GPU.
     pub fn is_finished(&self) -> bool {
         self.gpu_tex.get().is_some()
+    }
+
+    /// Returns the number of textures currently in the atlas.
+    pub fn texture_count(&self) -> usize {
+        self.uv_coords.len()
     }
 }

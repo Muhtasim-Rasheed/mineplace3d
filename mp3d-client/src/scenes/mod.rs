@@ -66,6 +66,12 @@ impl Assets {
         }
         block_textures.upload(gl);
         block_textures.free_cpu_memory();
+        log::info!(
+            "Loaded {} block textures and {} block models for {} blocks",
+            block_textures.texture_count(),
+            block_models.len(),
+            mp3d_core::block::Block::ALL_BLOCKS.len()
+        );
         Ok(Self {
             block_textures,
             block_models,
