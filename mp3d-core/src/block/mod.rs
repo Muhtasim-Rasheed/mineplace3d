@@ -14,82 +14,65 @@ pub struct Block {
     pub state_type: u16,
 }
 
-impl Block {
-    pub const AIR: Block = Block {
+macro_rules! blocks {
+    (
+        $(
+            $name:ident => {
+                ident: $ident:expr
+                $(, visible: $visible:expr)?
+                $(, collision_shape: $collision_shape:expr)?
+                $(, state_type: $state_type:expr)?
+                $(,)?
+            }
+        ),* $(,)?
+    ) => {
+        impl Block {
+            $(
+                pub const $name: Block = Block {
+                    visible: blocks!(@visible $( $visible )?),
+                    collision_shape: blocks!(@collision_shape $( $collision_shape )?),
+                    ident: $ident,
+                    state_type: blocks!(@state_type $( $state_type )?),
+                };
+            )*
+
+            pub const ALL_BLOCKS: &'static [Block] = &[
+                $(Self::$name),*
+            ];
+        }
+    };
+
+    (@visible $visible:expr) => { $visible };
+    (@visible) => { true };
+
+    (@collision_shape $collision_shape:expr) => { $collision_shape };
+    (@collision_shape) => { CollisionShape::FullBlock };
+
+    (@state_type $state_type:expr) => { $state_type.state_type() };
+    (@state_type) => { BlockState::none().state_type() };
+}
+
+blocks! {
+    AIR => {
+        ident: "air",
         visible: false,
         collision_shape: CollisionShape::None,
-        ident: "air",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const GRASS: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "grass",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const DIRT: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "dirt",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const STONE: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "stone",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const COBBLESTONE: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "cobblestone",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const LOG: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "log",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const LEAVES: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "leaves",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const GLUNGUS: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::FullBlock,
-        ident: "glungus",
-        state_type: BlockState::NONE.state_type(),
-    };
-
-    pub const STONE_SLAB: Block = Block {
-        visible: true,
-        collision_shape: CollisionShape::Slab,
+    },
+    GRASS => { ident: "grass" },
+    DIRT => { ident: "dirt" },
+    STONE => { ident: "stone" },
+    COBBLESTONE => { ident: "cobblestone" }, 
+    LOG => { ident: "log" }, 
+    LEAVES => { ident: "leaves" }, 
+    GLUNGUS => { ident: "glungus" }, 
+    STONE_SLAB => {
         ident: "stone_slab",
-        state_type: BlockState::SLAB_BOTTOM.state_type(),
-    };
+        collision_shape: CollisionShape::Slab,
+        state_type: BlockState::slab(false),
+    },
+}
 
-    pub const ALL_BLOCKS: &[Block] = &[
-        Block::AIR,
-        Block::GRASS,
-        Block::DIRT,
-        Block::STONE,
-        Block::COBBLESTONE,
-        Block::LOG,
-        Block::LEAVES,
-        Block::GLUNGUS,
-        Block::STONE_SLAB,
-    ];
-
+impl Block {
     pub fn collides_with_player(
         &self,
         player_width: f32,
@@ -206,11 +189,8 @@ pub enum CollisionShape {
 /// data values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BlockState(u32);
-impl BlockState {
-    pub const NONE: BlockState = BlockState::none();
-    pub const SLAB_BOTTOM: BlockState = BlockState::slab(false);
-    pub const SLAB_TOP: BlockState = BlockState::slab(true);
 
+impl BlockState {
     /// Creates a new block state with the given type and data.
     #[inline]
     pub const fn new(state_type: u16, data: u16) -> BlockState {
@@ -303,8 +283,8 @@ impl BlockState {
     #[inline]
     pub const fn default_state(state_type: u16) -> Option<BlockState> {
         match state_type {
-            0x0000 => Some(BlockState::NONE),
-            0x0001 => Some(BlockState::SLAB_BOTTOM),
+            0x0000 => Some(BlockState::none()),
+            0x0001 => Some(BlockState::slab(false)),
             _ => None,
         }
     }

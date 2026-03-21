@@ -156,12 +156,10 @@ impl super::Scene for Options {
         {
             let game_dir = crate::get_game_dir();
             if let Ok(entries) = std::fs::read_dir(game_dir) {
-                for entry in entries {
-                    if let Ok(entry) = entry {
-                        let path = entry.path();
-                        if path.extension().and_then(|s| s.to_str()) == Some("log") {
-                            let _ = std::fs::remove_file(path);
-                        }
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|s| s.to_str()) == Some("log") {
+                        let _ = std::fs::remove_file(path);
                     }
                 }
             }

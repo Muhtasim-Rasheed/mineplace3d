@@ -4,7 +4,28 @@
 243| 95% bug-free!
 243| Game is still in progress...
 243| According to all known laws of aviation, there is no way a bee should be able to fly. Its wings are too small to get its fat little body off the ground. The bee, of course, flies anyway because bees don't care what humans think is impossible.
-255| Glungus 🐱
+255| 🐱
 115| This text is green because it wants to be green.
 195| This text is red because it wants to be red.
 015| This text is blue because it wants to be blue.
+243| Totally not a virus!
+243| Running out of ideas for splashes.
+243| To play mineplace or not to play mineplace, that is the question.
+243| The original 2D terminal mineplace is buried somewhere in the author's computer!
+243| kys (keep yourself safe)!
+243| May steal your RAM!
+243| This is the 17th splash!
+243| What?
+243| VERY poorly optimized!
+243| This game is not optimized at all!
+243| Built from scratch!
+243| 3D graphics!
+243| By a handful of people!
+243| Multithreaded!
+243| SSAO!
+243| Walking ~15 million blocks may cause weird physics and graphics!
+243| Panics when an invalid world is loaded!
+243| Not for children under 3 years old! (cause they can't read)
+243| Woah.
+243| Also try Minecraft!
+243| Not popular (yet)!

@@ -232,7 +232,7 @@ impl World {
                     return;
                 }
             }
-            Some((ident, state)) if state == BlockState::SLAB_TOP && face == 5 => {
+            Some((ident, state)) if state == BlockState::slab(true) && face == 5 => {
                 let player = match self.get_entity::<PlayerEntity>(player_entity_id) {
                     Some(p) => p,
                     None => return,
