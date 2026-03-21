@@ -34,17 +34,13 @@ impl Font {
         &self.atlas
     }
 
-    pub fn glyph_uvs(&self, c: char) -> Option<[Vec2; 2]> {
-        let index = match c {
-            '\u{0336}' => self.strikethrough?,
-            _ => c as u32 - self.first_char as u32,
-        };
+    fn index_to_uvs(&self, i: u32) -> Option<[Vec2; 2]> {
         let cols = self.atlas.width() / self.char_size.x as u32;
         let rows = self.atlas.height() / self.char_size.y as u32;
 
-        if index < cols * rows {
-            let col = index % cols;
-            let row = index / cols;
+        if i < cols * rows {
+            let col = i % cols;
+            let row = i / cols;
 
             let uv_size = Vec2::new(1.0 / cols as f32, 1.0 / rows as f32);
             let uv_min = Vec2::new(col as f32 * uv_size.x, row as f32 * uv_size.y);
@@ -54,6 +50,22 @@ impl Font {
         } else {
             None
         }
+    }
+
+    fn glyph_indices(&self, c: char) -> Option<Vec<u32>> {
+        match c {
+            '\u{0336}' => Some(vec![self.strikethrough?]),
+            '\u{1F431}' => {
+                let base = self.strikethrough?;
+                Some(vec![base + 1, base + 2])
+            }
+            _ => Some(vec![c as u32 - self.first_char as u32]),
+        }
+    }
+
+    fn glyph_uvs(&self, c: char) -> Option<Vec<[Vec2; 2]>> {
+        self.glyph_indices(c)
+            .and_then(|indices| indices.into_iter().map(|i| self.index_to_uvs(i)).collect())
     }
 
     pub fn measure_text(&self, text: &str, font_size: f32) -> Vec2 {
@@ -66,7 +78,8 @@ impl Font {
                 line_width = 0.0;
                 line_count += 1;
             } else if c != '\u{0336}' {
-                line_width += font_size * (self.char_size.x / self.char_size.y);
+                let glyph_indices_len = self.glyph_indices(c).map(|indices| indices.len()).unwrap_or(0);
+                line_width += font_size * (self.char_size.x / self.char_size.y) * glyph_indices_len as f32;
             }
         }
         max_width = max_width.max(line_width);
@@ -76,11 +89,11 @@ impl Font {
     fn char_back(&self, font_size: f32, c: char) -> f32 {
         match c {
             '\u{0336}' => font_size * (self.char_size.x / self.char_size.y),
-            _ => 0.0
+            _ => 0.0,
         }
     }
 
-    pub fn char_size(&self, font_size: f32) -> Vec2 {
+    fn char_size(&self, font_size: f32) -> Vec2 {
         Vec2::new(font_size * (self.char_size.x / self.char_size.y), font_size)
     }
 
@@ -93,21 +106,23 @@ impl Font {
             for c in line.chars() {
                 if let Some(uvs) = self.glyph_uvs(c) {
                     cursor.x -= self.char_back(font_size, c);
+                    
+                    for uv_rect in uvs {
+                        let pos_min = cursor;
+                        let pos_max = cursor + char_size;
 
-                    let pos_min = cursor;
-                    let pos_max = cursor + char_size;
-
-                    commands.push(DrawCommand::Quad {
-                        rect: [pos_min, pos_max],
-                        uv_rect: uvs,
-                        mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
-                            self.atlas().handle(),
-                            color,
-                        ),
-                        layer: 2000,
-                    });
+                        commands.push(DrawCommand::Quad {
+                            rect: [pos_min, pos_max],
+                            uv_rect,
+                            mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
+                                self.atlas().handle(),
+                                color,
+                            ),
+                            layer: 2000,
+                        });
+                        cursor.x += char_size.x;
+                    }
                 }
-                cursor.x += char_size.x;
             }
             cursor.x = 0.0;
             cursor.y += char_size.y;

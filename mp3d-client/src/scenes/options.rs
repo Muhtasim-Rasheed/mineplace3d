@@ -148,7 +148,12 @@ impl super::Scene for Options {
             .unwrap()
             .disabled = input_text.trim().is_empty();
 
-        if self.container.find_widget::<Button>(&[1, 1]).unwrap().is_released() {
+        if self
+            .container
+            .find_widget::<Button>(&[1, 1])
+            .unwrap()
+            .is_released()
+        {
             let game_dir = crate::get_game_dir();
             if let Ok(entries) = std::fs::read_dir(game_dir) {
                 for entry in entries {
