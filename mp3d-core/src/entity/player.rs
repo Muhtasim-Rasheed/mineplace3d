@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub const GRAVITY: f32 = 60.0;
-pub const GROUND_EPSILON: f32 = 0.07;
+pub const GROUND_EPSILON: f32 = 0.0005;
 
 pub struct PlayerEntity {
     pub entity_id: u64,
@@ -169,31 +169,36 @@ impl Entity for PlayerEntity {
         }
         self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
-        self.position.x += self.velocity.x * delta_time;
-        let collide_x = world.collides(self.position, Self::width(), Self::height());
-        if collide_x {
-            self.position.x -= self.velocity.x * delta_time;
+        let new_pos_x = self.position.with_x(self.position.x + self.velocity.x * delta_time);
+        if !world.collides(new_pos_x, Self::width(), Self::height()) {
+            self.position.x = new_pos_x.x;
+        } else {
             self.velocity.x = 0.0;
         }
-        self.position.y += self.velocity.y * delta_time;
-        self.on_ground = world.collides(
-            Vec3::new(
-                self.position.x,
-                self.position.y - GROUND_EPSILON,
-                self.position.z,
-            ),
-            Self::width(),
-            Self::height(),
-        ) && self.velocity.y <= 0.0;
-        let collide_y = world.collides(self.position, Self::width(), Self::height());
-        if collide_y {
-            self.position.y -= self.velocity.y * delta_time * 0.8;
+
+        let new_pos_y = self.position.with_y(self.position.y + self.velocity.y * delta_time);
+        if !world.collides(new_pos_y, Self::width(), Self::height()) {
+            self.position.y = new_pos_y.y;
+            self.on_ground = world.collides(
+                Vec3::new(
+                    self.position.x,
+                    self.position.y - GROUND_EPSILON,
+                    self.position.z,
+                ),
+                Self::width(),
+                Self::height(),
+            ) && self.velocity.y <= 0.0;
+        } else {
+            if self.velocity.y <= 0.0 {
+                self.on_ground = true;
+            }
             self.velocity.y = 0.0;
         }
-        self.position.z += self.velocity.z * delta_time;
-        let collide_z = world.collides(self.position, Self::width(), Self::height());
-        if collide_z {
-            self.position.z -= self.velocity.z * delta_time;
+
+        let new_pos_z = self.position.with_z(self.position.z + self.velocity.z * delta_time);
+        if !world.collides(new_pos_z, Self::width(), Self::height()) {
+            self.position.z = new_pos_z.z;
+        } else {
             self.velocity.z = 0.0;
         }
 
