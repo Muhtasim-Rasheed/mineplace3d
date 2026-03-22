@@ -388,12 +388,12 @@ impl<C: Connection> Client<C> {
                     }
                 }
                 S2CMessage::PlayerMoved {
-                    user_id,
+                    entity_id,
                     position,
                     yaw,
                     pitch,
                 } => {
-                    if Some(user_id) != self.user_id {
+                    if Some(entity_id) != self.entity_id {
                         continue;
                     }
                     let delta = position - self.player.position;

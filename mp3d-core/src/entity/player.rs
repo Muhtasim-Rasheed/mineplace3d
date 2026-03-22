@@ -12,11 +12,42 @@ use crate::{
 pub const GRAVITY: f32 = 60.0;
 pub const GROUND_EPSILON: f32 = 0.0005;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct MoveInput {
+    pub forward: f32,
+    pub strafe: f32,
+    pub jump: bool,
+    pub sneak: bool,
+}
+
+impl From<crate::protocol::MoveInstructions> for MoveInput {
+    fn from(instr: crate::protocol::MoveInstructions) -> Self {
+        Self {
+            forward: match instr.forward {
+                -1 => -1.0,
+                0 => 0.0,
+                1 => 1.0,
+                2 => 1.5,
+                _ => 0.0,
+            },
+            strafe: match instr.strafe {
+                -1 => -1.0,
+                0 => 0.0,
+                1 => 1.0,
+                _ => 0.0,
+            },
+            jump: instr.jump,
+            sneak: instr.sneak,
+        }
+    }
+}
+
 pub struct PlayerEntity {
     pub entity_id: u64,
     pub username: String,
     pub position: Vec3,
     pub velocity: Vec3,
+    pub(crate) input: MoveInput,
     pub yaw: f32,
     pub pitch: f32,
     pub inventory: Inventory,
@@ -33,6 +64,7 @@ impl PlayerEntity {
             username,
             position,
             velocity: Vec3::ZERO,
+            input: MoveInput::default(),
             yaw: 0.0,
             pitch: 0.0,
             inventory: Inventory::new(),
@@ -80,6 +112,7 @@ impl Saveable for PlayerEntity {
             username,
             position,
             velocity,
+            input: MoveInput::default(),
             yaw,
             pitch,
             inventory,
@@ -152,6 +185,24 @@ impl Entity for PlayerEntity {
 
     fn tick(&mut self, world: &mut World, tps: u8) {
         let delta_time = 1.0 / tps as f32;
+
+        let forward_vec = Vec3::new(self.yaw.to_radians().sin(), 0.0, self.yaw.to_radians().cos());
+        let right_vec = Vec3::new(self.yaw.to_radians().cos(), 0.0, -self.yaw.to_radians().sin());
+        let mut movement = Vec3::ZERO;
+        movement += forward_vec * self.input.forward;
+        movement += right_vec * self.input.strafe;
+        if self.input.jump {
+            if self.flying {
+                movement.y += 0.8;
+            } else if self.on_ground {
+                self.velocity.y += 12.5;
+                self.on_ground = false;
+            }
+        }
+        if self.input.sneak && self.flying {
+            movement.y -= 0.8;
+        }
+        self.velocity += movement * delta_time * 50.0;
 
         self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw = self.yaw.rem_euclid(360.0);

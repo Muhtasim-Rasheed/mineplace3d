@@ -75,7 +75,7 @@ pub enum S2CMessage {
     },
     /// Update of a player's position, yaw, and pitch.
     PlayerMoved {
-        user_id: u64,
+        entity_id: u64,
         position: Vec3,
         yaw: f32,
         pitch: f32,

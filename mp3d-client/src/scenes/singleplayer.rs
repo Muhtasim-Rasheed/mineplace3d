@@ -341,15 +341,14 @@ impl super::Scene for SinglePlayer {
                 return super::SceneSwitch::Pop;
             }
         }
-        let tick_time = 1.0 / self.tick_rate;
-        self.tick_acc += ctx.delta_time;
-        if self.tick_acc > tick_time * 5.0 {
-            self.tick_acc = tick_time * 5.0;
-        }
+        let tick_time = 1.0f32 / self.tick_rate;
+        self.tick_acc = (self.tick_acc + ctx.delta_time).min(tick_time * 5.0);
+
         while self.tick_acc >= tick_time {
             self.client.connection.tick(self.tick_rate as u8);
             self.tick_acc -= tick_time;
         }
+
         if let Some(chat) = self.client.chat_message.as_ref() {
             if let Some(label) = self.ui.chat_input_label.as_mut() {
                 label.text = chat.clone();

@@ -201,35 +201,14 @@ impl Server {
                 {
                     entity.yaw = yaw;
                     entity.pitch = pitch;
-                    let forward_vec =
-                        Vec3::new(yaw.to_radians().sin(), 0.0, yaw.to_radians().cos());
-                    let right_vec = Vec3::new(yaw.to_radians().cos(), 0.0, -yaw.to_radians().sin());
-                    let mut movement = Vec3::ZERO;
-                    movement += forward_vec * (forward as f32).clamp(-1.0, 1.5);
-                    movement += right_vec * (strafe.clamp(-1, 1) as f32);
-                    if jump {
-                        if entity.flying {
-                            movement.y += 0.8;
-                        } else if entity.on_ground {
-                            movement.y += 12.5;
-                            entity.on_ground = false;
-                        }
-                    }
-                    if sneak && entity.flying {
-                        movement.y -= 0.8;
-                    }
-                    let dt = 1.0 / (self.tps as f32);
-                    entity.apply_velocity(movement * dt * 50.0);
-                    broadcast_message(
-                        &mut self.sessions,
-                        None,
-                        S2CMessage::PlayerMoved {
-                            user_id: *user_id,
-                            position: entity.position,
-                            yaw: entity.yaw,
-                            pitch: entity.pitch,
-                        },
-                    );
+                    entity.input = MoveInstructions {
+                        forward,
+                        strafe,
+                        jump,
+                        sneak,
+                        yaw,
+                        pitch,
+                    }.into();
                 }
             }
             C2SMessage::RequestChunks { chunk_positions } => {
@@ -435,6 +414,23 @@ impl Server {
                     block_state: state,
                 },
             );
+        }
+
+        for entity in self.world.entities.values() {
+            if let Some(entity) = entity.as_any().downcast_ref::<PlayerEntity>()
+                && entity.velocity.length_squared() > 0.0
+            {
+                broadcast_message(
+                    &mut self.sessions,
+                    Some(entity.id()),
+                    S2CMessage::PlayerMoved {
+                        entity_id: entity.id(),
+                        position: entity.position(),
+                        yaw: entity.yaw,
+                        pitch: entity.pitch,
+                    }
+                );
+            }
         }
     }
 }
