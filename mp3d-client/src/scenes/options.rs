@@ -16,12 +16,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub username: String,
+    pub fullscreen: Option<bool>,
 }
 
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             username: "Player".to_string(),
+            fullscreen: Some(false),
         }
     }
 }
@@ -41,6 +43,10 @@ impl ClientConfig {
         let config_path = crate::get_config_path();
         let config_data = serde_json::to_string_pretty(self).unwrap();
         std::fs::write(config_path, config_data).unwrap();
+    }
+
+    pub fn fullscreen(&self) -> bool {
+        self.fullscreen.unwrap_or(false)
     }
 }
 
@@ -77,6 +83,15 @@ impl Options {
         username_input.text = config.read().unwrap().username.clone();
         username_input.cursor_pos = username_input.text.len();
 
+        let fullscreen_button = Button::new(
+            &format!("Fullscreen: {}", if config.read().unwrap().fullscreen() { "On" } else { "Off" }),
+            Vec4::ONE,
+            24.0,
+            Vec2::new(500.0, 80.0),
+            font,
+            gui_tex,
+        );
+
         let clear_logs_button = Button::new(
             "Clear Logs",
             Vec4::ONE,
@@ -96,6 +111,7 @@ impl Options {
         );
 
         options_container.add_widget(username_input);
+        options_container.add_widget(fullscreen_button);
         options_container.add_widget(clear_logs_button);
         options_container.add_widget(back_button);
 
@@ -136,6 +152,30 @@ impl super::Scene for Options {
             cursor: Vec2::ZERO,
         });
 
+        self.container
+            .find_widget_mut::<Button>(&[1, 1])
+            .unwrap()
+            .label = format!("Fullscreen: {}", if config.read().unwrap().fullscreen() { "On" } else { "Off" });
+
+        if self
+            .container
+            .find_widget::<Button>(&[1, 1])
+            .unwrap()
+            .is_released()
+        {
+            let mut config_guard = config.write().unwrap();
+            config_guard.fullscreen = Some(!config_guard.fullscreen());
+            config_guard.save();
+
+            log::info!("Toggled fullscreen: {}", config_guard.fullscreen());
+
+            window.set_fullscreen(if config_guard.fullscreen() {
+                sdl2::video::FullscreenType::Desktop
+            } else {
+                sdl2::video::FullscreenType::Off
+            }).unwrap();
+        }
+
         let input_text = self
             .container
             .find_widget::<InputField>(&[1, 0])
@@ -144,13 +184,13 @@ impl super::Scene for Options {
             .clone();
 
         self.container
-            .find_widget_mut::<Button>(&[1, 2])
+            .find_widget_mut::<Button>(&[1, 3])
             .unwrap()
             .disabled = input_text.trim().is_empty();
 
         if self
             .container
-            .find_widget::<Button>(&[1, 1])
+            .find_widget::<Button>(&[1, 2])
             .unwrap()
             .is_released()
         {
@@ -176,7 +216,7 @@ impl super::Scene for Options {
 
         if self
             .container
-            .find_widget::<Button>(&[1, 2])
+            .find_widget::<Button>(&[1, 3])
             .unwrap()
             .is_released()
         {

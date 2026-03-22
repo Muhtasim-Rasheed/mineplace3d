@@ -202,6 +202,12 @@ fn main() {
 
     let config = scenes::options::ClientConfig::load();
 
+    if config.fullscreen() {
+        app.window
+            .set_fullscreen(sdl2::video::FullscreenType::Desktop)
+            .unwrap();
+    }
+
     let mut scene_manager = scenes::SceneManager::new(
         Box::new(scenes::titlescreen::TitleScreen::new(
             &font,
