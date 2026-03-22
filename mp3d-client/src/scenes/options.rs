@@ -154,14 +154,23 @@ impl super::Scene for Options {
             .unwrap()
             .is_released()
         {
+            log::info!("Clearing logs...");
+
             let game_dir = crate::get_game_dir();
             if let Ok(entries) = std::fs::read_dir(game_dir) {
+                let mut log_count = 0;
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().and_then(|s| s.to_str()) == Some("log") {
+                    // Do not remove the current log file.
+                    if path.extension().and_then(|s| s.to_str()) == Some("log")
+                        && path.file_name().and_then(|s| s.to_str()) != Some("game.log")
+                    {
+                        log_count += 1;
                         let _ = std::fs::remove_file(path);
                     }
                 }
+
+                log::info!("Cleared {} log(s)", log_count);
             }
         }
 
