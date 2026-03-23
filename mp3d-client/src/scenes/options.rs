@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 pub struct ClientConfig {
     pub username: String,
     pub fullscreen: Option<bool>,
+    pub sensitivity: Option<f32>,
 }
 
 impl Default for ClientConfig {
@@ -24,6 +25,7 @@ impl Default for ClientConfig {
         Self {
             username: "Player".to_string(),
             fullscreen: Some(false),
+            sensitivity: Some(1.0),
         }
     }
 }
@@ -47,6 +49,10 @@ impl ClientConfig {
 
     pub fn fullscreen(&self) -> bool {
         self.fullscreen.unwrap_or(false)
+    }
+
+    pub fn sensitivity(&self) -> f32 {
+        self.sensitivity.unwrap_or(1.0)
     }
 }
 
@@ -101,6 +107,18 @@ impl Options {
             gui_tex,
         );
 
+        let mut sensitivity_slider = Slider::new(
+            "Mouse Sensitivity",
+            Vec4::ONE,
+            24.0,
+            Vec2::new(500.0, 80.0),
+            0.1,
+            2.0,
+            font,
+            gui_tex,
+        );
+        sensitivity_slider.value = config.read().unwrap().sensitivity();
+
         let back_button = Button::new(
             "Back",
             Vec4::ONE,
@@ -113,6 +131,7 @@ impl Options {
         options_container.add_widget(username_input);
         options_container.add_widget(fullscreen_button);
         options_container.add_widget(clear_logs_button);
+        options_container.add_widget(sensitivity_slider);
         options_container.add_widget(back_button);
 
         let mut container = Column::new(
@@ -184,7 +203,7 @@ impl super::Scene for Options {
             .clone();
 
         self.container
-            .find_widget_mut::<Button>(&[1, 3])
+            .find_widget_mut::<Button>(&[1, 4])
             .unwrap()
             .disabled = input_text.trim().is_empty();
 
@@ -216,12 +235,18 @@ impl super::Scene for Options {
 
         if self
             .container
-            .find_widget::<Button>(&[1, 3])
+            .find_widget::<Button>(&[1, 4])
             .unwrap()
             .is_released()
         {
             let mut config_guard = config.write().unwrap();
             config_guard.username = input_text;
+            config_guard.sensitivity = Some(
+                self.container
+                    .find_widget::<Slider>(&[1, 3])
+                    .unwrap()
+                    .value,
+            );
             config_guard.save();
 
             log::info!("Saved config: {:?}", *config_guard);

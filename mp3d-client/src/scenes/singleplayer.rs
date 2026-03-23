@@ -285,7 +285,7 @@ impl super::Scene for SinglePlayer {
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
         assets: &Arc<super::Assets>,
-        _config: &Arc<RwLock<super::options::ClientConfig>>,
+        config: &Arc<RwLock<super::options::ClientConfig>>,
     ) -> super::SceneSwitch {
         window.set_title("Mineplace3D - Single Player").unwrap();
         sdl_ctx.mouse().set_relative_mouse_mode(
@@ -293,7 +293,7 @@ impl super::Scene for SinglePlayer {
         );
         self.total_time += ctx.delta_time;
         if self.playing {
-            self.client.send_input(ctx, ctx.delta_time);
+            self.client.send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
             if let Err(_reason) = self.client.recieve_state() {
                 todo!("Save world and exit.")
             }

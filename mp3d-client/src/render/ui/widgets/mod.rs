@@ -36,6 +36,7 @@ pub mod inputfield;
 pub mod inventoryslot;
 pub mod label;
 pub mod nineslice;
+pub mod slider;
 
 pub use button::*;
 pub use containers::*;
@@ -43,3 +44,4 @@ pub use inputfield::*;
 pub use inventoryslot::*;
 pub use label::*;
 pub use nineslice::*;
+pub use slider::*;
