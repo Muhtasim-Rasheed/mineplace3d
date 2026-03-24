@@ -52,12 +52,7 @@ impl TitleScreen {
     pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
         let header = Label::new("Mineplace3D ", 72.0, Vec4::ONE, font);
         let (splash_text, splash_color) = get_random_splash();
-        let splash = Label::new(
-            splash_text,
-            24.0,
-            splash_color,
-            font,
-        );
+        let splash = Label::new(splash_text, 24.0, splash_color, font);
         let mut header_container = Column::new(
             5.0,
             Alignment::Center,

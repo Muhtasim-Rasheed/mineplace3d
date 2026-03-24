@@ -90,7 +90,14 @@ impl Options {
         username_input.cursor_pos = username_input.text.len();
 
         let fullscreen_button = Button::new(
-            &format!("Fullscreen: {}", if config.read().unwrap().fullscreen() { "On" } else { "Off" }),
+            &format!(
+                "Fullscreen: {}",
+                if config.read().unwrap().fullscreen() {
+                    "On"
+                } else {
+                    "Off"
+                }
+            ),
             Vec4::ONE,
             24.0,
             Vec2::new(500.0, 80.0),
@@ -112,8 +119,7 @@ impl Options {
             Vec4::ONE,
             24.0,
             Vec2::new(500.0, 80.0),
-            0.1,
-            2.0,
+            0.1..=2.0,
             font,
             gui_tex,
         );
@@ -174,7 +180,14 @@ impl super::Scene for Options {
         self.container
             .find_widget_mut::<Button>(&[1, 1])
             .unwrap()
-            .label = format!("Fullscreen: {}", if config.read().unwrap().fullscreen() { "On" } else { "Off" });
+            .label = format!(
+            "Fullscreen: {}",
+            if config.read().unwrap().fullscreen() {
+                "On"
+            } else {
+                "Off"
+            }
+        );
 
         if self
             .container
@@ -188,11 +201,13 @@ impl super::Scene for Options {
 
             log::info!("Toggled fullscreen: {}", config_guard.fullscreen());
 
-            window.set_fullscreen(if config_guard.fullscreen() {
-                sdl2::video::FullscreenType::Desktop
-            } else {
-                sdl2::video::FullscreenType::Off
-            }).unwrap();
+            window
+                .set_fullscreen(if config_guard.fullscreen() {
+                    sdl2::video::FullscreenType::Desktop
+                } else {
+                    sdl2::video::FullscreenType::Off
+                })
+                .unwrap();
         }
 
         let input_text = self
@@ -241,12 +256,8 @@ impl super::Scene for Options {
         {
             let mut config_guard = config.write().unwrap();
             config_guard.username = input_text;
-            config_guard.sensitivity = Some(
-                self.container
-                    .find_widget::<Slider>(&[1, 3])
-                    .unwrap()
-                    .value,
-            );
+            config_guard.sensitivity =
+                Some(self.container.find_widget::<Slider>(&[1, 3]).unwrap().value);
             config_guard.save();
 
             log::info!("Saved config: {:?}", *config_guard);

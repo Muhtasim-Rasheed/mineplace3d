@@ -66,12 +66,14 @@ impl World {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
-        self.chunks.get(&chunk_pos).map(|c| c.get_block(local_pos))
+        self.chunks
+            .get(&chunk_pos)
+            .and_then(|c| c.get_block(local_pos))
     }
 
     /// Gets a block at the given world position, or generates a new chunk and returns the block if
     /// it doesn't exist.
-    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> (&Block, &BlockState) {
+    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> Option<(&Block, &BlockState)> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -158,6 +160,10 @@ impl World {
 
     /// Updates the world. The optimal TPS (Ticks Per Second) is 48.
     pub fn tick(&mut self, tps: u8) {
+        for (pos, chunk) in &mut self.chunks {
+            chunk.random_tick(10, &mut self.changes, &mut self.pending_changes, *pos);
+        }
+
         let entity_ids: Vec<u64> = self.entities.keys().cloned().collect();
         for entity_id in entity_ids {
             if let Some(mut entity) = self.entities.remove(&entity_id) {

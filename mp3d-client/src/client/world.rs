@@ -43,7 +43,9 @@ impl ClientWorld {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
-        self.chunks.get(&chunk_pos).map(|c| c.get_block(local_pos))
+        self.chunks
+            .get(&chunk_pos)
+            .and_then(|c| c.get_block(local_pos))
     }
 
     /// Sets a block at the given world position.

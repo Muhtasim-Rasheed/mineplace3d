@@ -67,14 +67,14 @@ impl Chunk {
     }
 
     /// Gets a reference to the block and block state at the given local position within the chunk.
-    pub fn get_block(&self, local_pos: IVec3) -> (&Block, &BlockState) {
+    pub fn get_block(&self, local_pos: IVec3) -> Option<(&Block, &BlockState)> {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
-        let palette_index = self.blocks[index] as usize;
-        (
-            &self.block_palette[palette_index],
-            &self.block_states[index],
-        )
+        let palette_index = *self.blocks.get(index)? as usize;
+        Some((
+            self.block_palette.get(palette_index)?,
+            self.block_states.get(index)?,
+        ))
     }
 
     /// Sets the block at the given local position within the chunk.
@@ -88,6 +88,48 @@ impl Chunk {
             self.blocks[index] = (self.block_palette.len() - 1) as u16;
         }
         self.block_states[index] = state;
+    }
+
+    /// Random ticks N random blocks in the chunk.
+    pub fn random_tick(
+        &mut self,
+        n: usize,
+        changes: &mut std::collections::HashMap<
+            IVec3,
+            std::collections::HashMap<IVec3, (Block, BlockState)>,
+        >,
+        pending_changes: &mut Vec<(IVec3, IVec3, Block, BlockState)>,
+        chunk_pos: IVec3,
+    ) {
+        for _ in 0..n {
+            let x = rand::random::<u8>() as usize % CHUNK_SIZE;
+            let y = rand::random::<u8>() as usize % CHUNK_SIZE;
+            let z = rand::random::<u8>() as usize % CHUNK_SIZE;
+            let index = x + CHUNK_SIZE * (y + CHUNK_SIZE * z);
+            let palette_index = self.blocks[index] as usize;
+            let block = &self.block_palette[palette_index];
+            if block == &Block::DIRT
+                && let Some((above_block, _)) =
+                    self.get_block(IVec3::new(x as i32, y as i32 + 1, z as i32))
+                && above_block == &Block::AIR
+            {
+                self.set_block(
+                    IVec3::new(x as i32, y as i32, z as i32),
+                    Block::GRASS,
+                    BlockState::none(),
+                );
+                changes.entry(chunk_pos).or_default().insert(
+                    IVec3::new(x as i32, y as i32, z as i32),
+                    (Block::GRASS, BlockState::none()),
+                );
+                pending_changes.push((
+                    chunk_pos,
+                    IVec3::new(x as i32, y as i32, z as i32),
+                    Block::GRASS,
+                    BlockState::none(),
+                ));
+            }
+        }
     }
 }
 

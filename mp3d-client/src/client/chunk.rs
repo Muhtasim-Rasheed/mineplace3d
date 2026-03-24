@@ -25,7 +25,7 @@ impl ClientChunk {
     }
 
     /// Gets a block at the given local position within the chunk.
-    pub fn get_block(&self, local_pos: IVec3) -> (&Block, &BlockState) {
+    pub fn get_block(&self, local_pos: IVec3) -> Option<(&Block, &BlockState)> {
         self.chunk.get_block(local_pos)
     }
 

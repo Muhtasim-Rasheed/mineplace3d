@@ -78,8 +78,12 @@ impl Font {
                 line_width = 0.0;
                 line_count += 1;
             } else if c != '\u{0336}' {
-                let glyph_indices_len = self.glyph_indices(c).map(|indices| indices.len()).unwrap_or(0);
-                line_width += font_size * (self.char_size.x / self.char_size.y) * glyph_indices_len as f32;
+                let glyph_indices_len = self
+                    .glyph_indices(c)
+                    .map(|indices| indices.len())
+                    .unwrap_or(0);
+                line_width +=
+                    font_size * (self.char_size.x / self.char_size.y) * glyph_indices_len as f32;
             }
         }
         max_width = max_width.max(line_width);
@@ -106,7 +110,7 @@ impl Font {
             for c in line.chars() {
                 if let Some(uvs) = self.glyph_uvs(c) {
                     cursor.x -= self.char_back(font_size, c);
-                    
+
                     for uv_rect in uvs {
                         let pos_min = cursor;
                         let pos_max = cursor + char_size;

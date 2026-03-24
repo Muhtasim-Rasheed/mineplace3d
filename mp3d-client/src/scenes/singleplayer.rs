@@ -293,7 +293,8 @@ impl super::Scene for SinglePlayer {
         );
         self.total_time += ctx.delta_time;
         if self.playing {
-            self.client.send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
+            self.client
+                .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
             if let Err(_reason) = self.client.recieve_state() {
                 todo!("Save world and exit.")
             }

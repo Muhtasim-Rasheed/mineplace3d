@@ -186,8 +186,16 @@ impl Entity for PlayerEntity {
     fn tick(&mut self, world: &mut World, tps: u8) {
         let delta_time = 1.0 / tps as f32;
 
-        let forward_vec = Vec3::new(self.yaw.to_radians().sin(), 0.0, self.yaw.to_radians().cos());
-        let right_vec = Vec3::new(self.yaw.to_radians().cos(), 0.0, -self.yaw.to_radians().sin());
+        let forward_vec = Vec3::new(
+            self.yaw.to_radians().sin(),
+            0.0,
+            self.yaw.to_radians().cos(),
+        );
+        let right_vec = Vec3::new(
+            self.yaw.to_radians().cos(),
+            0.0,
+            -self.yaw.to_radians().sin(),
+        );
         let mut movement = Vec3::ZERO;
         movement += forward_vec * self.input.forward;
         movement += right_vec * self.input.strafe;
@@ -220,14 +228,18 @@ impl Entity for PlayerEntity {
         }
         self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
-        let new_pos_x = self.position.with_x(self.position.x + self.velocity.x * delta_time);
+        let new_pos_x = self
+            .position
+            .with_x(self.position.x + self.velocity.x * delta_time);
         if !world.collides(new_pos_x, Self::width(), Self::height()) {
             self.position.x = new_pos_x.x;
         } else {
             self.velocity.x = 0.0;
         }
 
-        let new_pos_y = self.position.with_y(self.position.y + self.velocity.y * delta_time);
+        let new_pos_y = self
+            .position
+            .with_y(self.position.y + self.velocity.y * delta_time);
         if !world.collides(new_pos_y, Self::width(), Self::height()) {
             self.position.y = new_pos_y.y;
             self.on_ground = world.collides(
@@ -246,7 +258,9 @@ impl Entity for PlayerEntity {
             self.velocity.y = 0.0;
         }
 
-        let new_pos_z = self.position.with_z(self.position.z + self.velocity.z * delta_time);
+        let new_pos_z = self
+            .position
+            .with_z(self.position.z + self.velocity.z * delta_time);
         if !world.collides(new_pos_z, Self::width(), Self::height()) {
             self.position.z = new_pos_z.z;
         } else {

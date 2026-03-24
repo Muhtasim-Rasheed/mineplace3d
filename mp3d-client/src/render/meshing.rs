@@ -255,7 +255,7 @@ fn mesh_chunk(
             && local.z >= 0
             && local.z < CHUNK_SIZE as i32
         {
-            Some(chunk.get_block(local))
+            chunk.get_block(local)
         } else {
             let neighbor_idx = match (local.x, local.y, local.z) {
                 (_, _, z) if z < 0 => 0,                  // North
@@ -267,7 +267,7 @@ fn mesh_chunk(
                 _ => unreachable!(),
             };
 
-            neighbors[neighbor_idx].map(|neighbor_chunk| {
+            neighbors[neighbor_idx].and_then(|neighbor_chunk| {
                 let neighbor_local = match neighbor_idx {
                     0 => IVec3::new(local.x, local.y, CHUNK_SIZE as i32 - 1), // North
                     1 => IVec3::new(local.x, local.y, 0),                     // South
@@ -302,7 +302,7 @@ fn mesh_chunk(
             for z in 0..(CHUNK_SIZE as i32) {
                 // Check if the block is visible
                 let block_local_pos = glam::IVec3::new(x, y, z);
-                let (block, state) = chunk.get_block(block_local_pos);
+                let (block, state) = chunk.get_block(block_local_pos).unwrap();
                 if !block.visible {
                     continue;
                 }

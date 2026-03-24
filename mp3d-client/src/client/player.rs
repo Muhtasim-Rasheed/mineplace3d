@@ -191,7 +191,7 @@ impl ClientPlayer {
         //     self.position.z -= self.velocity.z * dt;
         //     self.velocity.z = 0.0;
         // }
-        
+
         let new_pos_x = self.position.with_x(self.position.x + self.velocity.x * dt);
         if !world.collides(new_pos_x, PlayerEntity::width(), PlayerEntity::height()) {
             self.position.x = new_pos_x.x;

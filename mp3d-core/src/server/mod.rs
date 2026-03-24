@@ -208,7 +208,8 @@ impl Server {
                         sneak,
                         yaw,
                         pitch,
-                    }.into();
+                    }
+                    .into();
                 }
             }
             C2SMessage::RequestChunks { chunk_positions } => {
@@ -376,6 +377,10 @@ impl Server {
                     Err("You must be connected to use this command".to_string())
                 }
             }
+            "/tps" => Ok(Some((
+                vec![],
+                format!("Current TPS: {}%r", self.tps).parse().unwrap(),
+            ))),
             _ => Err("Unknown command".to_string()),
         }
     }
@@ -428,7 +433,7 @@ impl Server {
                         position: entity.position(),
                         yaw: entity.yaw,
                         pitch: entity.pitch,
-                    }
+                    },
                 );
             }
         }

@@ -35,8 +35,7 @@ impl Slider {
         label_color: Vec4,
         label_font_size: f32,
         size: Vec2,
-        min_value: f32,
-        max_value: f32,
+        range: std::ops::RangeInclusive<f32>,
         font: &Rc<Font>,
         texture: TextureHandle,
     ) -> Self {
@@ -58,8 +57,8 @@ impl Slider {
             label: label.to_string(),
             label_color,
             label_font_size,
-            min_value,
-            max_value,
+            min_value: *range.start(),
+            max_value: *range.end(),
             is_dragging: false,
             hovered: false,
             stack,
@@ -139,11 +138,14 @@ impl Widget for Slider {
             && mouse_pos.y >= self.position.y
             && mouse_pos.y <= self.position.y + self.size.y;
 
-        if ctx.mouse.down.contains(&sdl2::mouse::MouseButton::Left) && (self.hovered || self.is_dragging) {
+        if ctx.mouse.down.contains(&sdl2::mouse::MouseButton::Left)
+            && (self.hovered || self.is_dragging)
+        {
             self.is_dragging = true;
             let relative_mouse_x = (mouse_pos.x - self.position.x).clamp(0.0, self.size.x);
             // self.value = relative_mouse_x / self.size.x;
-            self.value = self.min_value + (self.max_value - self.min_value) * (relative_mouse_x / self.size.x);
+            self.value = self.min_value
+                + (self.max_value - self.min_value) * (relative_mouse_x / self.size.x);
         } else {
             self.is_dragging = false;
         }
@@ -167,7 +169,11 @@ impl Widget for Slider {
         )
     }
 
-    fn draw(&self, ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer, assets: &crate::scenes::Assets) {
+    fn draw(
+        &self,
+        ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
+        assets: &crate::scenes::Assets,
+    ) {
         self.stack.draw(ui_renderer, assets);
         self.knob.draw(ui_renderer, assets);
     }

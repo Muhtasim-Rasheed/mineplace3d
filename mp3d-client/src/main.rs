@@ -92,6 +92,11 @@ fn main() {
         std::fs::rename(&log_file_path, new_log_file_path).expect("Failed to rotate log file");
     }
 
+    #[cfg(debug_assertions)]
+    let log_level = log::LevelFilter::Debug;
+    #[cfg(not(debug_assertions))]
+    let log_level = log::LevelFilter::Info;
+
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -102,7 +107,7 @@ fn main() {
                 message
             ))
         })
-        .level(log::LevelFilter::Info)
+        .level(log_level)
         .chain(std::io::stdout())
         .chain(fern::log_file(log_file_path).unwrap())
         .apply()

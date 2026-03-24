@@ -3,4 +3,4 @@ resolver = "3"
 members = ["mp3d-client","mp3d-core"]
 
 [profile.dev]
-opt-level = 1
+opt-level = 3
