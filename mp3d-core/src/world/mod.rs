@@ -21,8 +21,8 @@ const PRELOAD_RADIUS: i32 = 8;
 
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {
-    pub chunks: HashMap<IVec3, Chunk>,
-    pub entities: HashMap<u64, Box<dyn Entity>>,
+    pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
+    pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
     pub noise: fastnoise_lite::FastNoiseLite,
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
@@ -41,7 +41,7 @@ impl World {
         let mut noise = fastnoise_lite::FastNoiseLite::new();
         noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
         noise.set_seed(Some(seed));
-        let mut chunks = HashMap::new();
+        let mut chunks = fxhash::FxHashMap::default();
         // Preload some chunks around the origin
         for x in -PRELOAD_RADIUS..PRELOAD_RADIUS {
             for y in -1..1 {
@@ -53,7 +53,7 @@ impl World {
         }
         World {
             chunks,
-            entities: HashMap::new(),
+            entities: fxhash::FxHashMap::default(),
             noise,
             player_cache: HashMap::new(),
             changes: HashMap::new(),
@@ -160,8 +160,12 @@ impl World {
 
     /// Updates the world. The optimal TPS (Ticks Per Second) is 48.
     pub fn tick(&mut self, tps: u8) {
-        for (pos, chunk) in &mut self.chunks {
-            chunk.random_tick(10, &mut self.changes, &mut self.pending_changes, *pos);
+        let mut updates = Vec::new();
+        for (pos, chunk) in &self.chunks {
+            updates.extend_from_slice(&chunk.random_tick(5, &self.chunks, *pos));
+        }
+        for update in updates {
+            self.set_block_at(update.0, update.1, update.2);
         }
 
         let entity_ids: Vec<u64> = self.entities.keys().cloned().collect();
@@ -473,8 +477,8 @@ fn load_v0_1_2(
     noise.set_seed(Some(seed));
 
     let mut world = World {
-        chunks: HashMap::new(),
-        entities: HashMap::new(),
+        chunks: fxhash::FxHashMap::default(),
+        entities: fxhash::FxHashMap::default(),
         noise,
         player_cache: HashMap::new(),
         pending_changes: Vec::new(),

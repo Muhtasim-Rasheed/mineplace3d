@@ -92,44 +92,78 @@ impl Chunk {
 
     /// Random ticks N random blocks in the chunk.
     pub fn random_tick(
-        &mut self,
+        &self,
         n: usize,
-        changes: &mut std::collections::HashMap<
-            IVec3,
-            std::collections::HashMap<IVec3, (Block, BlockState)>,
-        >,
-        pending_changes: &mut Vec<(IVec3, IVec3, Block, BlockState)>,
+        chunks: &fxhash::FxHashMap<IVec3, Chunk>,
         chunk_pos: IVec3,
-    ) {
+    ) -> Vec<(IVec3, Block, BlockState)> {
+        let neighbors = [
+            IVec3::new(0, 0, -1),
+            IVec3::new(0, 0, 1),
+            IVec3::new(1, 0, 0),
+            IVec3::new(-1, 0, 0),
+            IVec3::new(0, 1, 0),
+            IVec3::new(0, -1, 0),
+        ]
+        .map(|dir| chunks.get(&(chunk_pos + dir)));
+
+        fn get_block_global<'a>(
+            me: &'a Chunk,
+            neighbors: [Option<&'a Chunk>; 6],
+            global_pos: IVec3,
+            chunk_pos: IVec3,
+        ) -> Option<(&'a Block, &'a BlockState)> {
+            let get_chunk_pos = IVec3::new(
+                global_pos.x.div_euclid(CHUNK_SIZE as i32),
+                global_pos.y.div_euclid(CHUNK_SIZE as i32),
+                global_pos.z.div_euclid(CHUNK_SIZE as i32),
+            ) - chunk_pos;
+            let local_pos = IVec3::new(
+                global_pos.x.rem_euclid(CHUNK_SIZE as i32),
+                global_pos.y.rem_euclid(CHUNK_SIZE as i32),
+                global_pos.z.rem_euclid(CHUNK_SIZE as i32),
+            );
+            match get_chunk_pos {
+                IVec3 { z: -1, .. } => neighbors[0]?.get_block(local_pos),
+                IVec3 { z: 1, .. } => neighbors[1]?.get_block(local_pos),
+                IVec3 { x: 1, .. } => neighbors[2]?.get_block(local_pos),
+                IVec3 { x: -1, .. } => neighbors[3]?.get_block(local_pos),
+                IVec3 { y: 1, .. } => neighbors[4]?.get_block(local_pos),
+                IVec3 { y: -1, .. } => neighbors[5]?.get_block(local_pos),
+                IVec3 { x: 0, y: 0, z: 0 } => me.get_block(local_pos),
+                _ => None,
+            }
+        }
+
+        let mut updates = Vec::new();
         for _ in 0..n {
             let x = rand::random::<u8>() as usize % CHUNK_SIZE;
             let y = rand::random::<u8>() as usize % CHUNK_SIZE;
             let z = rand::random::<u8>() as usize % CHUNK_SIZE;
+            let global_pos = IVec3::new(
+                chunk_pos.x * CHUNK_SIZE as i32 + x as i32,
+                chunk_pos.y * CHUNK_SIZE as i32 + y as i32,
+                chunk_pos.z * CHUNK_SIZE as i32 + z as i32,
+            );
             let index = x + CHUNK_SIZE * (y + CHUNK_SIZE * z);
             let palette_index = self.blocks[index] as usize;
             let block = &self.block_palette[palette_index];
+            let above_global_pos = global_pos + IVec3::new(0, 1, 0);
+            let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos);
             if block == &Block::DIRT
-                && let Some((above_block, _)) =
-                    self.get_block(IVec3::new(x as i32, y as i32 + 1, z as i32))
-                && above_block == &Block::AIR
+                && let Some((above_block, _)) = above_block
+                && !above_block.visible
             {
-                self.set_block(
-                    IVec3::new(x as i32, y as i32, z as i32),
-                    Block::GRASS,
-                    BlockState::none(),
-                );
-                changes.entry(chunk_pos).or_default().insert(
-                    IVec3::new(x as i32, y as i32, z as i32),
-                    (Block::GRASS, BlockState::none()),
-                );
-                pending_changes.push((
-                    chunk_pos,
-                    IVec3::new(x as i32, y as i32, z as i32),
-                    Block::GRASS,
-                    BlockState::none(),
-                ));
+                updates.push((global_pos, Block::GRASS, BlockState::none()));
+            }
+            if block == &Block::GRASS
+                && let Some((above_block, _)) = above_block
+                && above_block.visible
+            {
+                updates.push((global_pos, Block::DIRT, BlockState::none()));
             }
         }
+        updates
     }
 }
 
