@@ -12,7 +12,7 @@ use glow::HasContext;
 use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
-    abs::{Mesh, ShaderProgram, Texture, TextureHandle, framebuffer::Framebuffer},
+    abs::{Mesh, ShaderProgram, TextureHandle, framebuffer::Framebuffer},
     client::{Client, Connection, LocalConnection},
     render::{clouds::CloudRenderer, meshing::mesh_world, ui::widgets::*},
     shader_program,
@@ -30,12 +30,8 @@ struct WorldRenderer {
     chunk_mesh_pool: Vec<Mesh>,
     cloud_renderer: CloudRenderer,
     framebuffer: Framebuffer,
-    ssao_framebuffer: Framebuffer,
     chunk_shader: ShaderProgram,
-    ssao_shader: ShaderProgram,
     postprocess_shader: ShaderProgram,
-    ssao_kernel: [Vec3; 32],
-    ssao_noise_texture: Texture,
 
     fullscreen_quad: Mesh,
 }
@@ -95,36 +91,7 @@ impl SinglePlayer {
         let connection = LocalConnection::new(server);
         let client = Client::new(connection, username, None);
         let chunk_shader = shader_program!(chunk, gl, "..");
-        let ssao_shader = shader_program!(ssao, gl, "..");
         let postprocess_shader = shader_program!(postprocess, gl, "..");
-
-        let mut ssao_kernel = [Vec3::ZERO; 32];
-        for (i, sample) in ssao_kernel.iter_mut().enumerate() {
-            *sample = Vec3::new(
-                rand::random::<f32>() * 2.0 - 1.0,
-                rand::random::<f32>() * 2.0 - 1.0,
-                rand::random::<f32>(),
-            );
-            *sample = sample.normalize() * rand::random::<f32>();
-            let scale = i as f32 / 32.0;
-            let scale = 0.1 + 0.9 * scale * scale;
-            *sample *= scale;
-        }
-
-        let mut data = vec![0u8; 16 * 16 * 4];
-        for i in 0..16 * 16 {
-            let noise = Vec3::new(
-                rand::random::<f32>() * 2.0 - 1.0,
-                rand::random::<f32>() * 2.0 - 1.0,
-                0.0,
-            )
-            .normalize();
-            data[i * 4] = ((noise.x * 0.5 + 0.5) * 255.0) as u8;
-            data[i * 4 + 1] = ((noise.y * 0.5 + 0.5) * 255.0) as u8;
-            data[i * 4 + 2] = ((noise.z * 0.5 + 0.5) * 255.0) as u8;
-            data[i * 4 + 3] = 255;
-        }
-        let ssao_noise_texture = Texture::new_bytes(gl, 16, 16, data);
 
         let return_to_game = Button::new(
             "Return to Game",
@@ -217,22 +184,12 @@ impl SinglePlayer {
                     &[
                         // Color texture
                         crate::abs::framebuffer::ColorUsage::RGBA8,
-                        // Normal texture
+                        // Normal texture (unused, might be used in the future)
                         crate::abs::framebuffer::ColorUsage::RGB16F,
                     ],
                 ),
-                ssao_framebuffer: Framebuffer::new(
-                    gl,
-                    window_size.0 as i32 / 2,
-                    window_size.1 as i32 / 2,
-                    false,
-                    &[crate::abs::framebuffer::ColorUsage::R32F],
-                ),
                 chunk_shader,
-                ssao_shader,
                 postprocess_shader,
-                ssao_kernel,
-                ssao_noise_texture,
                 fullscreen_quad: fullscreen_quad_ndc(gl),
             },
             screen_size: UVec2::new(window_size.0, window_size.1),
@@ -265,9 +222,6 @@ impl super::Scene for SinglePlayer {
                 gl.viewport(0, 0, *width, *height);
             }
             self.renderer.framebuffer.resize(*width, *height);
-            self.renderer
-                .ssao_framebuffer
-                .resize(*width / 2, *height / 2);
         }
         if let sdl2::event::Event::KeyDown { keycode, .. } = event
             && *keycode == Some(sdl2::keyboard::Keycode::Escape)
@@ -492,62 +446,14 @@ impl super::Scene for SinglePlayer {
             Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
 
             gl.disable(glow::CULL_FACE);
-
-            self.renderer.ssao_framebuffer.bind();
-            gl.clear_color(1.0, 1.0, 1.0, 1.0);
-            gl.clear(glow::COLOR_BUFFER_BIT);
-
-            self.renderer.ssao_shader.use_program();
-            self.renderer.ssao_shader.set_uniform("u_depth", 0);
-            self.renderer.ssao_shader.set_uniform("u_normal", 1);
-            self.renderer.ssao_shader.set_uniform("u_noise", 2);
-            self.renderer.ssao_shader.set_uniform(
-                "u_noise_scale",
-                Vec2::new(
-                    self.screen_size.x as f32 / 16.0,
-                    self.screen_size.y as f32 / 16.0,
-                ),
-            );
-            self.renderer
-                .ssao_shader
-                .set_uniform("u_samples", self.renderer.ssao_kernel);
-            self.renderer.ssao_shader.set_uniform(
-                "u_projection",
-                self.client
-                    .player
-                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
-            );
-            self.renderer.ssao_shader.set_uniform(
-                "u_inv_projection",
-                self.client
-                    .player
-                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32)
-                    .inverse(),
-            );
-            self.renderer.ssao_shader.set_uniform(
-                "u_view_normal",
-                glam::Mat3::from_mat4(self.client.player.view())
-                    .inverse()
-                    .transpose(),
-            );
-            self.renderer.framebuffer.depth_texture().unwrap().bind(0);
-            self.renderer.framebuffer.textures()[1].bind(1);
-            self.renderer.ssao_noise_texture.bind(2);
-            self.renderer.fullscreen_quad.draw();
-
-            Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
             gl.depth_mask(false);
 
             self.renderer.postprocess_shader.use_program();
             self.renderer.postprocess_shader.set_uniform("u_texture", 0);
-            self.renderer.postprocess_shader.set_uniform("u_depth", 1);
-            self.renderer.postprocess_shader.set_uniform("u_ssao", 2);
             self.renderer
                 .postprocess_shader
                 .set_uniform("u_time", self.total_time);
             self.renderer.framebuffer.textures()[0].bind(0);
-            self.renderer.framebuffer.depth_texture().unwrap().bind(1);
-            self.renderer.ssao_framebuffer.textures()[0].bind(2);
             self.renderer.fullscreen_quad.draw();
 
             gl.clear(glow::DEPTH_BUFFER_BIT);
