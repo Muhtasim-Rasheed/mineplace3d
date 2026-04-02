@@ -20,31 +20,33 @@ pub struct ChunkVertex {
     pub position: Vec3,
     pub normal: IVec3,
     pub uv: Vec2,
+    pub ao: u8,
 }
 
 impl Vertex for ChunkVertex {
     fn vertex_attribs(gl: &glow::Context) {
         unsafe {
             let stride = std::mem::size_of::<ChunkVertex>() as i32;
+            let mut offset = 0;
 
             // Position attribute
             gl.enable_vertex_attrib_array(0);
-            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride, 0);
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, stride, offset);
+            offset += std::mem::size_of::<Vec3>() as i32;
 
             // Normal attribute
             gl.enable_vertex_attrib_array(1);
-            gl.vertex_attrib_pointer_i32(1, 3, glow::INT, stride, size_of::<Vec3>() as i32);
+            gl.vertex_attrib_pointer_i32(1, 3, glow::INT, stride, offset);
+            offset += std::mem::size_of::<IVec3>() as i32;
 
             // UV attribute
             gl.enable_vertex_attrib_array(2);
-            gl.vertex_attrib_pointer_f32(
-                2,
-                2,
-                glow::FLOAT,
-                false,
-                stride,
-                (size_of::<Vec3>() + size_of::<IVec3>()) as i32,
-            );
+            gl.vertex_attrib_pointer_f32(2, 2, glow::FLOAT, false, stride, offset);
+            offset += std::mem::size_of::<Vec2>() as i32;
+
+            // AO attribute
+            gl.enable_vertex_attrib_array(3);
+            gl.vertex_attrib_pointer_i32(3, 1, glow::UNSIGNED_BYTE, stride, offset);
         }
     }
 }
@@ -106,6 +108,34 @@ fn should_occlude(
     false
 }
 
+#[inline]
+fn block_is_full_cube(
+    block: Option<(&Block, &BlockState)>,
+    block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
+) -> bool {
+    let Some((block, state)) = block else {
+        return false;
+    };
+
+    if !block.visible {
+        return false;
+    }
+
+    let ident = (
+        block.ident,
+        state.to_ident().unwrap_or_else(|| {
+            panic!(
+                "Block '{}' has an unrecognized block state type: {}",
+                block.ident, block.state_type
+            )
+        }),
+    );
+
+    block_models
+        .get(&ident)
+        .is_some_and(|model| model.is_full_cube())
+}
+
 /// The vertex positions for each face of a cube, in the order of NSEWUD.
 pub const FACE_VERTS: [[Vec3; 4]; 6] = [
     // North (-Z)
@@ -160,6 +190,137 @@ const NORMALS: [IVec3; 6] = [
     IVec3::new(-1, 0, 0), // West
     IVec3::new(0, 1, 0),  // Up
     IVec3::new(0, -1, 0), // Down
+];
+
+/// Indices: NSEWUD (North, South, East, West, Up, Down)
+const VERTEX_CORNER_OFFSETS: [[IVec3; 4]; 6] = [
+    // North face (-Z)
+    [
+        IVec3::new(1, 0, 0),
+        IVec3::new(0, 0, 0),
+        IVec3::new(0, 1, 0),
+        IVec3::new(1, 1, 0),
+    ],
+    // South face (+Z)
+    [
+        IVec3::new(0, 0, 1),
+        IVec3::new(1, 0, 1),
+        IVec3::new(1, 1, 1),
+        IVec3::new(0, 1, 1),
+    ],
+    // East face (+X)
+    [
+        IVec3::new(1, 0, 1),
+        IVec3::new(1, 0, 0),
+        IVec3::new(1, 1, 0),
+        IVec3::new(1, 1, 1),
+    ],
+    // West face (-X)
+    [
+        IVec3::new(0, 0, 0),
+        IVec3::new(0, 0, 1),
+        IVec3::new(0, 1, 1),
+        IVec3::new(0, 1, 0),
+    ],
+    // Up face (+Y)
+    [
+        IVec3::new(1, 1, 0),
+        IVec3::new(0, 1, 0),
+        IVec3::new(0, 1, 1),
+        IVec3::new(1, 1, 1),
+    ],
+    // Down face (-Y)
+    [
+        IVec3::new(1, 0, 1),
+        IVec3::new(0, 0, 1),
+        IVec3::new(0, 0, 0),
+        IVec3::new(1, 0, 0),
+    ],
+];
+
+fn ao_for_vertex(side1_full: bool, side2_full: bool, corner_full: bool) -> u8 {
+    match (side1_full, side2_full, corner_full) {
+        (true, true, true) => 0,
+        (true, true, false) | (true, false, true) | (false, true, true) => 1,
+        (true, false, false) | (false, true, false) | (false, false, true) => 2,
+        (false, false, false) => 3,
+    }
+}
+
+// For AO, precompute the 3 neighbor offsets for each vertex of each face.
+// The first two coordinates are the side neighbors and the last coordinate is the corner neighbor.
+const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
+    // North face (-Z)
+    [
+        // v0 = (1,0,0)  right-bottom
+        [IVec3::new( 1,  0, -1), IVec3::new( 0, -1, -1), IVec3::new( 1, -1, -1)],
+        // v1 = (0,0,0)  left-bottom
+        [IVec3::new(-1,  0, -1), IVec3::new( 0, -1, -1), IVec3::new(-1, -1, -1)],
+        // v2 = (0,1,0)  left-top
+        [IVec3::new(-1,  0, -1), IVec3::new( 0,  1, -1), IVec3::new(-1,  1, -1)],
+        // v3 = (1,1,0)  right-top
+        [IVec3::new( 1,  0, -1), IVec3::new( 0,  1, -1), IVec3::new( 1,  1, -1)],
+    ],
+
+    // South face (+Z)
+    [
+        // v0 = (0,0,1)  left-bottom
+        [IVec3::new(-1,  0,  1), IVec3::new( 0, -1,  1), IVec3::new(-1, -1,  1)],
+        // v1 = (1,0,1)  right-bottom
+        [IVec3::new( 1,  0,  1), IVec3::new( 0, -1,  1), IVec3::new( 1, -1,  1)],
+        // v2 = (1,1,1)  right-top
+        [IVec3::new( 1,  0,  1), IVec3::new( 0,  1,  1), IVec3::new( 1,  1,  1)],
+        // v3 = (0,1,1)  left-top
+        [IVec3::new(-1,  0,  1), IVec3::new( 0,  1,  1), IVec3::new(-1,  1,  1)],
+    ],
+
+    // East face (+X)
+    [
+        // v0 = (1,0,1)  front-bottom
+        [IVec3::new( 1,  0,  1), IVec3::new( 1, -1,  0), IVec3::new( 1, -1,  1)],
+        // v1 = (1,0,0)  back-bottom
+        [IVec3::new( 1,  0, -1), IVec3::new( 1, -1,  0), IVec3::new( 1, -1, -1)],
+        // v2 = (1,1,0)  back-top
+        [IVec3::new( 1,  0, -1), IVec3::new( 1,  1,  0), IVec3::new( 1,  1, -1)],
+        // v3 = (1,1,1)  front-top
+        [IVec3::new( 1,  0,  1), IVec3::new( 1,  1,  0), IVec3::new( 1,  1,  1)],
+    ],
+
+    // West face (-X)
+    [
+        // v0 = (0,0,0)  back-bottom
+        [IVec3::new(-1,  0, -1), IVec3::new(-1, -1,  0), IVec3::new(-1, -1, -1)],
+        // v1 = (0,0,1)  front-bottom
+        [IVec3::new(-1,  0,  1), IVec3::new(-1, -1,  0), IVec3::new(-1, -1,  1)],
+        // v2 = (0,1,1)  front-top
+        [IVec3::new(-1,  0,  1), IVec3::new(-1,  1,  0), IVec3::new(-1,  1,  1)],
+        // v3 = (0,1,0)  back-top
+        [IVec3::new(-1,  0, -1), IVec3::new(-1,  1,  0), IVec3::new(-1,  1, -1)],
+    ],
+
+    // Up face (+Y)
+    [
+        // v0 = (1,1,0)  back-right
+        [IVec3::new( 1,  1,  0), IVec3::new( 0,  1, -1), IVec3::new( 1,  1, -1)],
+        // v1 = (0,1,0)  back-left
+        [IVec3::new(-1,  1,  0), IVec3::new( 0,  1, -1), IVec3::new(-1,  1, -1)],
+        // v2 = (0,1,1)  front-left
+        [IVec3::new(-1,  1,  0), IVec3::new( 0,  1,  1), IVec3::new(-1,  1,  1)],
+        // v3 = (1,1,1)  front-right
+        [IVec3::new( 1,  1,  0), IVec3::new( 0,  1,  1), IVec3::new( 1,  1,  1)],
+    ],
+
+    // Down face (-Y)
+    [
+        // v0 = (1,0,1)  front-right
+        [IVec3::new( 1, -1,  0), IVec3::new( 0, -1,  1), IVec3::new( 1, -1,  1)],
+        // v1 = (0,0,1)  front-left
+        [IVec3::new(-1, -1,  0), IVec3::new( 0, -1,  1), IVec3::new(-1, -1,  1)],
+        // v2 = (0,0,0)  back-left
+        [IVec3::new(-1, -1,  0), IVec3::new( 0, -1, -1), IVec3::new(-1, -1, -1)],
+        // v3 = (1,0,0)  back-right
+        [IVec3::new( 1, -1,  0), IVec3::new( 0, -1, -1), IVec3::new( 1, -1, -1)],
+    ],
 ];
 
 /// Generates meshes for all chunks that require being meshed again.
@@ -223,63 +384,56 @@ fn mesh_chunk(
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
+    let chunk_origin = chunk_pos * (CHUNK_SIZE as i32);
+
     let mut vertices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 24);
     let mut indices = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 36);
 
-    let neighbors = [
-        chunk_pos + IVec3::new(0, 0, -1), // North
-        chunk_pos + IVec3::new(0, 0, 1),  // South
-        chunk_pos + IVec3::new(1, 0, 0),  // East
-        chunk_pos + IVec3::new(-1, 0, 0), // West
-        chunk_pos + IVec3::new(0, 1, 0),  // Up
-        chunk_pos + IVec3::new(0, -1, 0), // Down
-    ]
-    .map(|pos| world.chunks.get(&pos));
+    let mut neighbors = [[[None; 3]; 3]; 3];
+
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            for dz in -1..=1 {
+                if dx == 0 && dy == 0 && dz == 0 {
+                    neighbors[1][1][1] = Some(chunk);
+                    continue;
+                }
+                let idx = (
+                    (dx + 1) as usize,
+                    (dy + 1) as usize,
+                    (dz + 1) as usize,
+                );
+                neighbors[idx.0][idx.1][idx.2] =
+                    world.chunks.get(&(chunk_pos + IVec3::new(dx, dy, dz)));
+            }
+        }
+    }
 
     #[inline(always)]
     fn get_block<'a>(
-        chunk: &'a ClientChunk,
-        chunk_pos: IVec3,
+        chunk_origin: IVec3,
         world_pos: IVec3,
-        neighbors: [Option<&'a ClientChunk>; 6],
+        neighbors: [[[Option<&'a ClientChunk>; 3]; 3]; 3],
     ) -> Option<(&'a Block, &'a BlockState)> {
-        let local_x = world_pos.x - chunk_pos.x * (CHUNK_SIZE as i32);
-        let local_y = world_pos.y - chunk_pos.y * (CHUNK_SIZE as i32);
-        let local_z = world_pos.z - chunk_pos.z * (CHUNK_SIZE as i32);
-        let local = IVec3::new(local_x, local_y, local_z);
+        let local = world_pos - chunk_origin;
 
-        if local.x >= 0
-            && local.x < CHUNK_SIZE as i32
-            && local.y >= 0
-            && local.y < CHUNK_SIZE as i32
-            && local.z >= 0
-            && local.z < CHUNK_SIZE as i32
-        {
-            chunk.get_block(local)
-        } else {
-            let neighbor_idx = match (local.x, local.y, local.z) {
-                (_, _, z) if z < 0 => 0,                  // North
-                (_, _, z) if z >= CHUNK_SIZE as i32 => 1, // South
-                (x, _, _) if x >= CHUNK_SIZE as i32 => 2, // East
-                (x, _, _) if x < 0 => 3,                  // West
-                (_, y, _) if y >= CHUNK_SIZE as i32 => 4, // Up
-                (_, y, _) if y < 0 => 5,                  // Down
-                _ => unreachable!(),
-            };
+        let chunk_size = CHUNK_SIZE as i32;
 
-            neighbors[neighbor_idx].and_then(|neighbor_chunk| {
-                let neighbor_local = match neighbor_idx {
-                    0 => IVec3::new(local.x, local.y, CHUNK_SIZE as i32 - 1), // North
-                    1 => IVec3::new(local.x, local.y, 0),                     // South
-                    2 => IVec3::new(0, local.y, local.z),                     // East
-                    3 => IVec3::new(CHUNK_SIZE as i32 - 1, local.y, local.z), // West
-                    4 => IVec3::new(local.x, 0, local.z),                     // Up
-                    5 => IVec3::new(local.x, CHUNK_SIZE as i32 - 1, local.z), // Down
-                    _ => unreachable!(),
-                };
-                neighbor_chunk.get_block(neighbor_local)
-            })
-        }
+        let cx = local.x.div_euclid(chunk_size);
+        let cy = local.y.div_euclid(chunk_size);
+        let cz = local.z.div_euclid(chunk_size);
+
+        debug_assert!((-1..=1).contains(&cx), "cx: {}, cy: {}, cz: {}", cx, cy, cz);
+        debug_assert!((-1..=1).contains(&cy), "cx: {}, cy: {}, cz: {}", cx, cy, cz);
+        debug_assert!((-1..=1).contains(&cz), "cx: {}, cy: {}, cz: {}", cx, cy, cz);
+
+        let lx = local.x.rem_euclid(chunk_size);
+        let ly = local.y.rem_euclid(chunk_size);
+        let lz = local.z.rem_euclid(chunk_size);
+
+        let chunk_ref = neighbors[(cx + 1) as usize][(cy + 1) as usize][(cz + 1) as usize]?;
+
+        chunk_ref.get_block(IVec3::new(lx, ly, lz))
     }
 
     #[inline(always)]
@@ -322,7 +476,7 @@ fn mesh_chunk(
                     let neighbor_pos = glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
 
                     // Create face the neighboring block is air or doesn't occlude this face.
-                    let neighbor_block = get_block(chunk, chunk_pos, neighbor_pos, neighbors);
+                    let neighbor_block = get_block(chunk_origin, neighbor_pos, neighbors);
                     let neighbor_state = neighbor_block.map(|(_, state)| state);
                     let neighbor_block = neighbor_block.map(|(block, _)| block);
                     let neighbor_model = neighbor_block
@@ -351,6 +505,25 @@ fn mesh_chunk(
                                 _ => unreachable!(),
                             };
 
+                            let block_world_pos = IVec3::new(world_x, world_y, world_z);
+
+                            // AO for the 4 vertices of this face
+                            let mut aos = [3u8; 4];
+
+                            for vert_idx in 0..4 {
+                                let [side1_off, side2_off, corner_off] = AO_NEIGHBORS[i][vert_idx];
+
+                                let side1 = get_block(chunk_origin, block_world_pos + side1_off, neighbors);
+                                let side2 = get_block(chunk_origin, block_world_pos + side2_off, neighbors);
+                                let corner = get_block(chunk_origin, block_world_pos + corner_off, neighbors);
+
+                                let side1_full = block_is_full_cube(side1, block_models);
+                                let side2_full = block_is_full_cube(side2, block_models);
+                                let corner_full = block_is_full_cube(corner, block_models);
+
+                                aos[vert_idx] = ao_for_vertex(side1_full, side2_full, corner_full);
+                            }
+
                             let model_uv = face.uv;
                             let [uv_min, uv_max] =
                                 block_textures.get_uv(&face.texture_name, model_uv).unwrap();
@@ -369,6 +542,8 @@ fn mesh_chunk(
                                         + Vec3::new(world_x as f32, world_y as f32, world_z as f32),
                                     normal: IVec3::new(dx, dy, dz),
                                     uv: *uv,
+                                    // ao: 3,
+                                    ao: aos[vertices.len() % 4],
                                 });
                             }
 

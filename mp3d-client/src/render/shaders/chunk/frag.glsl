@@ -4,6 +4,7 @@ layout(location = 0) out vec4 frag_color;
 layout(location = 1) out vec4 frag_normal;
 
 flat in ivec3 v_normal;
+in float v_ao;
 in vec2 v_uv;
 
 uniform sampler2D u_texture;
@@ -23,4 +24,5 @@ void main() {
 	}
 	frag_color.rgb *= intensity;
 	frag_normal = vec4(v_normal * 0.5 + 0.5, 1.0);
+	frag_color.rgb *= v_ao;
 }

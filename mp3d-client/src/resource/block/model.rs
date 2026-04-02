@@ -187,6 +187,14 @@ impl BlockModel {
         }
         commands
     }
+
+    /// Returns if this block model contains only one cube element from (0, 0, 0) to (16, 16, 16).
+    #[inline]
+    pub fn is_full_cube(&self) -> bool {
+        self.elements.len() == 1
+            && self.elements[0].from == Vec3::ZERO
+            && self.elements[0].to == Vec3::splat(1.0)
+    }
 }
 
 /// A single cuboid element of a block model, defined by two opposite corners and the faces that
