@@ -419,6 +419,17 @@ impl<C: Connection> Client<C> {
                 } => {
                     self.world.chunks.insert(chunk_position, (*chunk).into());
                     self.world.remesh_queue.push(chunk_position);
+                    // also push the other neighbor chunks to the remesh queue
+                    for neighbor in [
+                        chunk_position + IVec3::new(0, 0, -1),
+                        chunk_position + IVec3::new(0, 0, 1),
+                        chunk_position + IVec3::new(1, 0, 0),
+                        chunk_position + IVec3::new(-1, 0, 0),
+                        chunk_position + IVec3::new(0, 1, 0),
+                        chunk_position + IVec3::new(0, -1, 0),
+                    ] {
+                        self.world.remesh_queue.push(neighbor);
+                    }
                 }
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
