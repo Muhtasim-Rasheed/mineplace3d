@@ -201,7 +201,6 @@ impl<C: Connection> Client<C> {
             {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
                 if let Some((position, face)) = raycast_result {
-                    log::debug!("Block click at {:?} with face {:?}", position, face);
                     self.connection.send(C2SMessage::BlockClick {
                         position,
                         face: match face {
@@ -225,7 +224,6 @@ impl<C: Connection> Client<C> {
             {
                 let raycast_result = cast_ray(&self.world, &self.player, 5.0);
                 if let Some((block_pos, normal)) = raycast_result {
-                    log::debug!("Block click at {:?} with face {:?}", block_pos, normal);
                     let face_idx = match normal {
                         IVec3 { z: -1, .. } => 0,
                         IVec3 { z: 1, .. } => 1,

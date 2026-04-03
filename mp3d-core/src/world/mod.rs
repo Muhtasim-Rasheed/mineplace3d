@@ -13,8 +13,8 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{Block, BlockState},
     entity::{Entity, EntityType, PlayerEntity},
-    saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
-    world::chunk::{CHUNK_SIZE, Chunk},
+    saving::{io::*, Saveable, WorldLoadError, SAVE_VERSION},
+    world::chunk::{Chunk, CHUNK_SIZE}, UniqueQueue,
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -24,11 +24,15 @@ pub struct World {
     pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
     pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
     pub noise: fastnoise_lite::FastNoiseLite,
+    
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
     pub(super) player_cache: HashMap<String, PlayerEntity>,
-    /// Also stores changes, but will be sent to players and then cleared.
-    pub(super) pending_changes: Vec<(IVec3, IVec3, Block, BlockState)>,
+
+    /// Stores pending changes to blocks in the world. This is used to track changes that need to
+    /// be sent to players.
+    pub(super) pending_changes: PendingChanges,
+    
     /// A map of chunk positions to a map of local block positions to the new block and block
     /// state. This is used to track changes to chunks that have been modified by the player or
     /// other entities.
@@ -56,8 +60,8 @@ impl World {
             entities: fxhash::FxHashMap::default(),
             noise,
             player_cache: HashMap::new(),
+            pending_changes: PendingChanges::default(),
             changes: HashMap::new(),
-            pending_changes: Vec::new(),
         }
     }
 
@@ -81,7 +85,10 @@ impl World {
     }
 
     /// Sets a block at the given world position.
-    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
+    ///
+    /// **Urgent version**: The change is added to the urgent changes queue, which will be drained
+    /// first when sending updates to players, and then cleared.
+    pub fn urgent_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -89,8 +96,24 @@ impl World {
             .entry(chunk_pos)
             .or_default()
             .insert(local_pos, (block, state));
-        self.pending_changes
-            .push((chunk_pos, local_pos, block, state));
+        self.pending_changes.push(chunk_pos, local_pos, block, state, true);
+        let chunk = self.get_chunk_mut_or_new(chunk_pos);
+        chunk.set_block(local_pos, block, state);
+    }
+
+    /// Sets a block at the given world position.
+    ///
+    /// **Normal version**: The change is added to the normal changes queue, which will be sent to
+    /// players after the urgent changes, and then cleared.
+    pub fn normal_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
+        let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+        let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+
+        self.changes
+            .entry(chunk_pos)
+            .or_default()
+            .insert(local_pos, (block, state));
+        self.pending_changes.push(chunk_pos, local_pos, block, state, false);
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -165,7 +188,7 @@ impl World {
             updates.extend_from_slice(&chunk.random_tick(5, &self.chunks, *pos));
         }
         for update in updates {
-            self.set_block_at(update.0, update.1, update.2);
+            self.normal_set_block_at(update.0, update.1, update.2);
         }
 
         let entity_ids: Vec<u64> = self.entities.keys().cloned().collect();
@@ -237,7 +260,7 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.set_block_at(block_pos, Block::STONE, BlockState::none())
+                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none())
                     }
                     return;
                 }
@@ -258,7 +281,7 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.set_block_at(block_pos, Block::STONE, BlockState::none())
+                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none())
                     }
                     return;
                 }
@@ -299,10 +322,10 @@ impl World {
                 .map(|(b, _)| b)
                 .unwrap_or(&Block::AIR);
 
-            self.set_block_at(place_pos, *block, state);
+            self.urgent_set_block_at(place_pos, *block, state);
 
             if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
-                self.set_block_at(place_pos, old_block, BlockState::none());
+                self.urgent_set_block_at(place_pos, old_block, BlockState::none());
             }
         }
     }
@@ -314,10 +337,58 @@ impl World {
                 for z in -2..=2 {
                     if x * x + y * y + z * z <= radius_sq {
                         let pos = block_pos + IVec3::new(x, y, z);
-                        self.set_block_at(pos, Block::AIR, BlockState::none());
+                        self.normal_set_block_at(pos, Block::AIR, BlockState::none());
                     }
                 }
             }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PendingChanges {
+    /// Also stores changes, but will be sent to players and then cleared.
+    ///
+    /// **Urgent version**: Changes that are added to this queue will be sent to players before the
+    /// normal changes, and then cleared.
+    pub urgent: UniqueQueue<(IVec3, IVec3)>,
+
+    /// Also stores changes, but will be sent to players and then cleared.
+    ///
+    /// **Normal version**: Changes that are added to this queue will be sent to players after the
+    /// urgent changes, and then cleared.
+    pub normal: UniqueQueue<(IVec3, IVec3)>,
+
+    /// Stores data for the two queues above. This makes sure that if a block is changed multiple
+    /// times in a tick, only the final state is sent to the players.
+    pub data: HashMap<(IVec3, IVec3), (Block, BlockState)>,
+}
+
+impl PendingChanges {
+    pub fn push(&mut self, chunk_pos: IVec3, local_pos: IVec3, block: Block, state: BlockState, urgent: bool) {
+        self.data.insert((chunk_pos, local_pos), (block, state));
+        if urgent {
+            self.urgent.push((chunk_pos, local_pos));
+        } else {
+            self.normal.push((chunk_pos, local_pos));
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+impl Iterator for PendingChanges {
+    type Item = (IVec3, IVec3, Block, BlockState);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((chunk_pos, local_pos)) = self.urgent.pop() {
+            self.data.remove(&(chunk_pos, local_pos)).map(|(block, state)| (chunk_pos, local_pos, block, state))
+        } else if let Some((chunk_pos, local_pos)) = self.normal.pop() {
+            self.data.remove(&(chunk_pos, local_pos)).map(|(block, state)| (chunk_pos, local_pos, block, state))
+        } else {
+            None
         }
     }
 }
@@ -481,7 +552,7 @@ fn load_v0_1_2(
         entities: fxhash::FxHashMap::default(),
         noise,
         player_cache: HashMap::new(),
-        pending_changes: Vec::new(),
+        pending_changes: PendingChanges::default(),
         changes: HashMap::new(),
     };
 

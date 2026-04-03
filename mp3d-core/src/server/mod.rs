@@ -308,7 +308,7 @@ impl Server {
                         self.world
                             .block_interaction(session.entity_id, position, face);
                     } else {
-                        self.world.set_block_at(
+                        self.world.urgent_set_block_at(
                             position,
                             crate::block::Block::AIR,
                             crate::block::BlockState::none(),
@@ -406,19 +406,21 @@ impl Server {
         self.tps = tps;
         self.world.tick(tps);
 
-        let pending_changes = std::mem::take(&mut self.world.pending_changes);
-        for change in pending_changes {
-            let (cpos, lpos, block, state) = change;
-            let world_pos = cpos * CHUNK_SIZE as i32 + lpos;
-            broadcast_message(
-                &mut self.sessions,
-                None,
-                S2CMessage::BlockUpdated {
-                    position: world_pos,
-                    block,
-                    block_state: state,
-                },
-            );
+        {
+            let pending_changes = &mut self.world.pending_changes;
+            for change in pending_changes {
+                let (cpos, lpos, block, state) = change;
+                let world_pos = cpos * CHUNK_SIZE as i32 + lpos;
+                broadcast_message(
+                    &mut self.sessions,
+                    None,
+                    S2CMessage::BlockUpdated {
+                        position: world_pos,
+                        block,
+                        block_state: state,
+                    },
+                );
+            }
         }
 
         for entity in self.world.entities.values() {
