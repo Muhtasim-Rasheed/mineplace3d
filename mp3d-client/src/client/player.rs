@@ -116,82 +116,6 @@ impl ClientPlayer {
     }
 
     pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
-        let yaw_rad = self.input.yaw.to_radians();
-        let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
-        let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
-        let mut movement = Vec3::ZERO;
-        movement += forward_vec * self.input.forward as f32;
-        movement += right_vec * self.input.strafe as f32;
-        if self.input.jump {
-            if self.flying {
-                movement.y += 0.8;
-            } else if self.on_ground {
-                self.velocity.y += 12.5;
-                self.on_ground = false;
-            }
-        }
-        if self.input.sneak && self.flying {
-            movement.y -= 0.8;
-        }
-        self.velocity += movement * dt * 50.0;
-
-        if !self.flying {
-            if self.on_ground && self.velocity.y < 0.0 {
-                self.velocity.y = 0.0;
-            } else {
-                self.velocity.y -= mp3d_core::entity::player::GRAVITY * dt;
-            }
-        }
-
-        if self.velocity.length_squared() > 10000.0 {
-            log::warn!("High velocity: {}", self.velocity);
-        }
-        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
-
-        // self.position.x += self.velocity.x * dt;
-        // if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-        //     self.position.x -= self.velocity.x * dt;
-        //     self.velocity.x = 0.0;
-        // }
-        // // self.position.y += self.velocity.y * dt;
-        // // self.on_ground = world.collides(
-        // //     Vec3::new(
-        // //         self.position.x,
-        // //         self.position.y - mp3d_core::entity::player::GROUND_EPSILON,
-        // //         self.position.z,
-        // //     ),
-        // //     PlayerEntity::width(),
-        // //     PlayerEntity::height(),
-        // // ) && self.velocity.y <= 0.0;
-        // // if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-        // //     self.position.y -= self.velocity.y * dt * 0.8;
-        // //     self.velocity.y = 0.0;
-        // // }
-        // self.position.y += self.velocity.y * dt;
-        // let collide_y = world.collides(self.position, PlayerEntity::width(), PlayerEntity::height());
-        // if collide_y {
-        //     self.position.y -= self.velocity.y * dt;
-        //     if self.velocity.y <= 0.0 {
-        //         self.on_ground = true;
-        //     }
-        //     self.velocity.y = 0.0;
-        // } else {
-        //     self.on_ground = world.collides(
-        //         Vec3::new(
-        //             self.position.x,
-        //             self.position.y - mp3d_core::entity::player::GROUND_EPSILON,
-        //             self.position.z,
-        //         ),
-        //         PlayerEntity::width(),
-        //         PlayerEntity::height(),
-        //     ) && self.velocity.y <= 0.0;
-        // }
-        // self.position.z += self.velocity.z * dt;
-        // if world.collides(self.position, PlayerEntity::width(), PlayerEntity::height()) {
-        //     self.position.z -= self.velocity.z * dt;
-        //     self.velocity.z = 0.0;
-        // }
-
         let new_pos_x = self.position.with_x(self.position.x + self.velocity.x * dt);
         if !world.collides(new_pos_x, PlayerEntity::width(), PlayerEntity::height()) {
             self.position.x = new_pos_x.x;
@@ -224,6 +148,38 @@ impl ClientPlayer {
         } else {
             self.velocity.z = 0.0;
         }
+
+        let yaw_rad = self.input.yaw.to_radians();
+        let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
+        let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
+        let mut movement = Vec3::ZERO;
+        movement += forward_vec * self.input.forward as f32 * 1.2;
+        movement += right_vec * self.input.strafe as f32 * 1.2;
+        if self.input.jump {
+            if self.flying {
+                movement.y += 0.8;
+            } else if self.on_ground {
+                self.velocity.y += mp3d_core::entity::player::JUMP;
+                self.on_ground = false;
+            }
+        }
+        if self.input.sneak && self.flying {
+            movement.y -= 0.8;
+        }
+        self.velocity += movement * dt * 50.0;
+
+        if !self.flying {
+            if self.on_ground && self.velocity.y < 0.0 {
+                self.velocity.y = 0.0;
+            } else {
+                self.velocity.y -= mp3d_core::entity::player::GRAVITY * dt;
+            }
+        }
+
+        if self.velocity.length_squared() > 10000.0 {
+            log::warn!("High velocity: {}", self.velocity);
+        }
+        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
         let d = 0.75_f32.powf(dt * 50.0);
         self.velocity.x *= d;

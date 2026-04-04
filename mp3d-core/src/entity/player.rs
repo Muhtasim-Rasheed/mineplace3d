@@ -9,7 +9,8 @@ use crate::{
     world::World,
 };
 
-pub const GRAVITY: f32 = 60.0;
+pub const GRAVITY: f32 = 45.0;
+pub const JUMP: f32 = 11.0;
 pub const GROUND_EPSILON: f32 = 0.0005;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -186,48 +187,6 @@ impl Entity for PlayerEntity {
     fn tick(&mut self, world: &mut World, tps: u8) {
         let delta_time = 1.0 / tps as f32;
 
-        let forward_vec = Vec3::new(
-            self.yaw.to_radians().sin(),
-            0.0,
-            self.yaw.to_radians().cos(),
-        );
-        let right_vec = Vec3::new(
-            self.yaw.to_radians().cos(),
-            0.0,
-            -self.yaw.to_radians().sin(),
-        );
-        let mut movement = Vec3::ZERO;
-        movement += forward_vec * self.input.forward;
-        movement += right_vec * self.input.strafe;
-        if self.input.jump {
-            if self.flying {
-                movement.y += 0.8;
-            } else if self.on_ground {
-                self.velocity.y += 12.5;
-                self.on_ground = false;
-            }
-        }
-        if self.input.sneak && self.flying {
-            movement.y -= 0.8;
-        }
-        self.velocity += movement * delta_time * 50.0;
-
-        self.pitch = self.pitch.clamp(-89.9, 89.9);
-        self.yaw = self.yaw.rem_euclid(360.0);
-
-        if !self.flying {
-            if self.on_ground {
-                self.velocity.y = 0.0;
-            } else {
-                self.velocity.y -= GRAVITY * delta_time;
-            }
-        }
-
-        if self.velocity.length_squared() > 10000.0 {
-            log::warn!("High velocity: {}", self.velocity);
-        }
-        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
-
         let new_pos_x = self
             .position
             .with_x(self.position.x + self.velocity.x * delta_time);
@@ -266,6 +225,48 @@ impl Entity for PlayerEntity {
         } else {
             self.velocity.z = 0.0;
         }
+
+        let forward_vec = Vec3::new(
+            self.yaw.to_radians().sin(),
+            0.0,
+            self.yaw.to_radians().cos(),
+        );
+        let right_vec = Vec3::new(
+            self.yaw.to_radians().cos(),
+            0.0,
+            -self.yaw.to_radians().sin(),
+        );
+        let mut movement = Vec3::ZERO;
+        movement += forward_vec * self.input.forward * 1.2;
+        movement += right_vec * self.input.strafe * 1.2;
+        if self.input.jump {
+            if self.flying {
+                movement.y += 0.8;
+            } else if self.on_ground {
+                self.velocity.y += JUMP;
+                self.on_ground = false;
+            }
+        }
+        if self.input.sneak && self.flying {
+            movement.y -= 0.8;
+        }
+        self.velocity += movement * delta_time * 50.0;
+
+        self.pitch = self.pitch.clamp(-89.9, 89.9);
+        self.yaw = self.yaw.rem_euclid(360.0);
+
+        if !self.flying {
+            if self.on_ground {
+                self.velocity.y = 0.0;
+            } else {
+                self.velocity.y -= GRAVITY * delta_time;
+            }
+        }
+
+        if self.velocity.length_squared() > 10000.0 {
+            log::warn!("High velocity: {}", self.velocity);
+        }
+        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
 
         let d = 0.75_f32.powf(delta_time * 50.0);
         self.velocity.x *= d;
