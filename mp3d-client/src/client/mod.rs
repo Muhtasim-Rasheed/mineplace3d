@@ -416,7 +416,7 @@ impl<C: Connection> Client<C> {
                     chunk,
                 } => {
                     self.world.chunks.insert(chunk_position, (*chunk).into());
-                    self.world.remesh_queue.push(chunk_position);
+                    self.world.remesh_queue.push(chunk_position, true);
                     // also push the other neighbor chunks to the remesh queue
                     for neighbor in [
                         chunk_position + IVec3::new(0, 0, -1),
@@ -426,18 +426,16 @@ impl<C: Connection> Client<C> {
                         chunk_position + IVec3::new(0, 1, 0),
                         chunk_position + IVec3::new(0, -1, 0),
                     ] {
-                        self.world.remesh_queue.push(neighbor);
+                        self.world.remesh_queue.push(neighbor, false);
                     }
                 }
                 S2CMessage::ChatMessage { message } => {
                     self.messages.push(message);
                 }
-                S2CMessage::BlockUpdated {
-                    position,
-                    block,
-                    block_state,
-                } => {
-                    self.world.set_block_at(position, block, block_state);
+                S2CMessage::BlocksUpdated { updates } => {
+                    for update in updates {
+                        self.world.set_block_at(update.position, update.block, update.block_state, update.urgent);
+                    }
                 }
                 S2CMessage::HotbarChanged { idx } => {
                     self.player.inventory.borrow_mut().slot = idx;

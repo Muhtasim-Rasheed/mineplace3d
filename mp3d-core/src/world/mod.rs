@@ -11,10 +11,11 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
+    UniqueQueue,
     block::{Block, BlockState},
     entity::{Entity, EntityType, PlayerEntity},
-    saving::{io::*, Saveable, WorldLoadError, SAVE_VERSION},
-    world::chunk::{Chunk, CHUNK_SIZE}, UniqueQueue,
+    saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    world::chunk::{CHUNK_SIZE, Chunk},
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -24,7 +25,7 @@ pub struct World {
     pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
     pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
     pub noise: fastnoise_lite::FastNoiseLite,
-    
+
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
     pub(super) player_cache: HashMap<String, PlayerEntity>,
@@ -32,7 +33,7 @@ pub struct World {
     /// Stores pending changes to blocks in the world. This is used to track changes that need to
     /// be sent to players.
     pub(super) pending_changes: PendingChanges,
-    
+
     /// A map of chunk positions to a map of local block positions to the new block and block
     /// state. This is used to track changes to chunks that have been modified by the player or
     /// other entities.
@@ -96,7 +97,8 @@ impl World {
             .entry(chunk_pos)
             .or_default()
             .insert(local_pos, (block, state));
-        self.pending_changes.push(chunk_pos, local_pos, block, state, true);
+        self.pending_changes
+            .push(chunk_pos, local_pos, block, state, true);
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -113,7 +115,8 @@ impl World {
             .entry(chunk_pos)
             .or_default()
             .insert(local_pos, (block, state));
-        self.pending_changes.push(chunk_pos, local_pos, block, state, false);
+        self.pending_changes
+            .push(chunk_pos, local_pos, block, state, false);
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -365,7 +368,14 @@ pub struct PendingChanges {
 }
 
 impl PendingChanges {
-    pub fn push(&mut self, chunk_pos: IVec3, local_pos: IVec3, block: Block, state: BlockState, urgent: bool) {
+    pub fn push(
+        &mut self,
+        chunk_pos: IVec3,
+        local_pos: IVec3,
+        block: Block,
+        state: BlockState,
+        urgent: bool,
+    ) {
         self.data.insert((chunk_pos, local_pos), (block, state));
         if urgent {
             self.urgent.push((chunk_pos, local_pos));
@@ -380,13 +390,17 @@ impl PendingChanges {
 }
 
 impl Iterator for PendingChanges {
-    type Item = (IVec3, IVec3, Block, BlockState);
+    type Item = (IVec3, IVec3, Block, BlockState, bool);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some((chunk_pos, local_pos)) = self.urgent.pop() {
-            self.data.remove(&(chunk_pos, local_pos)).map(|(block, state)| (chunk_pos, local_pos, block, state))
+            self.data
+                .remove(&(chunk_pos, local_pos))
+                .map(|(block, state)| (chunk_pos, local_pos, block, state, true))
         } else if let Some((chunk_pos, local_pos)) = self.normal.pop() {
-            self.data.remove(&(chunk_pos, local_pos)).map(|(block, state)| (chunk_pos, local_pos, block, state))
+            self.data
+                .remove(&(chunk_pos, local_pos))
+                .map(|(block, state)| (chunk_pos, local_pos, block, state, false))
         } else {
             None
         }

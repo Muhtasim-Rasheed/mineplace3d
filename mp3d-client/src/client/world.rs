@@ -22,10 +22,10 @@ pub struct ClientWorld {
     /// A mapping of chunk positions to their corresponding client-side chunk data.
     pub chunks: HashMap<IVec3, ClientChunk>,
     /// Changes done to the world that haven't been sent to the server yet.
+    #[allow(unused)]
     pub pending_changes: Vec<(IVec3, (Block, BlockState))>,
     /// Queue of chunks that need to be remeshed.
-    // pub remesh_queue: HashSet<IVec3>,
-    pub remesh_queue: UniqueQueue<IVec3>,
+    pub remesh_queue: RemeshQueue,
 }
 
 impl ClientWorld {
@@ -34,7 +34,7 @@ impl ClientWorld {
         Self {
             chunks: HashMap::new(),
             pending_changes: Vec::new(),
-            remesh_queue: UniqueQueue::new(),
+            remesh_queue: RemeshQueue::default(),
         }
     }
 
@@ -49,7 +49,7 @@ impl ClientWorld {
     }
 
     /// Sets a block at the given world position.
-    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
+    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState, urgent: bool) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -58,45 +58,44 @@ impl ClientWorld {
         if let Some(chunk) = chunk {
             chunk.set_block(local_pos, block, state);
             chunk.dirty = true;
-            self.remesh_queue.push(chunk_pos);
+            self.remesh_queue.push(chunk_pos, urgent);
         }
-        self.pending_changes.push((world_pos, (block, state)));
 
         // Mark neighboring chunks as dirty if the block is on the edge of the chunk
         if local_pos.x == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(-1, 0, 0))) {
                 neighbor.dirty = true;
-                self.remesh_queue.push(chunk_pos + IVec3::new(-1, 0, 0));
+                self.remesh_queue.push(chunk_pos + IVec3::new(-1, 0, 0), urgent);
             }
         } else if local_pos.x == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(1, 0, 0)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.push(chunk_pos + IVec3::new(1, 0, 0));
+            self.remesh_queue.push(chunk_pos + IVec3::new(1, 0, 0), urgent);
         }
 
         if local_pos.y == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, -1, 0))) {
                 neighbor.dirty = true;
-                self.remesh_queue.push(chunk_pos + IVec3::new(0, -1, 0));
+                self.remesh_queue.push(chunk_pos + IVec3::new(0, -1, 0), urgent);
             }
         } else if local_pos.y == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 1, 0)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.push(chunk_pos + IVec3::new(0, 1, 0));
+            self.remesh_queue.push(chunk_pos + IVec3::new(0, 1, 0), urgent);
         }
 
         if local_pos.z == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, -1))) {
                 neighbor.dirty = true;
-                self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, -1));
+                self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, -1), urgent);
             }
         } else if local_pos.z == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, 1)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, 1));
+            self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, 1), urgent);
         }
     }
 
@@ -177,5 +176,58 @@ impl ClientWorld {
         }
 
         false
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct RemeshQueue {
+    urgent: UniqueQueue<IVec3>,
+    normal: UniqueQueue<IVec3>,
+}
+
+impl RemeshQueue {
+    pub fn push(&mut self, pos: IVec3, urgent: bool) {
+        if urgent {
+            self.urgent.push(pos);
+        } else {
+            self.normal.push(pos);
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<IVec3> {
+        self.urgent.pop().or_else(|| self.normal.pop())
+    }
+
+    pub fn remove(&mut self, pos: &IVec3) {
+        self.urgent.remove(pos);
+        self.normal.remove(pos);
+    }
+
+    pub fn len(&self) -> usize {
+        self.urgent.len() + self.normal.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.urgent.is_empty() && self.normal.is_empty()
+    }
+
+    pub fn drain(&mut self, n: usize) -> Vec<IVec3> {
+        let mut drained = Vec::new();
+        for _ in 0..n {
+            if let Some(pos) = self.pop() {
+                drained.push(pos);
+            } else {
+                break;
+            }
+        }
+        drained
+    }
+}
+
+impl Iterator for RemeshQueue {
+    type Item = IVec3;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.pop()
     }
 }

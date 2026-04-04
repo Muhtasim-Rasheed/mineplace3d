@@ -284,6 +284,7 @@ impl Framebuffer {
     }
 
     /// Returns the depth texture of the framebuffer, if it exists.
+    #[allow(unused)]
     pub fn depth_texture(&self) -> Option<&Texture> {
         self.depth_tex.as_ref()
     }

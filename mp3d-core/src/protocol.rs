@@ -27,6 +27,15 @@ pub struct MoveInstructions {
     pub pitch: f32,
 }
 
+/// Represents an update to a block at a specified position with a given block and block state.
+#[derive(Clone, Debug)]
+pub struct BlockUpdate {
+    pub position: IVec3,
+    pub block: Block,
+    pub block_state: BlockState,
+    pub urgent: bool,
+}
+
 /// Messages sent from the client to the server.
 pub enum C2SMessage {
     /// Request to join a world. This contains credentials to register the player or log in if the
@@ -82,12 +91,8 @@ pub enum S2CMessage {
     },
     /// Update of a player's inventory.
     InventoryUpdated { inventory: crate::item::Inventory },
-    /// Update of a block at a specified position with a given block.
-    BlockUpdated {
-        position: IVec3,
-        block: Block,
-        block_state: BlockState,
-    },
+    /// Update of multiple blocks changed in one tick.
+    BlocksUpdated { updates: Vec<BlockUpdate> },
     /// Delivery of chunk data.
     ChunkData {
         chunk_position: IVec3,

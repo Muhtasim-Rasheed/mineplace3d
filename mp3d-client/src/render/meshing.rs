@@ -205,50 +205,141 @@ fn ao_for_vertex(side1: bool, side2: bool, corner: bool) -> u8 {
 const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
     // North face (-Z)
     [
-        [IVec3::new( 1,  0, -1), IVec3::new( 0, -1, -1), IVec3::new( 1, -1, -1)],
-        [IVec3::new(-1,  0, -1), IVec3::new( 0, -1, -1), IVec3::new(-1, -1, -1)],
-        [IVec3::new(-1,  0, -1), IVec3::new( 0,  1, -1), IVec3::new(-1,  1, -1)],
-        [IVec3::new( 1,  0, -1), IVec3::new( 0,  1, -1), IVec3::new( 1,  1, -1)],
+        [
+            IVec3::new(1, 0, -1),
+            IVec3::new(0, -1, -1),
+            IVec3::new(1, -1, -1),
+        ],
+        [
+            IVec3::new(-1, 0, -1),
+            IVec3::new(0, -1, -1),
+            IVec3::new(-1, -1, -1),
+        ],
+        [
+            IVec3::new(-1, 0, -1),
+            IVec3::new(0, 1, -1),
+            IVec3::new(-1, 1, -1),
+        ],
+        [
+            IVec3::new(1, 0, -1),
+            IVec3::new(0, 1, -1),
+            IVec3::new(1, 1, -1),
+        ],
     ],
-
     // South face (+Z)
     [
-        [IVec3::new(-1,  0,  1), IVec3::new( 0, -1,  1), IVec3::new(-1, -1,  1)],
-        [IVec3::new( 1,  0,  1), IVec3::new( 0, -1,  1), IVec3::new( 1, -1,  1)],
-        [IVec3::new( 1,  0,  1), IVec3::new( 0,  1,  1), IVec3::new( 1,  1,  1)],
-        [IVec3::new(-1,  0,  1), IVec3::new( 0,  1,  1), IVec3::new(-1,  1,  1)],
+        [
+            IVec3::new(-1, 0, 1),
+            IVec3::new(0, -1, 1),
+            IVec3::new(-1, -1, 1),
+        ],
+        [
+            IVec3::new(1, 0, 1),
+            IVec3::new(0, -1, 1),
+            IVec3::new(1, -1, 1),
+        ],
+        [
+            IVec3::new(1, 0, 1),
+            IVec3::new(0, 1, 1),
+            IVec3::new(1, 1, 1),
+        ],
+        [
+            IVec3::new(-1, 0, 1),
+            IVec3::new(0, 1, 1),
+            IVec3::new(-1, 1, 1),
+        ],
     ],
-
     // East face (+X)
     [
-        [IVec3::new( 1,  0,  1), IVec3::new( 1, -1,  0), IVec3::new( 1, -1,  1)],
-        [IVec3::new( 1,  0, -1), IVec3::new( 1, -1,  0), IVec3::new( 1, -1, -1)],
-        [IVec3::new( 1,  0, -1), IVec3::new( 1,  1,  0), IVec3::new( 1,  1, -1)],
-        [IVec3::new( 1,  0,  1), IVec3::new( 1,  1,  0), IVec3::new( 1,  1,  1)],
+        [
+            IVec3::new(1, 0, 1),
+            IVec3::new(1, -1, 0),
+            IVec3::new(1, -1, 1),
+        ],
+        [
+            IVec3::new(1, 0, -1),
+            IVec3::new(1, -1, 0),
+            IVec3::new(1, -1, -1),
+        ],
+        [
+            IVec3::new(1, 0, -1),
+            IVec3::new(1, 1, 0),
+            IVec3::new(1, 1, -1),
+        ],
+        [
+            IVec3::new(1, 0, 1),
+            IVec3::new(1, 1, 0),
+            IVec3::new(1, 1, 1),
+        ],
     ],
-
     // West face (-X)
     [
-        [IVec3::new(-1,  0, -1), IVec3::new(-1, -1,  0), IVec3::new(-1, -1, -1)],
-        [IVec3::new(-1,  0,  1), IVec3::new(-1, -1,  0), IVec3::new(-1, -1,  1)],
-        [IVec3::new(-1,  0,  1), IVec3::new(-1,  1,  0), IVec3::new(-1,  1,  1)],
-        [IVec3::new(-1,  0, -1), IVec3::new(-1,  1,  0), IVec3::new(-1,  1, -1)],
+        [
+            IVec3::new(-1, 0, -1),
+            IVec3::new(-1, -1, 0),
+            IVec3::new(-1, -1, -1),
+        ],
+        [
+            IVec3::new(-1, 0, 1),
+            IVec3::new(-1, -1, 0),
+            IVec3::new(-1, -1, 1),
+        ],
+        [
+            IVec3::new(-1, 0, 1),
+            IVec3::new(-1, 1, 0),
+            IVec3::new(-1, 1, 1),
+        ],
+        [
+            IVec3::new(-1, 0, -1),
+            IVec3::new(-1, 1, 0),
+            IVec3::new(-1, 1, -1),
+        ],
     ],
-
     // Up face (+Y)
     [
-        [IVec3::new( 1,  1,  0), IVec3::new( 0,  1, -1), IVec3::new( 1,  1, -1)],
-        [IVec3::new(-1,  1,  0), IVec3::new( 0,  1, -1), IVec3::new(-1,  1, -1)],
-        [IVec3::new(-1,  1,  0), IVec3::new( 0,  1,  1), IVec3::new(-1,  1,  1)],
-        [IVec3::new( 1,  1,  0), IVec3::new( 0,  1,  1), IVec3::new( 1,  1,  1)],
+        [
+            IVec3::new(1, 1, 0),
+            IVec3::new(0, 1, -1),
+            IVec3::new(1, 1, -1),
+        ],
+        [
+            IVec3::new(-1, 1, 0),
+            IVec3::new(0, 1, -1),
+            IVec3::new(-1, 1, -1),
+        ],
+        [
+            IVec3::new(-1, 1, 0),
+            IVec3::new(0, 1, 1),
+            IVec3::new(-1, 1, 1),
+        ],
+        [
+            IVec3::new(1, 1, 0),
+            IVec3::new(0, 1, 1),
+            IVec3::new(1, 1, 1),
+        ],
     ],
-
     // Down face (-Y)
     [
-        [IVec3::new( 1, -1,  0), IVec3::new( 0, -1,  1), IVec3::new( 1, -1,  1)],
-        [IVec3::new(-1, -1,  0), IVec3::new( 0, -1,  1), IVec3::new(-1, -1,  1)],
-        [IVec3::new(-1, -1,  0), IVec3::new( 0, -1, -1), IVec3::new(-1, -1, -1)],
-        [IVec3::new( 1, -1,  0), IVec3::new( 0, -1, -1), IVec3::new( 1, -1, -1)],
+        [
+            IVec3::new(1, -1, 0),
+            IVec3::new(0, -1, 1),
+            IVec3::new(1, -1, 1),
+        ],
+        [
+            IVec3::new(-1, -1, 0),
+            IVec3::new(0, -1, 1),
+            IVec3::new(-1, -1, 1),
+        ],
+        [
+            IVec3::new(-1, -1, 0),
+            IVec3::new(0, -1, -1),
+            IVec3::new(-1, -1, -1),
+        ],
+        [
+            IVec3::new(1, -1, 0),
+            IVec3::new(0, -1, -1),
+            IVec3::new(1, -1, -1),
+        ],
     ],
 ];
 
@@ -264,7 +355,7 @@ pub fn mesh_world(
 ) {
     use rayon::prelude::*;
 
-    const MAX_MESHES_PER_FRAME: usize = 6;
+    const MAX_MESHES_PER_FRAME: usize = 12;
 
     if world.remesh_queue.is_empty() {
         return;
@@ -330,11 +421,7 @@ fn mesh_chunk(
                     neighbors[1][1][1] = Some(chunk);
                     continue;
                 }
-                let idx = (
-                    (dx + 1) as usize,
-                    (dy + 1) as usize,
-                    (dz + 1) as usize,
-                );
+                let idx = ((dx + 1) as usize, (dy + 1) as usize, (dz + 1) as usize);
                 neighbors[idx.0][idx.1][idx.2] =
                     world.chunks.get(&(chunk_pos + IVec3::new(dx, dy, dz)));
             }
@@ -444,17 +531,31 @@ fn mesh_chunk(
 
                             if model.is_full_cube() {
                                 for vert_idx in 0..4 {
-                                    let [side1_off, side2_off, corner_off] = AO_NEIGHBORS[i][vert_idx];
+                                    let [side1_off, side2_off, corner_off] =
+                                        AO_NEIGHBORS[i][vert_idx];
 
-                                    let side1 = get_block(chunk_origin, block_world_pos + side1_off, neighbors);
-                                    let side2 = get_block(chunk_origin, block_world_pos + side2_off, neighbors);
-                                    let corner = get_block(chunk_origin, block_world_pos + corner_off, neighbors);
+                                    let side1 = get_block(
+                                        chunk_origin,
+                                        block_world_pos + side1_off,
+                                        neighbors,
+                                    );
+                                    let side2 = get_block(
+                                        chunk_origin,
+                                        block_world_pos + side2_off,
+                                        neighbors,
+                                    );
+                                    let corner = get_block(
+                                        chunk_origin,
+                                        block_world_pos + corner_off,
+                                        neighbors,
+                                    );
 
                                     let side1_full = block_is_full_cube(side1, block_models);
                                     let side2_full = block_is_full_cube(side2, block_models);
                                     let corner_full = block_is_full_cube(corner, block_models);
 
-                                    aos[vert_idx] = ao_for_vertex(side1_full, side2_full, corner_full);
+                                    aos[vert_idx] =
+                                        ao_for_vertex(side1_full, side2_full, corner_full);
                                 }
                             }
 
@@ -469,7 +570,8 @@ fn mesh_chunk(
                                 Vec2::new(uv_min.x, uv_max.y),
                                 Vec2::new(uv_max.x, uv_max.y),
                             ];
-                            for (i, (vert, uv)) in FACE_VERTS[i].iter().zip(uvs.iter()).enumerate() {
+                            for (i, (vert, uv)) in FACE_VERTS[i].iter().zip(uvs.iter()).enumerate()
+                            {
                                 vertices.push(ChunkVertex {
                                     position: *vert * (el.to - el.from)
                                         + el.from
