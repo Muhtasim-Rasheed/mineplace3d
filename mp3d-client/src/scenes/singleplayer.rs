@@ -459,6 +459,40 @@ impl super::Scene for SinglePlayer {
             gl.clear(glow::DEPTH_BUFFER_BIT);
             gl.disable(glow::DEPTH_TEST);
 
+            // draw crosshair
+            let crosshair_size = 20.0;
+            let crosshair_thickness = 2.0;
+            ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
+                rect: [
+                    Vec2::new(
+                        self.screen_size.x as f32 / 2.0 - crosshair_size / 2.0,
+                        self.screen_size.y as f32 / 2.0 - crosshair_thickness / 2.0,
+                    ),
+                    Vec2::new(
+                        self.screen_size.x as f32 / 2.0 + crosshair_size / 2.0,
+                        self.screen_size.y as f32 / 2.0 + crosshair_thickness / 2.0,
+                    ),
+                ],
+                uv_rect: [Vec2::ZERO, Vec2::ONE],
+                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                layer: 0,
+            });
+            ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
+                rect: [
+                    Vec2::new(
+                        self.screen_size.x as f32 / 2.0 - crosshair_thickness / 2.0,
+                        self.screen_size.y as f32 / 2.0 - crosshair_size / 2.0,
+                    ),
+                    Vec2::new(
+                        self.screen_size.x as f32 / 2.0 + crosshair_thickness / 2.0,
+                        self.screen_size.y as f32 / 2.0 + crosshair_size / 2.0,
+                    ),
+                ],
+                uv_rect: [Vec2::ZERO, Vec2::ONE],
+                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                layer: 0,
+            });
+
             // draw chat messages
             let messages = self
                 .client
