@@ -122,6 +122,7 @@ impl<C: Connection> Client<C> {
                 on_ground: false,
                 input: MoveInstructions::default(),
                 inventory: Rc::new(RefCell::new(ClientInventory::new())),
+                third_person: false,
             },
             user_id: None,
             entity_id: None,
@@ -193,6 +194,14 @@ impl<C: Connection> Client<C> {
                 .keyboard
                 .down
                 .contains(&sdl2::keyboard::Keycode::LShift);
+
+            if update_context
+                .keyboard
+                .pressed
+                .contains(&sdl2::keyboard::Keycode::F5)
+            {
+                self.player.third_person = !self.player.third_person;
+            }
 
             if update_context
                 .mouse
@@ -455,7 +464,7 @@ pub fn cast_ray(
     player: &player::ClientPlayer,
     max_distance: f32,
 ) -> Option<(IVec3, IVec3)> {
-    let mut pos = player.eye();
+    let mut pos = player.first_person_eye();
     let yaw_rad = player.yaw.to_radians();
     let pitch_rad = player.pitch.to_radians();
     let direction = Vec3::new(

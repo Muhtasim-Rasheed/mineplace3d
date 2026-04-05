@@ -45,15 +45,27 @@ pub struct ClientPlayer {
     pub on_ground: bool,
     pub input: MoveInstructions,
     pub inventory: Rc<RefCell<ClientInventory>>,
+    pub third_person: bool,
 }
 
 impl ClientPlayer {
-    pub fn eye(&self) -> Vec3 {
+    pub fn first_person_eye(&self) -> Vec3 {
         self.position + Vec3::new(0.0, 1.62, 0.0)
     }
 
-    pub fn view(&self) -> Mat4 {
-        let eye = self.eye();
+    pub fn third_person_eye(&self) -> Vec3 {
+        let yaw_rad = self.yaw.to_radians();
+        let pitch_rad = self.pitch.to_radians();
+        let forward = Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            -pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
+        ).normalize();
+        self.first_person_eye() - forward * 4.0
+    }
+
+    pub fn first_person_view(&self) -> Mat4 {
+        let eye = self.first_person_eye();
 
         let pitch_rad = self.pitch.to_radians();
         let yaw_rad = self.yaw.to_radians();
@@ -66,6 +78,30 @@ impl ClientPlayer {
         .normalize();
 
         Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
+    }
+
+    pub fn third_person_view(&self) -> Mat4 {
+        let eye = self.third_person_eye();
+
+        let pitch_rad = self.pitch.to_radians();
+        let yaw_rad = self.yaw.to_radians();
+
+        let forward = Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            -pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
+        )
+        .normalize();
+
+        Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
+    }
+
+    pub fn view(&self) -> Mat4 {
+        if self.third_person {
+            self.third_person_view()
+        } else {
+            self.first_person_view()
+        }
     }
 
     pub fn projection(&self, aspect_ratio: f32) -> Mat4 {
