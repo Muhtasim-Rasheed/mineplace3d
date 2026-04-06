@@ -387,7 +387,7 @@ impl super::Scene for SinglePlayer {
             self.renderer.chunk_shader.use_program();
             self.renderer
                 .chunk_shader
-                .set_uniform("u_view", self.client.player.view());
+                .set_uniform("u_view", self.client.player.view(&self.client.world));
             self.renderer.chunk_shader.set_uniform(
                 "u_projection",
                 self.client
@@ -407,7 +407,7 @@ impl super::Scene for SinglePlayer {
                     &self
                         .client
                         .player
-                        .frustum_planes(self.screen_size.x as f32 / self.screen_size.y as f32),
+                        .frustum_planes(self.screen_size.x as f32 / self.screen_size.y as f32, &self.client.world),
                 ) {
                     continue;
                 }
@@ -421,7 +421,7 @@ impl super::Scene for SinglePlayer {
             self.renderer
                 .cloud_renderer
                 .shader
-                .set_uniform("u_view", self.client.player.view());
+                .set_uniform("u_view", self.client.player.view(&self.client.world));
             self.renderer.cloud_renderer.shader.set_uniform(
                 "u_projection",
                 self.client

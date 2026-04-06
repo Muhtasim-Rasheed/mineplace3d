@@ -53,15 +53,46 @@ impl ClientPlayer {
         self.position + Vec3::new(0.0, 1.62, 0.0)
     }
 
-    pub fn third_person_eye(&self) -> Vec3 {
+    pub fn third_person_eye(&self, world: &ClientWorld) -> Vec3 {
+        let pivot = self.first_person_eye();
+
         let yaw_rad = self.yaw.to_radians();
         let pitch_rad = self.pitch.to_radians();
+
         let forward = Vec3::new(
             yaw_rad.sin() * pitch_rad.cos(),
             -pitch_rad.sin(),
             yaw_rad.cos() * pitch_rad.cos(),
-        ).normalize();
-        self.first_person_eye() - forward * 4.0
+        )
+        .normalize();
+
+        let backward = -forward;
+        let desired_distance = 3.0;
+        let step = 0.03;
+        let padding = 0.22;
+
+        let mut pos = pivot;
+        let mut traveled = 0.0;
+
+        while traveled <= desired_distance {
+            let block_pos = pos.floor().as_ivec3();
+
+            if let Some((block, state)) = world.get_block_at(block_pos) {
+                let local = pos - block_pos.as_vec3();
+
+                if block.visible {
+                    if let Some(normal) = block.ray_intersect(local, backward, *state) {
+                        let hit_normal = normal.as_vec3();
+                        return pos + hit_normal * padding;
+                    }
+                }
+            }
+
+            pos += backward * step;
+            traveled += step;
+        }
+
+        pivot + backward * desired_distance
     }
 
     pub fn first_person_view(&self) -> Mat4 {
@@ -80,8 +111,8 @@ impl ClientPlayer {
         Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
     }
 
-    pub fn third_person_view(&self) -> Mat4 {
-        let eye = self.third_person_eye();
+    pub fn third_person_view(&self, world: &ClientWorld) -> Mat4 {
+        let eye = self.third_person_eye(world);
 
         let pitch_rad = self.pitch.to_radians();
         let yaw_rad = self.yaw.to_radians();
@@ -96,9 +127,9 @@ impl ClientPlayer {
         Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
     }
 
-    pub fn view(&self) -> Mat4 {
+    pub fn view(&self, world: &ClientWorld) -> Mat4 {
         if self.third_person {
-            self.third_person_view()
+            self.third_person_view(world)
         } else {
             self.first_person_view()
         }
@@ -109,8 +140,8 @@ impl ClientPlayer {
     }
 
     /// Returns the frustum planes, which can be used for frustum culling of chunks.
-    pub fn frustum_planes(&self, aspect_ratio: f32) -> [Vec4; 6] {
-        let vp = self.projection(aspect_ratio) * self.view();
+    pub fn frustum_planes(&self, aspect_ratio: f32, world: &ClientWorld) -> [Vec4; 6] {
+        let vp = self.projection(aspect_ratio) * self.view(world);
         let m = vp.to_cols_array_2d();
 
         let row0 = Vec4::new(m[0][0], m[1][0], m[2][0], m[3][0]);
