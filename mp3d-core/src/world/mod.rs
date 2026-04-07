@@ -11,11 +11,7 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
-    UniqueQueue,
-    block::{Block, BlockState},
-    entity::{Entity, EntityType, PlayerEntity},
-    saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
-    world::chunk::{CHUNK_SIZE, Chunk},
+    block::{Block, BlockState}, entity::{Entity, EntityType, PlayerEntity}, protocol::{BlockUpdate, BlockUpdateKind}, saving::{io::*, Saveable, WorldLoadError, SAVE_VERSION}, world::chunk::{Chunk, CHUNK_SIZE}, UniqueQueue
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -89,7 +85,7 @@ impl World {
     ///
     /// **Urgent version**: The change is added to the urgent changes queue, which will be drained
     /// first when sending updates to players, and then cleared.
-    pub fn urgent_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
+    pub fn urgent_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState, kind: BlockUpdateKind) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -98,7 +94,13 @@ impl World {
             .or_default()
             .insert(local_pos, (block, state));
         self.pending_changes
-            .push(chunk_pos, local_pos, block, state, true);
+            .push(BlockUpdate {
+                position: world_pos,
+                block,
+                block_state: state,
+                urgent: true,
+                kind,
+            });
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -107,7 +109,7 @@ impl World {
     ///
     /// **Normal version**: The change is added to the normal changes queue, which will be sent to
     /// players after the urgent changes, and then cleared.
-    pub fn normal_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState) {
+    pub fn normal_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState, kind: BlockUpdateKind) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -116,7 +118,13 @@ impl World {
             .or_default()
             .insert(local_pos, (block, state));
         self.pending_changes
-            .push(chunk_pos, local_pos, block, state, false);
+            .push(BlockUpdate {
+                position: world_pos,
+                block,
+                block_state: state,
+                urgent: false,
+                kind,
+            });
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -191,7 +199,7 @@ impl World {
             updates.extend_from_slice(&chunk.random_tick(5, &self.chunks, *pos));
         }
         for update in updates {
-            self.normal_set_block_at(update.0, update.1, update.2);
+            self.normal_set_block_at(update.0, update.1, update.2, BlockUpdateKind::RandomTick);
         }
 
         let entity_ids: Vec<u64> = self.entities.keys().cloned().collect();
@@ -263,7 +271,7 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none())
+                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none(), BlockUpdateKind::Placed)
                     }
                     return;
                 }
@@ -284,7 +292,7 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none())
+                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none(), BlockUpdateKind::Placed)
                     }
                     return;
                 }
@@ -325,10 +333,10 @@ impl World {
                 .map(|(b, _)| b)
                 .unwrap_or(&Block::AIR);
 
-            self.urgent_set_block_at(place_pos, *block, state);
+            self.urgent_set_block_at(place_pos, *block, state, BlockUpdateKind::Placed);
 
             if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
-                self.urgent_set_block_at(place_pos, old_block, BlockState::none());
+                self.urgent_set_block_at(place_pos, old_block, BlockState::none(), BlockUpdateKind::Removed);
             }
         }
     }
@@ -340,12 +348,20 @@ impl World {
                 for z in -2..=2 {
                     if x * x + y * y + z * z <= radius_sq {
                         let pos = block_pos + IVec3::new(x, y, z);
-                        self.normal_set_block_at(pos, Block::AIR, BlockState::none());
+                        self.normal_set_block_at(pos, Block::AIR, BlockState::none(), BlockUpdateKind::Interaction);
                     }
                 }
             }
         }
     }
+}
+
+/// Position-less and priority-less version of [`BlockUpdate`]
+#[derive(Clone, Debug)]
+pub struct BlockChangeKey {
+    pub block: Block,
+    pub block_state: BlockState,
+    pub kind: BlockUpdateKind,
 }
 
 #[derive(Debug, Default)]
@@ -354,33 +370,36 @@ pub struct PendingChanges {
     ///
     /// **Urgent version**: Changes that are added to this queue will be sent to players before the
     /// normal changes, and then cleared.
-    pub urgent: UniqueQueue<(IVec3, IVec3)>,
+    pub urgent: UniqueQueue<IVec3>,
 
     /// Also stores changes, but will be sent to players and then cleared.
     ///
     /// **Normal version**: Changes that are added to this queue will be sent to players after the
     /// urgent changes, and then cleared.
-    pub normal: UniqueQueue<(IVec3, IVec3)>,
+    pub normal: UniqueQueue<IVec3>,
 
     /// Stores data for the two queues above. This makes sure that if a block is changed multiple
     /// times in a tick, only the final state is sent to the players.
-    pub data: HashMap<(IVec3, IVec3), (Block, BlockState)>,
+    pub data: HashMap<IVec3, BlockChangeKey>,
 }
 
 impl PendingChanges {
     pub fn push(
         &mut self,
-        chunk_pos: IVec3,
-        local_pos: IVec3,
-        block: Block,
-        state: BlockState,
-        urgent: bool,
+        update: BlockUpdate,
     ) {
-        self.data.insert((chunk_pos, local_pos), (block, state));
-        if urgent {
-            self.urgent.push((chunk_pos, local_pos));
+        self.data.insert(
+            update.position,
+            BlockChangeKey {
+                block: update.block,
+                block_state: update.block_state,
+                kind: update.kind,
+            },
+        );
+        if update.urgent {
+            self.urgent.push(update.position);
         } else {
-            self.normal.push((chunk_pos, local_pos));
+            self.normal.push(update.position);
         }
     }
 
@@ -390,17 +409,25 @@ impl PendingChanges {
 }
 
 impl Iterator for PendingChanges {
-    type Item = (IVec3, IVec3, Block, BlockState, bool);
+    type Item = BlockUpdate;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((chunk_pos, local_pos)) = self.urgent.pop() {
-            self.data
-                .remove(&(chunk_pos, local_pos))
-                .map(|(block, state)| (chunk_pos, local_pos, block, state, true))
-        } else if let Some((chunk_pos, local_pos)) = self.normal.pop() {
-            self.data
-                .remove(&(chunk_pos, local_pos))
-                .map(|(block, state)| (chunk_pos, local_pos, block, state, false))
+        if let Some(pos) = self.urgent.pop() {
+            self.data.remove(&pos).map(|change| BlockUpdate {
+                position: pos,
+                block: change.block,
+                block_state: change.block_state,
+                urgent: true,
+                kind: change.kind,
+            })
+        } else if let Some(pos) = self.normal.pop() {
+            self.data.remove(&pos).map(|change| BlockUpdate {
+                position: pos,
+                block: change.block,
+                block_state: change.block_state,
+                urgent: false,
+                kind: change.kind,
+            })
         } else {
             None
         }

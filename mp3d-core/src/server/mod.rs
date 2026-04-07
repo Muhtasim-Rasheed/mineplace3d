@@ -312,6 +312,7 @@ impl Server {
                             position,
                             crate::block::Block::AIR,
                             crate::block::BlockState::none(),
+                            crate::protocol::BlockUpdateKind::Removed,
                         );
                     }
                 }
@@ -406,26 +407,14 @@ impl Server {
         self.tps = tps;
         self.world.tick(tps);
 
-        {
-            let pending_changes = std::mem::take(&mut self.world.pending_changes)
-                .map(|(cpos, lpos, block, state, urgent)| {
-                    let world_pos = cpos * CHUNK_SIZE as i32 + lpos;
-                    BlockUpdate {
-                        position: world_pos,
-                        block,
-                        block_state: state,
-                        urgent,
-                    }
-                })
-                .collect::<Vec<_>>();
-            broadcast_message(
-                &mut self.sessions,
-                None,
-                S2CMessage::BlocksUpdated {
-                    updates: pending_changes,
-                },
-            );
-        }
+        let pending_changes = std::mem::take(&mut self.world.pending_changes).collect::<Vec<_>>();
+        broadcast_message(
+            &mut self.sessions,
+            None,
+            S2CMessage::BlocksUpdated {
+                updates: pending_changes,
+            },
+        );
 
         for entity in self.world.entities.values() {
             if let Some(entity) = entity.as_any().downcast_ref::<PlayerEntity>()

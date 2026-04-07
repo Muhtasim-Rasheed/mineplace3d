@@ -27,6 +27,20 @@ pub struct MoveInstructions {
     pub pitch: f32,
 }
 
+/// The type of block update, which can be used to determine how the client should animate the
+/// update.
+#[derive(Clone, Copy, Debug)]
+pub enum BlockUpdateKind {
+    /// A block was placed by a player.
+    Placed,
+    /// A block was removed by a player.
+    Removed,
+    /// A block was updated.
+    RandomTick,
+    /// A block was affected by an interaction result.
+    Interaction,
+}
+
 /// Represents an update to a block at a specified position with a given block and block state.
 #[derive(Clone, Debug)]
 pub struct BlockUpdate {
@@ -34,6 +48,7 @@ pub struct BlockUpdate {
     pub block: Block,
     pub block_state: BlockState,
     pub urgent: bool,
+    pub kind: BlockUpdateKind,
 }
 
 /// Messages sent from the client to the server.
