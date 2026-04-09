@@ -1,13 +1,8 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
-
 use glam::{Vec2, Vec4};
 
-use crate::{
-    abs::TextureHandle,
-    render::ui::widgets::{Font, Label, NineSlice, Stack, Widget},
-};
+use crate::render::ui::widgets::{Label, NineSlice, Stack, Widget};
 
 pub struct Button {
     pub position: Vec2,
@@ -22,19 +17,10 @@ pub struct Button {
     hovered: bool,
     hover_last: bool,
     stack: Stack,
-    texture: TextureHandle,
-    font: Rc<Font>,
 }
 
 impl Button {
-    pub fn new(
-        label: &str,
-        label_color: Vec4,
-        label_font_size: f32,
-        size: Vec2,
-        font: &Rc<Font>,
-        texture: TextureHandle,
-    ) -> Self {
+    pub fn new(label: &str, label_color: Vec4, label_font_size: f32, size: Vec2) -> Self {
         let stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
         let mut button = Self {
             position: Vec2::ZERO,
@@ -49,8 +35,6 @@ impl Button {
             hovered: false,
             hover_last: false,
             stack,
-            texture,
-            font: Rc::clone(font),
         };
 
         button.setup_stack();
@@ -61,7 +45,6 @@ impl Button {
     fn setup_stack(&mut self) {
         self.stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
         self.stack.add_widget(NineSlice::new(
-            self.texture,
             [
                 if self.is_down {
                     glam::uvec2(16, 0)
@@ -88,7 +71,6 @@ impl Button {
             &self.label,
             self.label_font_size,
             self.label_color,
-            &self.font,
         ));
     }
 
@@ -150,7 +132,7 @@ impl Widget for Button {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, _ctx: &super::LayoutContext) -> Vec2 {
         self.size
     }
 
@@ -168,11 +150,12 @@ impl Widget for Button {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let measured_size = self.size_hint().min(ctx.max_size);
+        let measured_size = self.size_hint(ctx).min(ctx.max_size);
         self.position = ctx.cursor;
         let layout_ctx = super::LayoutContext {
             max_size: measured_size,
             cursor: self.position,
+            assets: ctx.assets,
         };
         self.stack.layout(&layout_ctx);
         Vec2::new(

@@ -11,7 +11,12 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
-    block::{Block, BlockState}, entity::{Entity, EntityType, PlayerEntity}, protocol::{BlockUpdate, BlockUpdateKind}, saving::{io::*, Saveable, WorldLoadError, SAVE_VERSION}, world::chunk::{Chunk, CHUNK_SIZE}, UniqueQueue
+    UniqueQueue,
+    block::{Block, BlockState},
+    entity::{Entity, EntityType, PlayerEntity},
+    protocol::{BlockUpdate, BlockUpdateKind},
+    saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    world::chunk::{CHUNK_SIZE, Chunk},
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -85,7 +90,13 @@ impl World {
     ///
     /// **Urgent version**: The change is added to the urgent changes queue, which will be drained
     /// first when sending updates to players, and then cleared.
-    pub fn urgent_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState, kind: BlockUpdateKind) {
+    pub fn urgent_set_block_at(
+        &mut self,
+        world_pos: IVec3,
+        block: Block,
+        state: BlockState,
+        kind: BlockUpdateKind,
+    ) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -93,14 +104,13 @@ impl World {
             .entry(chunk_pos)
             .or_default()
             .insert(local_pos, (block, state));
-        self.pending_changes
-            .push(BlockUpdate {
-                position: world_pos,
-                block,
-                block_state: state,
-                urgent: true,
-                kind,
-            });
+        self.pending_changes.push(BlockUpdate {
+            position: world_pos,
+            block,
+            block_state: state,
+            urgent: true,
+            kind,
+        });
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -109,7 +119,13 @@ impl World {
     ///
     /// **Normal version**: The change is added to the normal changes queue, which will be sent to
     /// players after the urgent changes, and then cleared.
-    pub fn normal_set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState, kind: BlockUpdateKind) {
+    pub fn normal_set_block_at(
+        &mut self,
+        world_pos: IVec3,
+        block: Block,
+        state: BlockState,
+        kind: BlockUpdateKind,
+    ) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -117,14 +133,13 @@ impl World {
             .entry(chunk_pos)
             .or_default()
             .insert(local_pos, (block, state));
-        self.pending_changes
-            .push(BlockUpdate {
-                position: world_pos,
-                block,
-                block_state: state,
-                urgent: false,
-                kind,
-            });
+        self.pending_changes.push(BlockUpdate {
+            position: world_pos,
+            block,
+            block_state: state,
+            urgent: false,
+            kind,
+        });
         let chunk = self.get_chunk_mut_or_new(chunk_pos);
         chunk.set_block(local_pos, block, state);
     }
@@ -271,7 +286,12 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none(), BlockUpdateKind::Placed)
+                        self.urgent_set_block_at(
+                            block_pos,
+                            Block::STONE,
+                            BlockState::none(),
+                            BlockUpdateKind::Placed,
+                        )
                     }
                     return;
                 }
@@ -292,7 +312,12 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.urgent_set_block_at(block_pos, Block::STONE, BlockState::none(), BlockUpdateKind::Placed)
+                        self.urgent_set_block_at(
+                            block_pos,
+                            Block::STONE,
+                            BlockState::none(),
+                            BlockUpdateKind::Placed,
+                        )
                     }
                     return;
                 }
@@ -336,7 +361,12 @@ impl World {
             self.urgent_set_block_at(place_pos, *block, state, BlockUpdateKind::Placed);
 
             if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
-                self.urgent_set_block_at(place_pos, old_block, BlockState::none(), BlockUpdateKind::Removed);
+                self.urgent_set_block_at(
+                    place_pos,
+                    old_block,
+                    BlockState::none(),
+                    BlockUpdateKind::Removed,
+                );
             }
         }
     }
@@ -348,7 +378,12 @@ impl World {
                 for z in -2..=2 {
                     if x * x + y * y + z * z <= radius_sq {
                         let pos = block_pos + IVec3::new(x, y, z);
-                        self.normal_set_block_at(pos, Block::AIR, BlockState::none(), BlockUpdateKind::Interaction);
+                        self.normal_set_block_at(
+                            pos,
+                            Block::AIR,
+                            BlockState::none(),
+                            BlockUpdateKind::Interaction,
+                        );
                     }
                 }
             }
@@ -384,10 +419,7 @@ pub struct PendingChanges {
 }
 
 impl PendingChanges {
-    pub fn push(
-        &mut self,
-        update: BlockUpdate,
-    ) {
+    pub fn push(&mut self, update: BlockUpdate) {
         self.data.insert(
             update.position,
             BlockChangeKey {
@@ -405,6 +437,10 @@ impl PendingChanges {
 
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }
 

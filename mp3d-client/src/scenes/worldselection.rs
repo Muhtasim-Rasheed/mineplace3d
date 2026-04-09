@@ -1,66 +1,39 @@
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use glam::{Vec2, Vec4};
 use glow::HasContext;
 
 use crate::{
-    abs::TextureHandle,
     render::ui::{uirenderer::UIRenderer, widgets::*},
+    scenes::Assets,
 };
 
 pub struct WorldSelection {
     container: Row,
     selected: Option<usize>,
     previous_worlds: Vec<String>,
-    font: Rc<Font>,
-    texture: TextureHandle,
 }
 
 impl WorldSelection {
-    pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
-        let header = Label::new("Select World", 48.0, Vec4::ONE, font);
+    pub fn new(assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
+        let header = Label::new("Select World", 48.0, Vec4::ONE);
 
-        let create_button = Button::new(
-            "Create New World",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let create_button =
+            Button::new("Create New World", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
-        let mut join_button = Button::new(
-            "Join World",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let mut join_button = Button::new("Join World", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         let mut delete_button = Button::new(
             "Delete World",
             Vec4::new(1.0, 0.5, 0.5, 1.0),
             24.0,
             Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
         );
 
         join_button.disabled = true;
         delete_button.disabled = true;
 
-        let back_button = Button::new(
-            "Back",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let back_button = Button::new("Back", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         let mut buttons = Column::new(
             5.0,
@@ -92,14 +65,7 @@ impl WorldSelection {
             None,
         );
         for world in Self::get_worlds() {
-            let world_button = Button::new(
-                &world,
-                Vec4::ONE,
-                24.0,
-                Vec2::new(500.0, 80.0),
-                font,
-                gui_tex,
-            );
+            let world_button = Button::new(&world, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
             world_list.add_widget(world_button);
         }
 
@@ -124,14 +90,13 @@ impl WorldSelection {
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
         Self {
             container,
             selected: None,
             previous_worlds: Self::get_worlds(),
-            font: font.clone(),
-            texture: gui_tex,
         }
     }
 
@@ -158,9 +123,9 @@ impl super::Scene for WorldSelection {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         _sdl_ctx: &sdl2::Sdl,
-        _assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         config: &Arc<RwLock<super::ClientConfig>>,
-    ) -> super::SceneSwitch {
+    ) -> super::SceneAction {
         self.container
             .get_widget_mut::<Column>(1)
             .unwrap()
@@ -168,6 +133,7 @@ impl super::Scene for WorldSelection {
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
         self.container.update(ctx);
 
@@ -176,7 +142,7 @@ impl super::Scene for WorldSelection {
             .pressed
             .contains(&sdl2::keyboard::Keycode::Escape)
         {
-            return super::SceneSwitch::Pop;
+            return super::SceneAction::Pop;
         }
 
         if self.previous_worlds != Self::get_worlds() {
@@ -184,14 +150,7 @@ impl super::Scene for WorldSelection {
             let world_list = self.container.find_widget_mut::<Column>(&[1, 0]).unwrap();
             world_list.widgets.clear();
             for world in &self.previous_worlds {
-                let world_button = Button::new(
-                    world,
-                    Vec4::ONE,
-                    24.0,
-                    Vec2::new(500.0, 80.0),
-                    &self.font,
-                    self.texture,
-                );
+                let world_button = Button::new(world, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
                 world_list.add_widget(world_button);
             }
         }
@@ -241,9 +200,8 @@ impl super::Scene for WorldSelection {
             .is_released()
         {
             log::info!("Creating new world");
-            return super::SceneSwitch::Push(Box::new(super::worldcreation::WorldCreation::new(
-                &self.font,
-                self.texture,
+            return super::SceneAction::Push(Box::new(super::worldcreation::WorldCreation::new(
+                assets,
                 window.size(),
             )));
         }
@@ -256,10 +214,9 @@ impl super::Scene for WorldSelection {
         {
             let world_name = self.previous_worlds[self.selected.unwrap()].clone();
             log::info!("Joining world {}", world_name);
-            return super::SceneSwitch::Push(Box::new(super::singleplayer::SinglePlayer::load(
+            return super::SceneAction::Push(Box::new(super::singleplayer::SinglePlayer::load(
                 gl,
-                &self.font,
-                self.texture,
+                assets,
                 window.size(),
                 crate::get_saves_dir().join(world_name),
                 config.read().unwrap().username.clone(),
@@ -280,6 +237,7 @@ impl super::Scene for WorldSelection {
             self.container.layout(&LayoutContext {
                 max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
                 cursor: Vec2::ZERO,
+                assets,
             });
         }
 
@@ -289,17 +247,17 @@ impl super::Scene for WorldSelection {
             .unwrap()
             .is_released()
         {
-            return super::SceneSwitch::Pop;
+            return super::SceneAction::Pop;
         }
 
-        super::SceneSwitch::None
+        super::SceneAction::None
     }
 
     fn render(
         &mut self,
         gl: &Arc<glow::Context>,
         ui: &mut UIRenderer,
-        assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         _config: &Arc<RwLock<super::ClientConfig>>,
     ) {
         unsafe {

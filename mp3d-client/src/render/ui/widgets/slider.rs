@@ -1,13 +1,8 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
-
 use glam::{Vec2, Vec4};
 
-use crate::{
-    abs::TextureHandle,
-    render::ui::widgets::{Font, Label, NineSlice, Stack, Widget},
-};
+use crate::render::ui::widgets::{Label, NineSlice, Stack, Widget};
 
 /// Width : Height ratio of the knob.
 const KNOB_ASP_RATIO: f32 = 2.0 / 5.0;
@@ -25,8 +20,6 @@ pub struct Slider {
     hovered: bool,
     stack: Stack,
     knob: NineSlice,
-    texture: TextureHandle,
-    font: Rc<Font>,
 }
 
 impl Slider {
@@ -36,13 +29,10 @@ impl Slider {
         label_font_size: f32,
         size: Vec2,
         range: std::ops::RangeInclusive<f32>,
-        font: &Rc<Font>,
-        texture: TextureHandle,
     ) -> Self {
         let stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
         let knob_size_y = size.y * 1.2;
         let knob = NineSlice::new(
-            texture,
             [glam::uvec2(48, 0), glam::uvec2(8, 16)],
             Vec2::new(knob_size_y * KNOB_ASP_RATIO, knob_size_y),
             glam::uvec4(2, 2, 2, 2),
@@ -63,8 +53,6 @@ impl Slider {
             hovered: false,
             stack,
             knob,
-            texture,
-            font: Rc::clone(font),
         };
 
         slider.setup_widgets();
@@ -91,7 +79,6 @@ impl Slider {
 
     fn setup_widgets(&mut self) {
         self.stack.add_widget(NineSlice::new(
-            self.texture,
             [glam::uvec2(32, 0), glam::uvec2(16, 16)],
             self.size,
             glam::uvec4(6, 6, 4, 4),
@@ -107,7 +94,6 @@ impl Slider {
             &self.label_text(),
             self.label_font_size,
             self.label_color,
-            &self.font,
         ));
         self.knob.position = self.knob_position();
     }
@@ -127,7 +113,7 @@ impl Widget for Slider {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, _ctx: &super::LayoutContext) -> Vec2 {
         self.size
     }
 
@@ -153,15 +139,17 @@ impl Widget for Slider {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let measured_size = self.size_hint();
+        let measured_size = self.size_hint(ctx);
         self.position = ctx.cursor;
         self.stack.layout(&super::LayoutContext {
             max_size: measured_size,
             cursor: self.position,
+            assets: ctx.assets,
         });
         self.knob.layout(&super::LayoutContext {
             max_size: measured_size,
             cursor: self.knob_position(),
+            assets: ctx.assets,
         });
         Vec2::new(
             measured_size.x.min(ctx.max_size.x),

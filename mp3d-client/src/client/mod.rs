@@ -443,7 +443,12 @@ impl<C: Connection> Client<C> {
                 }
                 S2CMessage::BlocksUpdated { updates } => {
                     for update in updates {
-                        self.world.set_block_at(update.position, update.block, update.block_state, update.urgent);
+                        self.world.set_block_at(
+                            update.position,
+                            update.block,
+                            update.block_state,
+                            update.urgent,
+                        );
                     }
                 }
                 S2CMessage::HotbarChanged { idx } => {

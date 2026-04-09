@@ -49,7 +49,13 @@ impl ClientWorld {
     }
 
     /// Sets a block at the given world position.
-    pub fn set_block_at(&mut self, world_pos: IVec3, block: Block, state: BlockState, urgent: bool) {
+    pub fn set_block_at(
+        &mut self,
+        world_pos: IVec3,
+        block: Block,
+        state: BlockState,
+        urgent: bool,
+    ) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -65,37 +71,43 @@ impl ClientWorld {
         if local_pos.x == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(-1, 0, 0))) {
                 neighbor.dirty = true;
-                self.remesh_queue.push(chunk_pos + IVec3::new(-1, 0, 0), urgent);
+                self.remesh_queue
+                    .push(chunk_pos + IVec3::new(-1, 0, 0), urgent);
             }
         } else if local_pos.x == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(1, 0, 0)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.push(chunk_pos + IVec3::new(1, 0, 0), urgent);
+            self.remesh_queue
+                .push(chunk_pos + IVec3::new(1, 0, 0), urgent);
         }
 
         if local_pos.y == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, -1, 0))) {
                 neighbor.dirty = true;
-                self.remesh_queue.push(chunk_pos + IVec3::new(0, -1, 0), urgent);
+                self.remesh_queue
+                    .push(chunk_pos + IVec3::new(0, -1, 0), urgent);
             }
         } else if local_pos.y == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 1, 0)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.push(chunk_pos + IVec3::new(0, 1, 0), urgent);
+            self.remesh_queue
+                .push(chunk_pos + IVec3::new(0, 1, 0), urgent);
         }
 
         if local_pos.z == 0 {
             if let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, -1))) {
                 neighbor.dirty = true;
-                self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, -1), urgent);
+                self.remesh_queue
+                    .push(chunk_pos + IVec3::new(0, 0, -1), urgent);
             }
         } else if local_pos.z == CHUNK_SIZE as i32 - 1
             && let Some(neighbor) = self.chunks.get_mut(&(chunk_pos + IVec3::new(0, 0, 1)))
         {
             neighbor.dirty = true;
-            self.remesh_queue.push(chunk_pos + IVec3::new(0, 0, 1), urgent);
+            self.remesh_queue
+                .push(chunk_pos + IVec3::new(0, 0, 1), urgent);
         }
     }
 

@@ -35,6 +35,7 @@ pub struct Column {
     pub scroll_offset: f32,
     pub viewport_height: Option<f32>,
     scroll_vel: f32,
+    last_height: f32,
 }
 
 impl Column {
@@ -57,6 +58,7 @@ impl Column {
             scroll_offset: 0.0,
             viewport_height,
             scroll_vel: 0.0,
+            last_height: 0.0,
         }
     }
 
@@ -144,12 +146,12 @@ impl Widget for Column {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, ctx: &super::LayoutContext) -> Vec2 {
         let mut width: f32 = 0.0;
         let mut height: f32 = 0.0;
 
         for widget in &self.widgets {
-            let size = widget.size_hint();
+            let size = widget.size_hint(ctx);
             width = width.max(size.x);
             height += size.y;
         }
@@ -162,12 +164,12 @@ impl Widget for Column {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let total_height_widget = self.widgets.iter().map(|w| w.size_hint().y).sum::<f32>();
+        let total_height_widget = self.widgets.iter().map(|w| w.size_hint(ctx).y).sum::<f32>();
 
         let mut total_height: f32 = 0.0;
 
         for widget in &self.widgets {
-            total_height += widget.size_hint().y;
+            total_height += widget.size_hint(ctx).y;
         }
 
         let spacing = match self.justification {
@@ -195,7 +197,7 @@ impl Widget for Column {
         };
 
         for widget in self.widgets.iter_mut() {
-            let widget_size = widget.size_hint();
+            let widget_size = widget.size_hint(ctx);
             let offset_x = match self.alignment {
                 Alignment::Start => self.padding.x,
                 Alignment::Center => (ctx.max_size.x - widget_size.x) / 2.0,
@@ -205,11 +207,14 @@ impl Widget for Column {
             let layout_ctx = super::LayoutContext {
                 max_size: Vec2::new(widget_size.x, widget_size.y),
                 cursor: Vec2::new(ctx.cursor.x + offset_x, cursor_y),
+                assets: ctx.assets,
             };
 
             widget.layout(&layout_ctx);
             cursor_y += widget_size.y + spacing;
         }
+
+        self.last_height = (total_height + self.padding.y + self.padding.w).max(self.min_size.y);
 
         Vec2::new(
             ctx.max_size.x,
@@ -228,8 +233,8 @@ impl Widget for Column {
                 self.scroll_vel = 0.0;
             }
 
-            if self.scroll_offset > self.size_hint().y - viewport_height {
-                self.scroll_offset = (self.size_hint().y - viewport_height).max(0.0);
+            if self.scroll_offset > self.last_height - viewport_height {
+                self.scroll_offset = (self.last_height - viewport_height).max(0.0);
                 self.scroll_vel = 0.0;
             }
         }
@@ -363,12 +368,12 @@ impl Widget for Row {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, ctx: &super::LayoutContext) -> Vec2 {
         let mut width: f32 = 0.0;
         let mut height: f32 = 0.0;
 
         for widget in &self.widgets {
-            let size = widget.size_hint();
+            let size = widget.size_hint(ctx);
             width += size.x;
             height = height.max(size.y);
         }
@@ -387,12 +392,12 @@ impl Widget for Row {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let total_width_widget = self.widgets.iter().map(|w| w.size_hint().x).sum::<f32>();
+        let total_width_widget = self.widgets.iter().map(|w| w.size_hint(ctx).x).sum::<f32>();
 
         let mut total_width: f32 = 0.0;
 
         for widget in &self.widgets {
-            total_width += widget.size_hint().x;
+            total_width += widget.size_hint(ctx).x;
         }
 
         let spacing = match self.justification {
@@ -416,7 +421,7 @@ impl Widget for Row {
         };
 
         for widget in self.widgets.iter_mut() {
-            let widget_size = widget.size_hint();
+            let widget_size = widget.size_hint(ctx);
             let offset_y = match self.alignment {
                 Alignment::Start => self.padding.z,
                 Alignment::Center => (ctx.max_size.y - widget_size.y) / 2.0,
@@ -426,6 +431,7 @@ impl Widget for Row {
             let layout_ctx = super::LayoutContext {
                 max_size: Vec2::new(widget_size.x, widget_size.y),
                 cursor: Vec2::new(cursor_x, ctx.cursor.y + offset_y),
+                assets: ctx.assets,
             };
 
             widget.layout(&layout_ctx);
@@ -552,12 +558,12 @@ impl Widget for Stack {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, ctx: &super::LayoutContext) -> Vec2 {
         let mut width: f32 = 0.0;
         let mut height: f32 = 0.0;
 
         for widget in &self.widgets {
-            let size = widget.size_hint();
+            let size = widget.size_hint(ctx);
             width = width.max(size.x);
             height = height.max(size.y);
         }
@@ -579,7 +585,7 @@ impl Widget for Stack {
         let mut max_height: f32 = 0.0;
 
         for widget in &mut self.widgets {
-            let widget_size = widget.size_hint();
+            let widget_size = widget.size_hint(ctx);
             let offset_x = match self.align_x {
                 Alignment::Start => 0.0,
                 Alignment::Center => (ctx.max_size.x - 2.0 * self.padding - widget_size.x) / 2.0,
@@ -594,6 +600,7 @@ impl Widget for Stack {
             let layout_ctx = super::LayoutContext {
                 max_size: Vec2::new(widget_size.x, widget_size.y),
                 cursor: ctx.cursor + Vec2::new(offset_x, offset_y),
+                assets: ctx.assets,
             };
 
             let final_size = widget.layout(&layout_ctx);
@@ -722,12 +729,12 @@ impl Widget for Grid {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, ctx: &super::LayoutContext) -> Vec2 {
         let mut max_col_widths = vec![0.0_f32; self.columns];
         let mut max_row_heights = vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
 
         for (i, widget) in self.widgets.iter().enumerate() {
-            let size = widget.size_hint();
+            let size = widget.size_hint(ctx);
             let col = i % self.columns;
             let row = i / self.columns;
             max_col_widths[col] = max_col_widths[col].max(size.x);
@@ -756,7 +763,7 @@ impl Widget for Grid {
         let mut max_row_heights = vec![0.0_f32; self.widgets.len().div_ceil(self.columns)];
 
         for (i, widget) in self.widgets.iter().enumerate() {
-            let size = widget.size_hint();
+            let size = widget.size_hint(ctx);
             let col = i % self.columns;
             let row = i / self.columns;
             max_col_widths[col] = max_col_widths[col].max(size.x);
@@ -780,7 +787,7 @@ impl Widget for Grid {
                 }
 
                 let widget = &mut self.widgets[index];
-                let widget_size = widget.size_hint();
+                let widget_size = widget.size_hint(ctx);
 
                 let offset_x = match self.alignment {
                     Alignment::Start => 0.0,
@@ -791,6 +798,7 @@ impl Widget for Grid {
                 let layout_ctx = super::LayoutContext {
                     max_size: Vec2::new(widget_size.x, widget_size.y),
                     cursor: Vec2::new(cursor_x + offset_x, cursor_y),
+                    assets: ctx.assets,
                 };
 
                 widget.layout(&layout_ctx);

@@ -429,11 +429,11 @@ fn mesh_chunk(
     }
 
     #[inline(always)]
-    fn get_block<'a>(
+    fn get_block(
         chunk_origin: IVec3,
         world_pos: IVec3,
-        neighbors: [[[Option<&'a ClientChunk>; 3]; 3]; 3],
-    ) -> Option<(&'a Block, &'a BlockState)> {
+        neighbors: [[[Option<&ClientChunk>; 3]; 3]; 3],
+    ) -> Option<(&Block, &BlockState)> {
         let local = world_pos - chunk_origin;
 
         let chunk_size = CHUNK_SIZE as i32;

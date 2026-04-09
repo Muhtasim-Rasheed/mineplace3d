@@ -1,13 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{path::PathBuf, rc::Rc, sync::OnceLock};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 use glam::{Mat4, Vec2};
 use glow::HasContext;
 
 use crate::{
     abs::*,
-    render::ui::{uirenderer::UIRenderer, widgets::*},
+    render::ui::uirenderer::UIRenderer,
 };
 
 mod abs;
@@ -178,32 +181,9 @@ fn main() {
     );
 
     log::info!("Loading assets...");
-    let font = Rc::new(Font::new(
-        Texture::new(
-            &app.gl,
-            &image::load_from_memory_with_format(
-                ASSETS.get_file("font.png").unwrap().contents(),
-                image::ImageFormat::Png,
-            )
-            .unwrap(),
-        ),
-        glam::Vec2::new(7.0, 12.0),
-        ' ',
-        Some(95),
-    ));
-
-    let gui_tex = Texture::new(
-        &app.gl,
-        &image::load_from_memory_with_format(
-            ASSETS.get_file("gui.png").unwrap().contents(),
-            image::ImageFormat::Png,
-        )
-        .unwrap(),
-    );
-
-    let assets = scenes::Assets::load(&app.gl).unwrap_or_else(|e| {
+    let assets = Arc::new(scenes::Assets::load(&app.gl).unwrap_or_else(|e| {
         panic!("Failed to load assets: {}", e);
-    });
+    }));
 
     let config = scenes::options::ClientConfig::load();
 
@@ -215,8 +195,7 @@ fn main() {
 
     let mut scene_manager = scenes::SceneManager::new(
         Box::new(scenes::titlescreen::TitleScreen::new(
-            &font,
-            gui_tex.handle(),
+            &assets,
             (1280, 720),
         )),
         assets,

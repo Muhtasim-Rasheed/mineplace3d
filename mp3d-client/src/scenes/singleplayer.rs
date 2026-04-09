@@ -3,7 +3,6 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
-    rc::Rc,
     sync::{Arc, RwLock},
 };
 
@@ -12,9 +11,10 @@ use glow::HasContext;
 use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
-    abs::{Mesh, ShaderProgram, TextureHandle, framebuffer::Framebuffer},
+    abs::{Mesh, ShaderProgram, framebuffer::Framebuffer},
     client::{Client, Connection, LocalConnection},
     render::{clouds::CloudRenderer, meshing::mesh_world, ui::widgets::*},
+    scenes::Assets,
     shader_program,
 };
 
@@ -22,7 +22,6 @@ struct SinglePlayerUI {
     chat_input_label: Option<Label>,
     pause_screen: Column,
     inventory: Stack,
-    font: Rc<Font>,
 }
 
 struct WorldRenderer {
@@ -54,36 +53,33 @@ impl SinglePlayer {
     /// Creates a new [`SinglePlayer`] instance.
     pub fn new(
         gl: &Arc<glow::Context>,
-        font: &Rc<Font>,
-        gui_tex: TextureHandle,
+        assets: &Arc<Assets>,
         window_size: (u32, u32),
         seed: i32,
         world_path: PathBuf,
         username: String,
     ) -> Self {
         let server = mp3d_core::server::Server::new(true, seed, world_path.clone());
-        Self::setup(server, gl, font, gui_tex, window_size, world_path, username)
+        Self::setup(server, gl, assets, window_size, world_path, username)
     }
 
     /// Loads a world from the given path and creates a new [`SinglePlayer`] instance.
     pub fn load(
         gl: &Arc<glow::Context>,
-        font: &Rc<Font>,
-        gui_tex: TextureHandle,
+        assets: &Arc<Assets>,
         window_size: (u32, u32),
         world_path: PathBuf,
         username: String,
     ) -> Self {
         let server = mp3d_core::server::Server::load(true, world_path.clone())
             .expect("Failed to load world");
-        Self::setup(server, gl, font, gui_tex, window_size, world_path, username)
+        Self::setup(server, gl, assets, window_size, world_path, username)
     }
 
     fn setup(
         server: mp3d_core::server::Server,
         gl: &Arc<glow::Context>,
-        font: &Rc<Font>,
-        gui_tex: TextureHandle,
+        assets: &Arc<Assets>,
         window_size: (u32, u32),
         world_path: PathBuf,
         username: String,
@@ -93,30 +89,15 @@ impl SinglePlayer {
         let chunk_shader = shader_program!(chunk, gl, "..");
         let postprocess_shader = shader_program!(postprocess, gl, "..");
 
-        let return_to_game = Button::new(
-            "Return to Game",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
-        let save = Button::new(
-            "Save and Quit",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
-        let quit = Button::new(
-            "Quit",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let return_to_game = Button::new("Return to Game", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+        let save = Button::new("Save and Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+        let quit = Button::new("Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+
+        let layout_ctx = crate::render::ui::widgets::LayoutContext {
+            max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
+            cursor: Vec2::ZERO,
+            assets,
+        };
 
         let mut inventory_grid = Grid::new(
             9,
@@ -125,12 +106,7 @@ impl SinglePlayer {
             Vec4::ZERO,
         );
         for i in 0..36 {
-            inventory_grid.add_widget(InventorySlot::new(
-                gui_tex,
-                font,
-                &client.player.inventory,
-                i,
-            ));
+            inventory_grid.add_widget(InventorySlot::new(&client.player.inventory, i));
         }
         let mut inventory_col = Column::new(
             8.0,
@@ -139,7 +115,7 @@ impl SinglePlayer {
             crate::render::ui::widgets::Justification::Start,
             None,
         );
-        inventory_col.add_widget(Label::new("Inventory", 36.0, Vec4::ONE, font));
+        inventory_col.add_widget(Label::new("Inventory", 36.0, Vec4::ONE));
         inventory_col.add_widget(inventory_grid);
         let mut inventory_stack = Stack::new(
             crate::render::ui::widgets::Alignment::Center,
@@ -147,9 +123,8 @@ impl SinglePlayer {
             0.0,
         );
         inventory_stack.add_widget(crate::render::ui::widgets::NineSlice::new(
-            gui_tex,
             [UVec2::new(0, 16), UVec2::new(16, 16)],
-            inventory_col.size_hint(),
+            inventory_col.size_hint(&layout_ctx),
             UVec4::new(4, 4, 3, 3),
             4,
             0,
@@ -200,7 +175,6 @@ impl SinglePlayer {
                 chat_input_label: None,
                 pause_screen,
                 inventory: inventory_stack,
-                font: font.clone(),
             },
             world_path,
             mouse_pos: Vec2::ZERO,
@@ -238,9 +212,15 @@ impl super::Scene for SinglePlayer {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         config: &Arc<RwLock<super::options::ClientConfig>>,
-    ) -> super::SceneSwitch {
+    ) -> super::SceneAction {
+        let layout_ctx = crate::render::ui::widgets::LayoutContext {
+            max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
+            cursor: Vec2::ZERO,
+            assets,
+        };
+
         window.set_title("Mineplace3D - Single Player").unwrap();
         sdl_ctx.mouse().set_relative_mouse_mode(
             self.playing && !self.client.chat_open && !self.client.inventory_open,
@@ -261,6 +241,7 @@ impl super::Scene for SinglePlayer {
                 .layout(&crate::render::ui::widgets::LayoutContext {
                     max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
                     cursor: Vec2::ZERO,
+                    assets,
                 });
             if self
                 .ui
@@ -285,7 +266,7 @@ impl super::Scene for SinglePlayer {
                     .save()
                     .expect("Failed to save world");
 
-                return super::SceneSwitch::Pop;
+                return super::SceneAction::Pop;
             }
             if self
                 .ui
@@ -293,7 +274,7 @@ impl super::Scene for SinglePlayer {
                 .get_widget::<Button>(2)
                 .is_some_and(|btn| btn.is_released())
             {
-                return super::SceneSwitch::Pop;
+                return super::SceneAction::Pop;
             }
         }
         let tick_time = 1.0f32 / self.tick_rate;
@@ -308,7 +289,7 @@ impl super::Scene for SinglePlayer {
             if let Some(label) = self.ui.chat_input_label.as_mut() {
                 label.text = chat.clone();
             } else {
-                self.ui.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE, &self.ui.font));
+                self.ui.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE));
             }
         } else {
             self.ui.chat_input_label = None;
@@ -318,11 +299,12 @@ impl super::Scene for SinglePlayer {
             label.layout(&crate::render::ui::widgets::LayoutContext {
                 max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
                 cursor: Vec2::new(10.0, self.screen_size.y as f32 - 34.0),
+                assets,
             });
         }
         if self.client.inventory_open {
             self.ui.inventory.update(ctx);
-            let inventory_size = self.ui.inventory.size_hint();
+            let inventory_size = self.ui.inventory.size_hint(&layout_ctx);
             self.ui
                 .inventory
                 .layout(&crate::render::ui::widgets::LayoutContext {
@@ -331,6 +313,7 @@ impl super::Scene for SinglePlayer {
                         self.screen_size.x as f32 / 2.0 - inventory_size.x / 2.0,
                         self.screen_size.y as f32 / 2.0 - inventory_size.y / 2.0,
                     ),
+                    assets,
                 });
         }
         let unloaded = self
@@ -358,16 +341,22 @@ impl super::Scene for SinglePlayer {
             );
         }
         self.mouse_pos = ctx.mouse.position;
-        super::SceneSwitch::None
+        super::SceneAction::None
     }
 
     fn render(
         &mut self,
         gl: &Arc<glow::Context>,
         ui: &mut crate::render::ui::uirenderer::UIRenderer,
-        assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
+        let layout_ctx = crate::render::ui::widgets::LayoutContext {
+            max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
+            cursor: Vec2::ZERO,
+            assets,
+        };
+
         unsafe {
             gl.enable(glow::DEPTH_TEST);
             gl.depth_mask(true);
@@ -404,10 +393,10 @@ impl super::Scene for SinglePlayer {
                 if !is_aabb_in_frustum(
                     aabb_min,
                     aabb_max,
-                    &self
-                        .client
-                        .player
-                        .frustum_planes(self.screen_size.x as f32 / self.screen_size.y as f32, &self.client.world),
+                    &self.client.player.frustum_planes(
+                        self.screen_size.x as f32 / self.screen_size.y as f32,
+                        &self.client.world,
+                    ),
                 ) {
                     continue;
                 }
@@ -474,7 +463,9 @@ impl super::Scene for SinglePlayer {
                     ),
                 ],
                 uv_rect: [Vec2::ZERO, Vec2::ONE],
-                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
+                    1.0, 1.0, 1.0, 1.0,
+                )),
                 layer: 0,
             });
             ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
@@ -489,7 +480,9 @@ impl super::Scene for SinglePlayer {
                     ),
                 ],
                 uv_rect: [Vec2::ZERO, Vec2::ONE],
-                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
+                    1.0, 1.0, 1.0, 1.0,
+                )),
                 layer: 0,
             });
 
@@ -503,13 +496,13 @@ impl super::Scene for SinglePlayer {
                 .rev()
                 .cloned()
                 .collect::<Vec<_>>();
-            let message_size = measure_messages(&self.ui.font, &messages, 24.0);
+            let message_size = measure_messages(&assets.font, &messages, 24.0);
 
             let mut messages_start_y = self.screen_size.y as f32 - message_size.y - 10.0;
 
             if let Some(chat) = self.ui.chat_input_label.as_ref() {
                 messages_start_y -= 34.0 + 15.0;
-                let label_size = chat.size_hint();
+                let label_size = chat.size_hint(&layout_ctx);
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [
                         Vec2::new(5.0, self.screen_size.y as f32 - label_size.y - 15.0),
@@ -540,7 +533,7 @@ impl super::Scene for SinglePlayer {
                 layer: 0,
             });
             for cmd in text_messages(
-                &self.ui.font,
+                &assets.font,
                 &messages,
                 24.0,
                 Vec2::new(10.0, messages_start_y),
@@ -577,7 +570,7 @@ impl super::Scene for SinglePlayer {
                         assets,
                         self.mouse_pos,
                         ui,
-                        &self.ui.font,
+                        &assets.font,
                     );
                     for cmd in temp_stack_commands {
                         ui.add_command(cmd);

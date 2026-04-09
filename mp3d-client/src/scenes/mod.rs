@@ -9,21 +9,31 @@ use std::{
 
 use mp3d_core::block::BlockState;
 
-use crate::{render::ui::uirenderer::UIRenderer, scenes::options::ClientConfig};
+use crate::{
+    render::ui::{uirenderer::UIRenderer, widgets::Font},
+    resource::{
+        ResourceManager,
+        block::{BlockModel, TextureAtlas},
+    },
+    scenes::options::ClientConfig,
+};
 
-pub enum SceneSwitch {
+pub enum SceneAction {
     None,
     Push(Box<dyn Scene>),
     Pop,
     Replace(Box<dyn Scene>),
     Quit,
+    ReloadAssets,
 }
 
 /// Assets given to scenes during update and render, which they can use to access resources such
 /// as block textures and models.
 pub struct Assets {
-    pub block_textures: crate::resource::block::TextureAtlas,
-    pub block_models: HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
+    pub block_textures: TextureAtlas,
+    pub block_models: HashMap<(&'static str, &'static str), BlockModel>,
+    pub font: Font,
+    pub gui_tex: crate::abs::Texture,
 }
 
 impl Assets {
@@ -33,7 +43,8 @@ impl Assets {
     /// them to add their textures to the atlas as they are loaded. This ensures that only the
     /// needed textures are loaded into the atlas.
     pub fn load(gl: &Arc<glow::Context>) -> Result<Self, String> {
-        let mut block_textures = crate::resource::block::TextureAtlas::new(256, 16);
+        let resource_manager = ResourceManager::new();
+        let mut block_textures = TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
         for block in mp3d_core::block::Block::ALL_BLOCKS {
             let possible_state_data_values = BlockState::possible_data_values(block.state_type);
@@ -47,9 +58,10 @@ impl Assets {
                                 block.ident, block.state_type
                             )
                         })?;
-                    let model = crate::resource::block::BlockModel::from_block(
+                    let model = BlockModel::from_block(
                         block,
                         extra_ident,
+                        &resource_manager,
                         &mut block_textures,
                     )
                     .map_err(|e| {
@@ -72,9 +84,36 @@ impl Assets {
             block_models.len(),
             mp3d_core::block::Block::ALL_BLOCKS.len()
         );
+        let font = Font::new(
+            crate::abs::Texture::new(
+                gl,
+                &image::load_from_memory_with_format(
+                    &resource_manager
+                        .read(std::path::Path::new("font.png"))
+                        .ok_or_else(|| "Failed to load font texture".to_string())?,
+                    image::ImageFormat::Png,
+                )
+                .unwrap(),
+            ),
+            glam::Vec2::new(7.0, 12.0),
+            ' ',
+            Some(95),
+        );
+        let gui_tex = crate::abs::Texture::new(
+            gl,
+            &image::load_from_memory_with_format(
+                &resource_manager
+                    .read(std::path::Path::new("gui.png"))
+                    .ok_or_else(|| "Failed to load GUI texture".to_string())?,
+                image::ImageFormat::Png,
+            )
+            .unwrap(),
+        );
         Ok(Self {
             block_textures,
             block_models,
+            font,
+            gui_tex,
         })
     }
 }
@@ -93,8 +132,8 @@ pub trait Scene {
         _sdl_ctx: &sdl2::Sdl,
         _assets: &Arc<Assets>,
         _config: &Arc<RwLock<ClientConfig>>,
-    ) -> SceneSwitch {
-        SceneSwitch::None
+    ) -> SceneAction {
+        SceneAction::None
     }
 
     /// Renders the scene.
@@ -117,9 +156,9 @@ pub struct SceneManager {
 
 impl SceneManager {
     /// Creates a new SceneManager with the initial scene.
-    pub fn new(initial_scene: Box<dyn Scene>, assets: Assets, config: ClientConfig) -> Self {
+    pub fn new(initial_scene: Box<dyn Scene>, assets: Arc<Assets>, config: ClientConfig) -> Self {
         Self {
-            assets: Arc::new(assets),
+            assets,
             config: Arc::new(RwLock::new(config)),
             scenes: vec![initial_scene],
             just_switched: false,
@@ -147,18 +186,28 @@ impl SceneManager {
         }
         if let Some(current_scene) = self.scenes.last_mut() {
             let switch = current_scene.update(gl, ctx, window, sdl_ctx, &self.assets, &self.config);
-            let is_switching = !matches!(switch, SceneSwitch::None);
+            let is_switching = !matches!(switch, SceneAction::None | SceneAction::ReloadAssets);
             match switch {
-                SceneSwitch::None => {}
-                SceneSwitch::Push(new_scene) => self.scenes.push(new_scene),
-                SceneSwitch::Pop => {
+                SceneAction::None => {}
+                SceneAction::Push(new_scene) => self.scenes.push(new_scene),
+                SceneAction::Pop => {
                     self.scenes.pop();
                 }
-                SceneSwitch::Replace(new_scene) => {
+                SceneAction::Replace(new_scene) => {
                     self.scenes.pop();
                     self.scenes.push(new_scene);
                 }
-                SceneSwitch::Quit => return false,
+                SceneAction::Quit => return false,
+                SceneAction::ReloadAssets => {
+                    log::info!("Reloading assets...");
+                    match Assets::load(gl) {
+                        Ok(new_assets) => {
+                            self.assets = Arc::new(new_assets);
+                            log::info!("Assets reloaded successfully");
+                        }
+                        Err(e) => log::error!("Failed to reload assets: {}", e),
+                    }
+                }
             }
             if is_switching {
                 self.just_switched = true;

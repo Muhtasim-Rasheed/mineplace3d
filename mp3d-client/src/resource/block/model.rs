@@ -22,26 +22,24 @@ impl BlockModel {
     pub fn from_block(
         block: &Block,
         extra_ident: &'static str,
+        resource_manager: &crate::resource::ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
         let path =
             PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
-        let raw_content = crate::ASSETS
-            .get_file(&path)
-            .ok_or_else(|| {
-                format!(
-                    "Model file not found for block '{}': {:?}",
-                    block.ident, path
-                )
-            })?
-            .contents_utf8()
-            .ok_or_else(|| {
-                format!(
-                    "Failed to read model file for block '{}': {:?}",
-                    block.ident, path
-                )
-            })?;
-        let raw_model: RawBlockModel = serde_json::from_str(raw_content).map_err(|e| {
+        let raw_content = String::from_utf8(resource_manager.read(&path).ok_or_else(|| {
+            format!(
+                "Model file not found for block '{}': {:?}",
+                block.ident, path
+            )
+        })?)
+        .map_err(|e| {
+            format!(
+                "Failed to read model file for block '{}': {:?}: {}",
+                block.ident, path, e
+            )
+        })?;
+        let raw_model: RawBlockModel = serde_json::from_str(&raw_content).map_err(|e| {
             format!(
                 "Failed to parse model JSON for block '{}': {}",
                 block.ident, e

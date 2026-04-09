@@ -1,13 +1,8 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
-
 use glam::{Vec2, Vec4};
 
-use crate::{
-    abs::TextureHandle,
-    render::ui::widgets::{Font, Label, NineSlice, Stack, Widget},
-};
+use crate::render::ui::widgets::{Label, NineSlice, Stack, Widget};
 
 pub struct InputField {
     pub position: Vec2,
@@ -22,8 +17,6 @@ pub struct InputField {
     hover_last: bool,
     focused: bool,
     stack: Stack,
-    texture: TextureHandle,
-    font: Rc<Font>,
 }
 
 impl InputField {
@@ -33,8 +26,6 @@ impl InputField {
         label_font_size: f32,
         size: Vec2,
         sanitize: Option<&str>,
-        font: &Rc<Font>,
-        texture: TextureHandle,
     ) -> Self {
         let stack = Stack::new(super::Alignment::Start, super::Alignment::Center, 0.0);
         let mut inputfield = Self {
@@ -50,8 +41,6 @@ impl InputField {
             hover_last: false,
             focused: false,
             stack,
-            texture,
-            font: Rc::clone(font),
         };
 
         inputfield.setup_stack();
@@ -62,7 +51,6 @@ impl InputField {
     fn setup_stack(&mut self) {
         self.stack = Stack::new(super::Alignment::Start, super::Alignment::Center, 0.0);
         self.stack.add_widget(NineSlice::new(
-            self.texture,
             [glam::uvec2(32, 0), glam::uvec2(16, 16)],
             self.size,
             glam::uvec4(6, 6, 4, 4),
@@ -79,14 +67,12 @@ impl InputField {
                 &format!("  {}", self.placeholder),
                 self.label_font_size,
                 self.label_color * Vec4::new(1.0, 1.0, 1.0, 0.5),
-                &self.font,
             ));
         } else {
             self.stack.add_widget(Label::new(
                 &format!("  {}", self.text),
                 self.label_font_size,
                 self.label_color,
-                &self.font,
             ));
         }
     }
@@ -135,7 +121,7 @@ impl Widget for InputField {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, _ctx: &super::LayoutContext) -> Vec2 {
         self.size
     }
 
@@ -187,11 +173,12 @@ impl Widget for InputField {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let measured_size = self.size_hint().min(ctx.max_size);
+        let measured_size = self.size_hint(ctx).min(ctx.max_size);
         self.position = ctx.cursor;
         let layout_ctx = super::LayoutContext {
             max_size: measured_size,
             cursor: self.position,
+            assets: ctx.assets,
         };
         self.stack.layout(&layout_ctx);
         Vec2::new(
@@ -209,7 +196,7 @@ impl Widget for InputField {
         // Draw cursor
         if self.focused {
             let cursor_x = self.position.x
-                + self
+                + assets
                     .font
                     .measure_text(
                         &format!("  {}", &self.text[..self.cursor_pos]),

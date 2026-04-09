@@ -1,14 +1,11 @@
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use glam::{Vec2, Vec4};
 use glow::HasContext;
 
 use crate::{
-    abs::TextureHandle,
     render::ui::{uirenderer::UIRenderer, widgets::*},
+    scenes::Assets,
 };
 
 use serde::{Deserialize, Serialize};
@@ -62,12 +59,11 @@ pub struct Options {
 
 impl Options {
     pub fn new(
-        font: &Rc<Font>,
-        gui_tex: TextureHandle,
+        assets: &Arc<Assets>,
         window_size: (u32, u32),
         config: &Arc<RwLock<ClientConfig>>,
     ) -> Self {
-        let header = Label::new("Options", 48.0, Vec4::ONE, font);
+        let header = Label::new("Options", 48.0, Vec4::ONE);
 
         let mut options_container = Column::new(
             20.0,
@@ -83,8 +79,6 @@ impl Options {
             24.0,
             Vec2::new(1010.0, 80.0),
             Some("/\\?%*:|\"<> "),
-            font,
-            gui_tex,
         );
         username_input.text = config.read().unwrap().username.clone();
         username_input.cursor_pos = username_input.text.len();
@@ -101,18 +95,9 @@ impl Options {
             Vec4::ONE,
             24.0,
             Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
         );
 
-        let clear_logs_button = Button::new(
-            "Clear Logs",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let clear_logs_button = Button::new("Clear Logs", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         let mut sensitivity_slider = Slider::new(
             "Mouse Sensitivity",
@@ -120,19 +105,10 @@ impl Options {
             24.0,
             Vec2::new(500.0, 80.0),
             0.1..=2.0,
-            font,
-            gui_tex,
         );
         sensitivity_slider.value = config.read().unwrap().sensitivity();
 
-        let back_button = Button::new(
-            "Back",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let back_button = Button::new("Back", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         options_container.add_widget(username_input);
         options_container.add_widget(fullscreen_button);
@@ -153,6 +129,7 @@ impl Options {
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
         Self { container }
@@ -168,13 +145,14 @@ impl super::Scene for Options {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         _sdl_ctx: &sdl2::Sdl,
-        _assets: &Arc<crate::scenes::Assets>,
+        assets: &Arc<Assets>,
         config: &Arc<RwLock<ClientConfig>>,
-    ) -> crate::scenes::SceneSwitch {
+    ) -> crate::scenes::SceneAction {
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
         self.container
@@ -262,17 +240,17 @@ impl super::Scene for Options {
 
             log::info!("Saved config: {:?}", *config_guard);
 
-            return crate::scenes::SceneSwitch::Pop;
+            return crate::scenes::SceneAction::Pop;
         }
 
-        crate::scenes::SceneSwitch::None
+        crate::scenes::SceneAction::None
     }
 
     fn render(
         &mut self,
         gl: &Arc<glow::Context>,
         ui: &mut UIRenderer,
-        assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
         unsafe {

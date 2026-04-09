@@ -1,9 +1,8 @@
 use glam::{UVec2, UVec4, Vec2, Vec4, vec2};
 
-use crate::{abs::TextureHandle, render::ui::widgets::Widget};
+use crate::render::ui::widgets::Widget;
 
 pub struct NineSlice {
-    pub texture: TextureHandle,
     pub uv_top_left: UVec2,
     pub uv_size: UVec2,
     pub position: Vec2,
@@ -13,12 +12,10 @@ pub struct NineSlice {
     pub scale: u32,
     pub tint: Vec4,
     pub layer: i32,
-    atlas_size: UVec2,
 }
 
 impl NineSlice {
     pub fn new(
-        texture: TextureHandle,
         uvs: [UVec2; 2],
         size: Vec2,
         border: UVec4,
@@ -27,7 +24,6 @@ impl NineSlice {
         tint: Vec4,
     ) -> Self {
         Self {
-            texture,
             uv_top_left: uvs[0],
             uv_size: uvs[1],
             position: Vec2::ZERO,
@@ -36,7 +32,6 @@ impl NineSlice {
             scale,
             tint,
             layer,
-            atlas_size: UVec2::new(texture.width(), texture.height()),
         }
     }
 }
@@ -50,7 +45,7 @@ impl Widget for NineSlice {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, _ctx: &super::LayoutContext) -> Vec2 {
         self.size
     }
 
@@ -59,7 +54,7 @@ impl Widget for NineSlice {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let measured_size = self.size_hint();
+        let measured_size = self.size_hint(ctx);
         self.position = ctx.cursor;
         Vec2::new(
             measured_size.x.min(ctx.max_size.x),
@@ -70,8 +65,11 @@ impl Widget for NineSlice {
     fn draw(
         &self,
         ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
-        _assets: &crate::scenes::Assets,
+        assets: &crate::scenes::Assets,
     ) {
+        let atlas = assets.gui_tex.handle();
+        let atlas_size = UVec2::new(atlas.width(), atlas.height());
+
         let left = self.border.x * self.scale;
         let right = self.border.y * self.scale;
         let top = self.border.z * self.scale;
@@ -90,7 +88,7 @@ impl Widget for NineSlice {
         let uv_min = self.uv_top_left;
         let uv_max = self.uv_top_left + self.uv_size;
 
-        let inv_atlas = 1.0 / self.atlas_size.as_vec2();
+        let inv_atlas = 1.0 / atlas_size.as_vec2();
 
         let u0 = uv_min.x as f32;
         let u3 = uv_max.x as f32;
@@ -129,10 +127,7 @@ impl Widget for NineSlice {
                 ui_renderer.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [pos_min, pos_max],
                     uv_rect: [uv_min, uv_max],
-                    mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
-                        self.texture,
-                        self.tint,
-                    ),
+                    mode: crate::render::ui::uirenderer::UIRenderMode::Texture(atlas, self.tint),
                     layer: self.layer,
                 });
             }

@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use glam::{Vec2, Vec4};
 use mp3d_core::TextComponent;
@@ -173,17 +172,15 @@ pub struct Label {
     pub position: Vec2,
     pub font_size: f32,
     pub color: Vec4,
-    pub font: Rc<Font>,
 }
 
 impl Label {
-    pub fn new(text: &str, font_size: f32, color: Vec4, font: &Rc<Font>) -> Self {
+    pub fn new(text: &str, font_size: f32, color: Vec4) -> Self {
         Self {
             text: text.to_string(),
             position: Vec2::ZERO,
             font_size,
             color,
-            font: Rc::clone(font),
         }
     }
 }
@@ -197,8 +194,8 @@ impl Widget for Label {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
-        self.font.measure_text(&self.text, self.font_size)
+    fn size_hint(&self, ctx: &super::LayoutContext) -> Vec2 {
+        ctx.assets.font.measure_text(&self.text, self.font_size)
     }
 
     fn update(&mut self, _ctx: &crate::other::UpdateContext) {
@@ -206,7 +203,7 @@ impl Widget for Label {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let measured_size = self.size_hint();
+        let measured_size = self.size_hint(ctx);
         self.position = ctx.cursor;
         Vec2::new(
             measured_size.x.min(ctx.max_size.x),
@@ -217,9 +214,9 @@ impl Widget for Label {
     fn draw(
         &self,
         ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
-        _assets: &crate::scenes::Assets,
+        assets: &crate::scenes::Assets,
     ) {
-        let commands = self
+        let commands = assets
             .font
             .text(&self.text, self.font_size, self.color)
             .into_iter()

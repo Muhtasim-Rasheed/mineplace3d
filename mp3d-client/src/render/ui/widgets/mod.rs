@@ -5,9 +5,10 @@ use glam::Vec2;
 use super::uirenderer::UIRenderer;
 
 /// Context provided to widgets during the layout phase.
-pub struct LayoutContext {
+pub struct LayoutContext<'a> {
     pub max_size: Vec2,
     pub cursor: Vec2,
+    pub assets: &'a crate::scenes::Assets,
 }
 
 /// A widget trait for building user interfaces.
@@ -16,7 +17,7 @@ pub trait Widget {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 
     /// Gives a hint of the desired size of the widget.
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, _ctx: &LayoutContext) -> Vec2 {
         Vec2::ZERO
     }
 

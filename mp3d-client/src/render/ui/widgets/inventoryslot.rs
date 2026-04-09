@@ -4,7 +4,6 @@ use glam::{Mat4, UVec2, UVec4, Vec2, Vec4};
 use mp3d_core::item::*;
 
 use crate::{
-    abs::TextureHandle,
     client::player::ClientInventory,
     render::ui::{
         uirenderer::DrawCommand,
@@ -18,19 +17,12 @@ pub struct InventorySlot {
     position: Vec2,
     nineslice: NineSlice,
     inventory: Rc<RefCell<ClientInventory>>,
-    font: Rc<Font>,
     idx: usize,
 }
 
 impl InventorySlot {
-    pub fn new(
-        texture: TextureHandle,
-        font: &Rc<Font>,
-        inventory: &Rc<RefCell<ClientInventory>>,
-        idx: usize,
-    ) -> Self {
+    pub fn new(inventory: &Rc<RefCell<ClientInventory>>, idx: usize) -> Self {
         let nineslice = NineSlice::new(
-            texture,
             [UVec2::new(16, 16), UVec2::new(16, 16)],
             INVENTORY_SLOT_SIZE,
             UVec4::splat(1),
@@ -42,7 +34,6 @@ impl InventorySlot {
             position: Vec2::ZERO,
             nineslice,
             inventory: Rc::clone(inventory),
-            font: Rc::clone(font),
             idx,
         }
     }
@@ -52,7 +43,7 @@ impl InventorySlot {
         assets: &crate::scenes::Assets,
         position: Vec2,
         ui: &super::UIRenderer,
-        font: &Rc<Font>,
+        font: &Font,
     ) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
         let item = stack.item;
@@ -112,7 +103,7 @@ impl Widget for InventorySlot {
         self
     }
 
-    fn size_hint(&self) -> Vec2 {
+    fn size_hint(&self, _ctx: &super::LayoutContext) -> Vec2 {
         INVENTORY_SLOT_SIZE
     }
 
@@ -138,11 +129,12 @@ impl Widget for InventorySlot {
     }
 
     fn layout(&mut self, ctx: &super::LayoutContext) -> Vec2 {
-        let measured_size = self.size_hint().min(ctx.max_size);
+        let measured_size = self.size_hint(ctx).min(ctx.max_size);
         self.position = ctx.cursor;
         let layout_ctx = super::LayoutContext {
             max_size: measured_size,
             cursor: self.position,
+            assets: ctx.assets,
         };
         self.nineslice.layout(&layout_ctx);
         Vec2::new(
@@ -165,7 +157,7 @@ impl Widget for InventorySlot {
                 assets,
                 self.position + INVENTORY_SLOT_SIZE / 2.0,
                 ui_renderer,
-                &self.font,
+                &assets.font,
             );
             for cmd in commands {
                 ui_renderer.add_command(cmd);

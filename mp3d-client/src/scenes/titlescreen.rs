@@ -1,16 +1,13 @@
 //! The title screen scene implementation.
 
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use glam::{Vec2, Vec4};
 use glow::HasContext;
 
 use crate::{
-    abs::TextureHandle,
     render::ui::{uirenderer::UIRenderer, widgets::*},
+    scenes::Assets,
 };
 
 static SPLASHES: std::sync::OnceLock<Vec<(&str, Vec4)>> = std::sync::OnceLock::new();
@@ -43,16 +40,14 @@ fn get_random_splash() -> (&'static str, Vec4) {
 /// The [`TitleScreen`] struct represents the title screen scene.
 pub struct TitleScreen {
     container: Column,
-    font: Rc<Font>,
-    texture: TextureHandle,
 }
 
 impl TitleScreen {
     /// Creates a new [`TitleScreen`] instance.
-    pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
-        let header = Label::new("Mineplace3D ", 72.0, Vec4::ONE, font);
+    pub fn new(assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
+        let header = Label::new("Mineplace3D ", 72.0, Vec4::ONE);
         let (splash_text, splash_color) = get_random_splash();
-        let splash = Label::new(splash_text, 24.0, splash_color, font);
+        let splash = Label::new(splash_text, 24.0, splash_color);
         let mut header_container = Column::new(
             5.0,
             Alignment::Center,
@@ -67,40 +62,17 @@ impl TitleScreen {
         let options;
         let quit;
         if window_size.0 >= 1050 {
-            play = Button::new(
-                "Singleplayer",
-                Vec4::ONE,
-                24.0,
-                Vec2::new(1010.0, 80.0),
-                font,
-                gui_tex,
-            );
+            play = Button::new("Singleplayer", Vec4::ONE, 24.0, Vec2::new(1010.0, 80.0));
 
-            options = Button::new(
-                "Options",
-                Vec4::ONE,
-                24.0,
-                Vec2::new(500.0, 80.0),
-                font,
-                gui_tex,
-            );
+            options = Button::new("Options", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
-            quit = Button::new(
-                "Quit",
-                Vec4::ONE,
-                24.0,
-                Vec2::new(500.0, 80.0),
-                font,
-                gui_tex,
-            );
+            quit = Button::new("Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
         } else {
             play = Button::new(
                 "Start Game",
                 Vec4::ONE,
                 24.0,
                 Vec2::new(window_size.0 as f32 - 40.0, 80.0),
-                font,
-                gui_tex,
             );
 
             options = Button::new(
@@ -108,8 +80,6 @@ impl TitleScreen {
                 Vec4::ONE,
                 24.0,
                 Vec2::new((window_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0),
-                font,
-                gui_tex,
             );
 
             quit = Button::new(
@@ -117,8 +87,6 @@ impl TitleScreen {
                 Vec4::ONE,
                 24.0,
                 Vec2::new((window_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0),
-                font,
-                gui_tex,
             );
         }
 
@@ -140,10 +108,9 @@ impl TitleScreen {
             format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
             24.0,
             Vec4::new(1.0, 1.0, 1.0, 0.5),
-            font,
         );
 
-        let license = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5), font);
+        let license = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5));
 
         let mut footer = Row::new(
             5.0,
@@ -169,13 +136,10 @@ impl TitleScreen {
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
-        Self {
-            container,
-            font: Rc::clone(font),
-            texture: gui_tex,
-        }
+        Self { container }
     }
 }
 
@@ -224,15 +188,16 @@ impl super::Scene for TitleScreen {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
-        _assets: &Arc<super::Assets>,
+        assets: &Arc<super::Assets>,
         config: &Arc<RwLock<super::options::ClientConfig>>,
-    ) -> super::SceneSwitch {
+    ) -> super::SceneAction {
         window.set_title("Mineplace3D").unwrap();
         sdl_ctx.mouse().set_relative_mouse_mode(false);
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
         if self
@@ -240,12 +205,8 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 0])
             .is_some_and(|btn| btn.is_released())
         {
-            return super::SceneSwitch::Push(Box::new(
-                crate::scenes::worldselection::WorldSelection::new(
-                    &self.font,
-                    self.texture,
-                    window.size(),
-                ),
+            return super::SceneAction::Push(Box::new(
+                crate::scenes::worldselection::WorldSelection::new(assets, window.size()),
             ));
         }
 
@@ -254,9 +215,8 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 1, 0])
             .is_some_and(|btn| btn.is_released())
         {
-            return super::SceneSwitch::Push(Box::new(super::options::Options::new(
-                &self.font,
-                self.texture,
+            return super::SceneAction::Push(Box::new(super::options::Options::new(
+                assets,
                 window.size(),
                 config,
             )));
@@ -267,9 +227,9 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 1, 1])
             .is_some_and(|btn| btn.is_released())
         {
-            return super::SceneSwitch::Quit;
+            return super::SceneAction::Quit;
         }
-        super::SceneSwitch::None
+        super::SceneAction::None
     }
 
     fn render(

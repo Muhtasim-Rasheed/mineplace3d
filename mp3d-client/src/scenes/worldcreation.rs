@@ -1,28 +1,23 @@
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use glam::{Vec2, Vec4};
 use glow::HasContext;
 
 use crate::{
-    abs::TextureHandle,
     render::ui::{uirenderer::UIRenderer, widgets::*},
+    scenes::Assets,
 };
 
 pub struct WorldCreation {
     container: Column,
     world_path: std::path::PathBuf,
-    font: Rc<Font>,
-    texture: TextureHandle,
 }
 
 impl WorldCreation {
-    pub fn new(font: &Rc<Font>, gui_tex: TextureHandle, window_size: (u32, u32)) -> Self {
+    pub fn new(assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
         let world_path = crate::get_saves_dir().join("New_World");
 
-        let header = Label::new("Create New World", 48.0, Vec4::ONE, font);
+        let header = Label::new("Create New World", 48.0, Vec4::ONE);
 
         let mut name_input = InputField::new(
             "World Name",
@@ -30,8 +25,6 @@ impl WorldCreation {
             24.0,
             Vec2::new(1010.0, 80.0),
             Some("/\\?%*:|\"<> "),
-            font,
-            gui_tex,
         );
         name_input.text = "New_World".to_string();
         name_input.cursor_pos = name_input.text.len();
@@ -42,15 +35,12 @@ impl WorldCreation {
             24.0,
             Vec2::new(1010.0, 80.0),
             None,
-            font,
-            gui_tex,
         );
 
         let path_label = Label::new(
             &world_path.display().to_string(),
             24.0,
             Vec4::new(0.8, 0.8, 0.8, 1.0),
-            font,
         );
 
         let mut world_options = Column::new(
@@ -64,23 +54,9 @@ impl WorldCreation {
         world_options.add_widget(path_label);
         world_options.add_widget(seed_input);
 
-        let cancel_button = Button::new(
-            "Cancel",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let cancel_button = Button::new("Cancel", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
-        let create_button = Button::new(
-            "Create",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            font,
-            gui_tex,
-        );
+        let create_button = Button::new("Create", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         let mut buttons = Row::new(60.0, Alignment::Center, Vec4::ZERO, Justification::Start);
         buttons.add_widget(cancel_button);
@@ -100,13 +76,12 @@ impl WorldCreation {
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
         Self {
             container,
             world_path,
-            font: font.clone(),
-            texture: gui_tex,
         }
     }
 }
@@ -120,13 +95,14 @@ impl super::Scene for WorldCreation {
         ctx: &crate::other::UpdateContext,
         window: &mut sdl2::video::Window,
         _sdl_ctx: &sdl2::Sdl,
-        _assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         config: &Arc<RwLock<super::options::ClientConfig>>,
-    ) -> super::SceneSwitch {
+    ) -> super::SceneAction {
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
             cursor: Vec2::ZERO,
+            assets,
         });
 
         if ctx
@@ -134,7 +110,7 @@ impl super::Scene for WorldCreation {
             .pressed
             .contains(&sdl2::keyboard::Keycode::Escape)
         {
-            return super::SceneSwitch::Pop;
+            return super::SceneAction::Pop;
         }
 
         self.world_path = crate::get_saves_dir().join(
@@ -162,7 +138,7 @@ impl super::Scene for WorldCreation {
         if let Some(cancel_button) = self.container.find_widget::<Button>(&[2, 0])
             && cancel_button.is_pressed()
         {
-            return super::SceneSwitch::Pop;
+            return super::SceneAction::Pop;
         }
 
         let seed =
@@ -187,10 +163,9 @@ impl super::Scene for WorldCreation {
                 self.world_path.display(),
                 seed
             );
-            return super::SceneSwitch::Replace(Box::new(super::singleplayer::SinglePlayer::new(
+            return super::SceneAction::Replace(Box::new(super::singleplayer::SinglePlayer::new(
                 gl,
-                &self.font,
-                self.texture,
+                assets,
                 window.size(),
                 seed,
                 self.world_path.clone(),
@@ -198,14 +173,14 @@ impl super::Scene for WorldCreation {
             )));
         }
 
-        super::SceneSwitch::None
+        super::SceneAction::None
     }
 
     fn render(
         &mut self,
         gl: &Arc<glow::Context>,
         ui: &mut UIRenderer,
-        assets: &Arc<super::Assets>,
+        assets: &Arc<Assets>,
         _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
         unsafe {
