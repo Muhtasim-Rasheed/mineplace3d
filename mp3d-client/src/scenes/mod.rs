@@ -42,8 +42,8 @@ impl Assets {
     /// A blank `TextureAtlas` is created and passed to each `BlockModel` as it is loaded, allowing
     /// them to add their textures to the atlas as they are loaded. This ensures that only the
     /// needed textures are loaded into the atlas.
-    pub fn load(gl: &Arc<glow::Context>) -> Result<Self, String> {
-        let resource_manager = ResourceManager::new();
+    pub fn load(gl: &Arc<glow::Context>, config: &ClientConfig) -> Result<Self, String> {
+        let resource_manager = ResourceManager::new(config.resource_packs());
         let mut block_textures = TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
         for block in mp3d_core::block::Block::ALL_BLOCKS {
@@ -200,7 +200,7 @@ impl SceneManager {
                 SceneAction::Quit => return false,
                 SceneAction::ReloadAssets => {
                     log::info!("Reloading assets...");
-                    match Assets::load(gl) {
+                    match Assets::load(gl, &self.config.read().unwrap()) {
                         Ok(new_assets) => {
                             self.assets = Arc::new(new_assets);
                             log::info!("Assets reloaded successfully");

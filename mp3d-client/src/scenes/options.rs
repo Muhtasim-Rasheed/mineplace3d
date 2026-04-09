@@ -15,6 +15,7 @@ pub struct ClientConfig {
     pub username: String,
     pub fullscreen: Option<bool>,
     pub sensitivity: Option<f32>,
+    pub resource_packs: Option<Vec<String>>,
 }
 
 impl Default for ClientConfig {
@@ -23,6 +24,7 @@ impl Default for ClientConfig {
             username: "Player".to_string(),
             fullscreen: Some(false),
             sensitivity: Some(1.0),
+            resource_packs: Some(vec![]),
         }
     }
 }
@@ -50,6 +52,17 @@ impl ClientConfig {
 
     pub fn sensitivity(&self) -> f32 {
         self.sensitivity.unwrap_or(1.0)
+    }
+
+    pub fn resource_packs(&self) -> &[String] {
+        self.resource_packs.as_deref().unwrap_or(&[])
+    }
+
+    pub fn add_resource_pack(&mut self, pack: String) {
+        let packs = self.resource_packs.get_or_insert_with(Vec::new);
+        if !packs.contains(&pack) {
+            packs.push(pack);
+        }
     }
 }
 

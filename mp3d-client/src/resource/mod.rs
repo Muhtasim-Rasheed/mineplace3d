@@ -27,7 +27,6 @@ impl AssetSource for FolderAssetSource {
         if let Ok(contents) = std::fs::read(full_path) {
             Some(contents)
         } else {
-            log::error!("Failed to read asset file: {}", path.display());
             None
         }
     }
@@ -39,10 +38,21 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(resource_packs: &[String]) -> Self {
+        let mut base = Self {
             sources: vec![Box::new(EmbeddedAssetSource)],
+        };
+
+        for pack in resource_packs {
+            let path = crate::get_resource_packs_dir().join(pack);
+            if path.is_dir() {
+                base.add_source(Box::new(FolderAssetSource { root: path }));
+            } else {
+                log::error!("Resource pack not found: {}", pack);
+            }
         }
+
+        base
     }
 
     pub fn add_source(&mut self, source: Box<dyn AssetSource>) {
@@ -59,6 +69,13 @@ impl ResourceManager {
                 return Some(contents);
             }
         }
+
+        log::error!("Asset not found: {}", path.display());
+
         None
+    }
+
+    pub fn read_utf8(&self, path: &std::path::Path) -> Option<String> {
+        self.read(path).and_then(|bytes| String::from_utf8(bytes).ok())
     }
 }

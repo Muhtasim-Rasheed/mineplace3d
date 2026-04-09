@@ -226,6 +226,11 @@ impl super::Scene for SinglePlayer {
             self.playing && !self.client.chat_open && !self.client.inventory_open,
         );
         self.total_time += ctx.delta_time;
+
+        if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F6) {
+            return super::SceneAction::ReloadAssets;
+        }
+
         if self.playing {
             self.client
                 .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());

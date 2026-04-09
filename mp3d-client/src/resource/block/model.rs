@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use mp3d_core::block::Block;
 
-use crate::render::meshing::FACE_VERTS;
+use crate::{render::meshing::FACE_VERTS, resource::ResourceManager};
 
 use super::{
     TextureAtlas, TextureRef,
@@ -22,35 +22,31 @@ impl BlockModel {
     pub fn from_block(
         block: &Block,
         extra_ident: &'static str,
-        resource_manager: &crate::resource::ResourceManager,
+        resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
         let path =
             PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
-        let raw_content = String::from_utf8(resource_manager.read(&path).ok_or_else(|| {
-            format!(
-                "Model file not found for block '{}': {:?}",
-                block.ident, path
-            )
-        })?)
-        .map_err(|e| {
-            format!(
-                "Failed to read model file for block '{}': {:?}: {}",
-                block.ident, path, e
-            )
-        })?;
+        let raw_content = resource_manager
+            .read_utf8(&path)
+            .ok_or_else(|| {
+                format!(
+                    "Model file not found for block '{}': {:?}",
+                    block.ident, path
+                )
+            })?;
         let raw_model: RawBlockModel = serde_json::from_str(&raw_content).map_err(|e| {
             format!(
                 "Failed to parse model JSON for block '{}': {}",
                 block.ident, e
             )
         })?;
-        Self::from_raw(raw_model, atlas)
+        Self::from_raw(raw_model, resource_manager, atlas)
     }
 
     /// Creates a [`BlockModel`] from a [`RawBlockModel`], resolving texture references and parent
     /// models.
-    pub fn from_raw(raw: RawBlockModel, atlas: &mut TextureAtlas) -> Result<Self, String> {
+    pub fn from_raw(raw: RawBlockModel, resource_manager: &ResourceManager, atlas: &mut TextureAtlas) -> Result<Self, String> {
         if atlas.is_finished() {
             return Err("Cannot create block model after texture atlas is finished".to_string());
         }
@@ -69,7 +65,7 @@ impl BlockModel {
 
         if let Some(raw_elements) = raw.elements {
             for (i, raw_element) in raw_elements.into_iter().enumerate() {
-                let element = BlockElement::from_raw(raw_element, &textures, atlas)
+                let element = BlockElement::from_raw(raw_element, &textures, resource_manager, atlas)
                     .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 elements.push(element);
             }
@@ -79,6 +75,7 @@ impl BlockModel {
                 &path,
                 &mut textures,
                 &mut std::collections::HashSet::new(),
+                resource_manager,
                 atlas,
             )
             .map_err(|e| format!("Failed to resolve parent model '{}': {}", parent, e))?;
@@ -93,6 +90,7 @@ impl BlockModel {
         parent: &PathBuf,
         textures: &mut HashMap<String, TextureRef>,
         visited: &mut std::collections::HashSet<PathBuf>,
+        resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Vec<BlockElement>, String> {
         if visited.contains(parent) {
@@ -104,12 +102,10 @@ impl BlockModel {
 
         visited.insert(parent.clone());
 
-        let parent_content = crate::ASSETS
-            .get_file(parent)
-            .ok_or_else(|| format!("Parent model file not found: {:?}", parent))?
-            .contents_utf8()
-            .ok_or_else(|| format!("Failed to read parent model file: {:?}", parent))?;
-        let parent_raw: RawBlockModel = serde_json::from_str(parent_content)
+        let parent_content = resource_manager
+            .read_utf8(parent)
+            .ok_or_else(|| format!("Parent model file not found: {:?}", parent))?;
+        let parent_raw: RawBlockModel = serde_json::from_str(&parent_content)
             .map_err(|e| format!("Failed to parse parent model JSON: {}", e))?;
 
         if let Some(parent_textures) = parent_raw.textures {
@@ -124,7 +120,7 @@ impl BlockModel {
         if let Some(elements) = parent_raw.elements {
             let mut resolved_elements = Vec::new();
             for (i, raw_element) in elements.into_iter().enumerate() {
-                let element = BlockElement::from_raw(raw_element, textures, atlas)
+                let element = BlockElement::from_raw(raw_element, textures, resource_manager, atlas)
                     .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 resolved_elements.push(element);
             }
@@ -132,7 +128,7 @@ impl BlockModel {
         } else if let Some(grand_parent) = parent_raw.parent {
             let grand_parent_path =
                 PathBuf::from("blocks/models").join(format!("{}.json", grand_parent));
-            Self::resolve_elements(&grand_parent_path, textures, visited, atlas)
+            Self::resolve_elements(&grand_parent_path, textures, visited, resource_manager, atlas)
         } else {
             Err(format!("Model {:?} has no elements and no parent", parent))
         }
@@ -209,6 +205,7 @@ impl BlockElement {
     pub fn from_raw(
         raw: RawBlockElement,
         textures: &HashMap<String, TextureRef>,
+        resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
         Ok(BlockElement {
@@ -216,7 +213,7 @@ impl BlockElement {
             to: Vec3::from(raw.to) / 16.0,
             faces: [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
                 .into_iter()
-                .map(|raw_face| BlockFace::from_raw(raw_face, textures, atlas))
+                .map(|raw_face| BlockFace::from_raw(raw_face, textures, resource_manager, atlas))
                 .collect::<Result<Vec<_>, _>>()?
                 .try_into()
                 .map_err(|_| "Expected exactly 6 faces".to_string())?,
@@ -241,17 +238,17 @@ impl BlockFace {
     pub fn from_raw(
         raw: RawBlockFace,
         textures: &HashMap<String, TextureRef>,
+        resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
         let texture_path = raw
             .texture
             .resolve(textures)
             .ok_or("Failed to resolve texture")?;
-        let image_data = crate::ASSETS
-            .get_file(&texture_path.0)
-            .ok_or_else(|| format!("Texture file not found: {:?}", texture_path.0))?
-            .contents();
-        let image = image::load_from_memory(image_data)
+        let image_data = resource_manager
+            .read(&texture_path.0)
+            .ok_or_else(|| format!("Texture file not found: {:?}", texture_path.0))?;
+        let image = image::load_from_memory(&image_data)
             .map_err(|e| format!("Failed to load texture image: {}", e))?
             .to_rgba8();
         atlas

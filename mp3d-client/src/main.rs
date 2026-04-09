@@ -79,6 +79,14 @@ pub fn get_saves_dir() -> PathBuf {
     saves_dir
 }
 
+pub fn get_resource_packs_dir() -> PathBuf {
+    let resource_packs_dir = get_game_dir().join("resourcepacks");
+    if !resource_packs_dir.exists() {
+        std::fs::create_dir_all(&resource_packs_dir).expect("Failed to create resource packs directory");
+    }
+    resource_packs_dir
+}
+
 pub fn get_config_path() -> PathBuf {
     get_game_dir().join("config.json")
 }
@@ -180,18 +188,21 @@ fn main() {
         Mat4::orthographic_rh_gl(0.0, 1280.0, 720.0, 0.0, -20.0, 20.0),
     );
 
+    log::info!("Loading config...");
+    let config = scenes::options::ClientConfig::load();
+
     log::info!("Loading assets...");
-    let assets = Arc::new(scenes::Assets::load(&app.gl).unwrap_or_else(|e| {
+    let assets = Arc::new(scenes::Assets::load(&app.gl, &config).unwrap_or_else(|e| {
         panic!("Failed to load assets: {}", e);
     }));
-
-    let config = scenes::options::ClientConfig::load();
 
     if config.fullscreen() {
         app.window
             .set_fullscreen(sdl2::video::FullscreenType::Desktop)
             .unwrap();
     }
+
+    log::info!("Using resource packs: {}", config.resource_packs().join(", "));
 
     let mut scene_manager = scenes::SceneManager::new(
         Box::new(scenes::titlescreen::TitleScreen::new(
