@@ -57,13 +57,6 @@ impl ClientConfig {
     pub fn resource_packs(&self) -> &[String] {
         self.resource_packs.as_deref().unwrap_or(&[])
     }
-
-    pub fn add_resource_pack(&mut self, pack: String) {
-        let packs = self.resource_packs.get_or_insert_with(Vec::new);
-        if !packs.contains(&pack) {
-            packs.push(pack);
-        }
-    }
 }
 
 pub struct Options {
@@ -121,12 +114,16 @@ impl Options {
         );
         sensitivity_slider.value = config.read().unwrap().sensitivity();
 
+        let resource_pack_button =
+            Button::new("Resource Packs", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+
         let back_button = Button::new("Back", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         options_container.add_widget(username_input);
         options_container.add_widget(fullscreen_button);
         options_container.add_widget(clear_logs_button);
         options_container.add_widget(sensitivity_slider);
+        options_container.add_widget(resource_pack_button);
         options_container.add_widget(back_button);
 
         let mut container = Column::new(
@@ -150,8 +147,6 @@ impl Options {
 }
 
 impl super::Scene for Options {
-    fn handle_event(&mut self, _gl: &Arc<glow::Context>, _event: &sdl2::event::Event) {}
-
     fn update(
         &mut self,
         _gl: &Arc<glow::Context>,
@@ -209,7 +204,7 @@ impl super::Scene for Options {
             .clone();
 
         self.container
-            .find_widget_mut::<Button>(&[1, 4])
+            .find_widget_mut::<Button>(&[1, 5])
             .unwrap()
             .disabled = input_text.trim().is_empty();
 
@@ -241,7 +236,7 @@ impl super::Scene for Options {
 
         if self
             .container
-            .find_widget::<Button>(&[1, 4])
+            .find_widget::<Button>(&[1, 5])
             .unwrap()
             .is_released()
         {
@@ -254,6 +249,21 @@ impl super::Scene for Options {
             log::info!("Saved config: {:?}", *config_guard);
 
             return crate::scenes::SceneAction::Pop;
+        }
+
+        if self
+            .container
+            .find_widget::<Button>(&[1, 4])
+            .unwrap()
+            .is_released()
+        {
+            return crate::scenes::SceneAction::Push(Box::new(
+                super::packselection::PackSelection::new(
+                    config.read().unwrap().resource_packs(),
+                    assets,
+                    window.size(),
+                ),
+            ));
         }
 
         crate::scenes::SceneAction::None

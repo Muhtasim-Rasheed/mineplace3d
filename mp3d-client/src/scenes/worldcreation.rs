@@ -87,8 +87,6 @@ impl WorldCreation {
 }
 
 impl super::Scene for WorldCreation {
-    fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, _event: &sdl2::event::Event) {}
-
     fn update(
         &mut self,
         gl: &Arc<glow::Context>,

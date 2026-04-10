@@ -81,10 +81,11 @@ impl ClientPlayer {
                 let local = pos - block_pos.as_vec3();
 
                 if block.visible
-                    && let Some(normal) = block.ray_intersect(local, backward, *state) {
-                        let hit_normal = normal.as_vec3();
-                        return pos + hit_normal * padding;
-                    }
+                    && let Some(normal) = block.ray_intersect(local, backward, *state)
+                {
+                    let hit_normal = normal.as_vec3();
+                    return pos + hit_normal * padding;
+                }
             }
 
             pos += backward * step;

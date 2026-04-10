@@ -8,10 +8,7 @@ use std::{
 use glam::{Mat4, Vec2};
 use glow::HasContext;
 
-use crate::{
-    abs::*,
-    render::ui::uirenderer::UIRenderer,
-};
+use crate::{abs::*, render::ui::uirenderer::UIRenderer};
 
 mod abs;
 mod client;
@@ -82,7 +79,8 @@ pub fn get_saves_dir() -> PathBuf {
 pub fn get_resource_packs_dir() -> PathBuf {
     let resource_packs_dir = get_game_dir().join("resourcepacks");
     if !resource_packs_dir.exists() {
-        std::fs::create_dir_all(&resource_packs_dir).expect("Failed to create resource packs directory");
+        std::fs::create_dir_all(&resource_packs_dir)
+            .expect("Failed to create resource packs directory");
     }
     resource_packs_dir
 }
@@ -202,13 +200,13 @@ fn main() {
             .unwrap();
     }
 
-    log::info!("Using resource packs: {}", config.resource_packs().join(", "));
+    log::info!(
+        "Using resource packs: {}",
+        config.resource_packs().join(", ")
+    );
 
     let mut scene_manager = scenes::SceneManager::new(
-        Box::new(scenes::titlescreen::TitleScreen::new(
-            &assets,
-            (1280, 720),
-        )),
+        Box::new(scenes::titlescreen::TitleScreen::new(&assets, (1280, 720))),
         assets,
         config,
     );

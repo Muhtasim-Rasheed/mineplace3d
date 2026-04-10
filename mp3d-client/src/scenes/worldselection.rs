@@ -115,8 +115,6 @@ impl WorldSelection {
 }
 
 impl super::Scene for WorldSelection {
-    fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, _event: &sdl2::event::Event) {}
-
     fn update(
         &mut self,
         gl: &Arc<glow::Context>,

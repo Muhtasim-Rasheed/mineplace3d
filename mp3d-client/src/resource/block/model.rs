@@ -27,14 +27,12 @@ impl BlockModel {
     ) -> Result<Self, String> {
         let path =
             PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
-        let raw_content = resource_manager
-            .read_utf8(&path)
-            .ok_or_else(|| {
-                format!(
-                    "Model file not found for block '{}': {:?}",
-                    block.ident, path
-                )
-            })?;
+        let raw_content = resource_manager.read_utf8(&path).ok_or_else(|| {
+            format!(
+                "Model file not found for block '{}': {:?}",
+                block.ident, path
+            )
+        })?;
         let raw_model: RawBlockModel = serde_json::from_str(&raw_content).map_err(|e| {
             format!(
                 "Failed to parse model JSON for block '{}': {}",
@@ -46,7 +44,11 @@ impl BlockModel {
 
     /// Creates a [`BlockModel`] from a [`RawBlockModel`], resolving texture references and parent
     /// models.
-    pub fn from_raw(raw: RawBlockModel, resource_manager: &ResourceManager, atlas: &mut TextureAtlas) -> Result<Self, String> {
+    pub fn from_raw(
+        raw: RawBlockModel,
+        resource_manager: &ResourceManager,
+        atlas: &mut TextureAtlas,
+    ) -> Result<Self, String> {
         if atlas.is_finished() {
             return Err("Cannot create block model after texture atlas is finished".to_string());
         }
@@ -65,8 +67,9 @@ impl BlockModel {
 
         if let Some(raw_elements) = raw.elements {
             for (i, raw_element) in raw_elements.into_iter().enumerate() {
-                let element = BlockElement::from_raw(raw_element, &textures, resource_manager, atlas)
-                    .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
+                let element =
+                    BlockElement::from_raw(raw_element, &textures, resource_manager, atlas)
+                        .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 elements.push(element);
             }
         } else if let Some(parent) = raw.parent {
@@ -120,15 +123,22 @@ impl BlockModel {
         if let Some(elements) = parent_raw.elements {
             let mut resolved_elements = Vec::new();
             for (i, raw_element) in elements.into_iter().enumerate() {
-                let element = BlockElement::from_raw(raw_element, textures, resource_manager, atlas)
-                    .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
+                let element =
+                    BlockElement::from_raw(raw_element, textures, resource_manager, atlas)
+                        .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 resolved_elements.push(element);
             }
             Ok(resolved_elements)
         } else if let Some(grand_parent) = parent_raw.parent {
             let grand_parent_path =
                 PathBuf::from("blocks/models").join(format!("{}.json", grand_parent));
-            Self::resolve_elements(&grand_parent_path, textures, visited, resource_manager, atlas)
+            Self::resolve_elements(
+                &grand_parent_path,
+                textures,
+                visited,
+                resource_manager,
+                atlas,
+            )
         } else {
             Err(format!("Model {:?} has no elements and no parent", parent))
         }

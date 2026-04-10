@@ -1,10 +1,9 @@
-
 use glam::{Vec2, Vec4};
 use mp3d_core::TextComponent;
 
 use crate::{
     abs::Texture,
-    render::ui::{uirenderer::DrawCommand, widgets::Widget},
+    render::ui::{uirenderer::DrawCommand, widgets::Widget}, resource::fontsettings::FontSettings,
 };
 
 pub struct Font {
@@ -15,17 +14,12 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn new(
-        atlas: Texture,
-        char_size: Vec2,
-        first_char: char,
-        strikethrough: Option<u32>,
-    ) -> Self {
+    pub fn new(atlas: Texture, font_settings: FontSettings) -> Self {
         Self {
             atlas,
-            char_size,
-            first_char,
-            strikethrough,
+            char_size: Vec2::new(font_settings.char_width as f32, font_settings.char_height as f32),
+            first_char: font_settings.first_char,
+            strikethrough: font_settings.strikethrough_idx,
         }
     }
 

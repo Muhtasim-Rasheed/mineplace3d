@@ -3,6 +3,7 @@
 //! Reads model files and textures and prepares them for rendering.
 
 pub mod block;
+pub mod fontsettings;
 pub mod pack;
 
 pub trait AssetSource: Send + Sync {
@@ -76,6 +77,7 @@ impl ResourceManager {
     }
 
     pub fn read_utf8(&self, path: &std::path::Path) -> Option<String> {
-        self.read(path).and_then(|bytes| String::from_utf8(bytes).ok())
+        self.read(path)
+            .and_then(|bytes| String::from_utf8(bytes).ok())
     }
 }

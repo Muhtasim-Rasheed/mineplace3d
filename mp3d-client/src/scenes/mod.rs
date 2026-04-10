@@ -25,6 +25,7 @@ pub enum SceneAction {
     Replace(Box<dyn Scene>),
     Quit,
     ReloadAssets,
+    ReloadAssetsAndPop,
 }
 
 /// Assets given to scenes during update and render, which they can use to access resources such
@@ -95,9 +96,13 @@ impl Assets {
                 )
                 .unwrap(),
             ),
-            glam::Vec2::new(7.0, 12.0),
-            ' ',
-            Some(95),
+            resource_manager
+                .read(std::path::Path::new("font.json"))
+                .ok_or_else(|| "Failed to load font metadata".to_string())
+                .and_then(|data| {
+                    serde_json::from_slice(&data)
+                        .map_err(|e| format!("Failed to parse font metadata: {}", e))
+                })?,
         );
         let gui_tex = crate::abs::Texture::new(
             gl,
@@ -208,6 +213,17 @@ impl SceneManager {
                         Err(e) => log::error!("Failed to reload assets: {}", e),
                     }
                 }
+                SceneAction::ReloadAssetsAndPop => {
+                    log::info!("Reloading assets...");
+                    match Assets::load(gl, &self.config.read().unwrap()) {
+                        Ok(new_assets) => {
+                            self.assets = Arc::new(new_assets);
+                            log::info!("Assets reloaded successfully");
+                        }
+                        Err(e) => log::error!("Failed to reload assets: {}", e),
+                    }
+                    self.scenes.pop();
+                }
             }
             if is_switching {
                 self.just_switched = true;
@@ -225,6 +241,7 @@ impl SceneManager {
 }
 
 pub mod options;
+pub mod packselection;
 pub mod singleplayer;
 pub mod titlescreen;
 pub mod worldcreation;
