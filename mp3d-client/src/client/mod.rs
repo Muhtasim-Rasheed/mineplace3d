@@ -10,6 +10,7 @@
 pub mod chunk;
 pub mod player;
 pub mod world;
+mod emoji;
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -330,6 +331,13 @@ impl<C: Connection> Client<C> {
                 && let Some(message) = self.chat_message.as_mut()
             {
                 message.pop();
+            }
+
+            if let Some(message) = &self.chat_message {
+                let replaced = emoji::replace_emojis(message);
+                if replaced != *message {
+                    self.chat_message = Some(replaced);
+                }
             }
         } else if self.inventory_open
             && update_context
