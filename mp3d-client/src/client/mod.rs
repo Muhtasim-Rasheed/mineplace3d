@@ -8,9 +8,9 @@
 //! this trait for local server interactions.
 
 pub mod chunk;
+mod emoji;
 pub mod player;
 pub mod world;
-mod emoji;
 
 use std::{cell::RefCell, rc::Rc};
 

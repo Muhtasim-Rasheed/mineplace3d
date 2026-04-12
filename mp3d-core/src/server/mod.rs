@@ -47,6 +47,7 @@ pub struct PlayerSession {
 pub struct Server {
     pub sessions: HashMap<u64, PlayerSession>,
     pub connections: HashMap<u64, u64>,
+    pub entity_to_user: HashMap<u64, u64>,
     pub world: World,
     pub singleplayer: bool,
     pub save_path: PathBuf,
@@ -61,6 +62,7 @@ impl Server {
         Self {
             sessions: HashMap::new(),
             connections: HashMap::new(),
+            entity_to_user: HashMap::new(),
             world: World::new(seed),
             singleplayer,
             save_path: save_path.clone(),
@@ -76,6 +78,27 @@ impl Server {
             user_id += 1;
         }
         user_id
+    }
+
+    /// Gets a session by entity ID, if it exists.
+    pub fn get_session_by_entity<'a>(
+        &self,
+        entity_to_user: &HashMap<u64, u64>,
+        sessions: &'a HashMap<u64, PlayerSession>,
+        entity_id: u64,
+    ) -> Option<&'a PlayerSession> {
+        let user_id = entity_to_user.get(&entity_id)?;
+        sessions.get(user_id)
+    }
+
+    /// Gets a mutable reference to a session by entity ID, if it exists.
+    fn get_session_by_entity_mut<'a>(
+        entity_to_user: &HashMap<u64, u64>,
+        sessions: &'a mut HashMap<u64, PlayerSession>,
+        entity_id: u64,
+    ) -> Option<&'a mut PlayerSession> {
+        let user_id = entity_to_user.get(&entity_id)?;
+        sessions.get_mut(user_id)
     }
 
     /// Handles messages received from clients, and prepares responses. Note that this does not
@@ -136,6 +159,7 @@ impl Server {
                             },
                         );
                         self.connections.insert(connection_id, user_id);
+                        self.entity_to_user.insert(entity_id, user_id);
                         broadcast_message(
                             &mut self.sessions,
                             None,
@@ -239,12 +263,9 @@ impl Server {
                 };
                 let status = self.execute_command(&message, connection_id);
                 match status {
-                    Ok(Some((other_msgs, success))) => {
+                    Ok(Some(success)) => {
                         if let Some(session) = self.sessions.get_mut(&user_id) {
                             log::info!("{} issued server command: {}", session.username, message);
-                            for msg in other_msgs {
-                                session.pending_messages.push(msg);
-                            }
                             session
                                 .pending_messages
                                 .push(S2CMessage::ChatMessage { message: success });
@@ -324,9 +345,6 @@ impl Server {
                         self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
                 {
                     player_entity.inventory.click(idx, right);
-                    session.pending_messages.push(S2CMessage::InventoryUpdated {
-                        inventory: player_entity.inventory.clone(),
-                    });
                 }
             }
             C2SMessage::HotbarChange { idx } => {
@@ -347,7 +365,7 @@ impl Server {
         &mut self,
         command: &str,
         connection_id: u64,
-    ) -> Result<Option<(Vec<S2CMessage>, TextComponent)>, String> {
+    ) -> Result<Option<TextComponent>, String> {
         if !command.starts_with('/') {
             return Ok(None);
         }
@@ -366,22 +384,18 @@ impl Server {
                         self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
                 {
                     player_entity.inventory.add_stack(*item, count);
-                    Ok(Some((
-                        vec![S2CMessage::InventoryUpdated {
-                            inventory: player_entity.inventory.clone(),
-                        }],
+                    Ok(Some(
                         format!("%b7FGave you {} x {}%r", count, item.ident)
                             .parse()
                             .unwrap(),
-                    )))
+                    ))
                 } else {
                     Err("You must be connected to use this command".to_string())
                 }
             }
-            "/tps" => Ok(Some((
-                vec![],
+            "/tps" => Ok(Some(
                 format!("Current TPS: {}%r", self.tps).parse().unwrap(),
-            ))),
+            )),
             _ => Err("Unknown command".to_string()),
         }
     }
@@ -417,19 +431,31 @@ impl Server {
         );
 
         for entity in self.world.entities.values() {
-            if let Some(entity) = entity.as_any().downcast_ref::<PlayerEntity>()
-                && entity.velocity.length_squared() > 0.0
-            {
-                broadcast_message(
-                    &mut self.sessions,
-                    Some(entity.id()),
-                    S2CMessage::PlayerMoved {
-                        entity_id: entity.id(),
-                        position: entity.position(),
-                        yaw: entity.yaw,
-                        pitch: entity.pitch,
-                    },
-                );
+            if let Some(entity) = entity.as_any().downcast_ref::<PlayerEntity>() {
+                if entity.velocity.length_squared() > 0.0 {
+                    broadcast_message(
+                        &mut self.sessions,
+                        Some(entity.id()),
+                        S2CMessage::PlayerMoved {
+                            entity_id: entity.id(),
+                            position: entity.position(),
+                            yaw: entity.yaw,
+                            pitch: entity.pitch,
+                        },
+                    );
+                }
+
+                if entity.inventory.dirty {
+                    if let Some(session) = Self::get_session_by_entity_mut(
+                        &self.entity_to_user,
+                        &mut self.sessions,
+                        entity.id(),
+                    ) {
+                        session.pending_messages.push(S2CMessage::InventoryUpdated {
+                            inventory: entity.inventory.clone(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -448,6 +474,7 @@ impl Server {
         Ok(Self {
             sessions: HashMap::new(),
             connections: HashMap::new(),
+            entity_to_user: HashMap::new(),
             world: World::load(&save_path)?,
             singleplayer,
             save_path: save_path.clone(),

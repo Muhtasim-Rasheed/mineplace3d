@@ -66,7 +66,8 @@ impl PackSelection {
         buttons.add_widget(up_button);
         buttons.add_widget(down_button);
 
-        let mut lists_container = Row::new(20.0, Alignment::Start, Vec4::ZERO, Justification::Start);
+        let mut lists_container =
+            Row::new(20.0, Alignment::Start, Vec4::ZERO, Justification::Start);
         lists_container.add_widget(available_column);
         lists_container.add_widget(buttons);
         lists_container.add_widget(using_column);
@@ -176,7 +177,10 @@ impl super::Scene for PackSelection {
             .len();
 
         for i in 1..using_len {
-            let button = self.container.find_widget_mut::<Button>(&[1, 2, i]).unwrap();
+            let button = self
+                .container
+                .find_widget_mut::<Button>(&[1, 2, i])
+                .unwrap();
 
             if button.is_released() {
                 self.using_selected = Some(i);

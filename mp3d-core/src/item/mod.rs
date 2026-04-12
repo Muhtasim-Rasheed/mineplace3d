@@ -222,6 +222,7 @@ impl ItemStack {
 pub struct Inventory {
     pub main: [ItemStack; 36],
     pub temp: ItemStack,
+    pub dirty: bool,
 }
 
 impl Default for Inventory {
@@ -237,6 +238,7 @@ impl Inventory {
         Self {
             main: [ItemStack::empty(); 36],
             temp: ItemStack::empty(),
+            dirty: false,
         }
     }
 
@@ -245,6 +247,7 @@ impl Inventory {
     pub fn take_into_temp(&mut self, index: usize) {
         let count = self.main[index].count;
         self.temp.take_from(&mut self.main[index], count);
+        self.dirty = true;
     }
 
     /// Takes the temporary slot into the general slot and leaves the remainder back to the
@@ -252,6 +255,7 @@ impl Inventory {
     pub fn take_from_temp(&mut self, index: usize) {
         let count = self.temp.count;
         self.main[index].take_from(&mut self.temp, count);
+        self.dirty = true;
     }
 
     /// Simulates a click on a general slot.
@@ -266,9 +270,9 @@ impl Inventory {
             } else {
                 self.main[index].take_from(&mut self.temp, 1);
             }
+            self.dirty = true;
         } else {
-            // // Left click: Swap the temporary stack with the general slot stack
-            // std::mem::swap(&mut self.main[index], &mut self.temp);
+            // Left click: Swap the temporary stack with the general slot stack
             if self.temp.is_empty() {
                 self.take_into_temp(index);
             } else {
@@ -305,6 +309,7 @@ impl Inventory {
                 }
             }
         }
+        self.dirty = true;
     }
 
     /// Adds a specified count of items of a given item to the inventory, splitting it into
@@ -322,5 +327,11 @@ impl Inventory {
     /// inventory, so the index is adjusted accordingly.
     pub fn hotbar_slot(&self, index: usize) -> &ItemStack {
         &self.main[3 * 9 + index]
+    }
+
+    /// Gets a mutable reference to a specified hotbar slot. The hotbar consists of the last 9
+    /// slots of the general inventory, so the index is adjusted accordingly.
+    pub fn hotbar_slot_mut(&mut self, index: usize) -> &mut ItemStack {
+        &mut self.main[3 * 9 + index]
     }
 }

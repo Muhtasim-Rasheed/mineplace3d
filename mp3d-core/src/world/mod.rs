@@ -262,6 +262,40 @@ impl World {
         false
     }
 
+    fn try_place_block(
+        &mut self,
+        player_entity_id: u64,
+        pos: IVec3,
+        block: Block,
+        state: BlockState,
+    ) -> bool {
+        let player_pos = match self.get_entity::<PlayerEntity>(player_entity_id) {
+            Some(p) => p.position,
+            None => return false,
+        };
+
+        let old_block = *self.get_block_at(pos).map(|(b, _)| b).unwrap_or(&Block::AIR);
+
+        self.urgent_set_block_at(pos, block, state, BlockUpdateKind::Placed);
+
+        if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
+            self.urgent_set_block_at(pos, old_block, BlockState::none(), BlockUpdateKind::Removed);
+            return false;
+        }
+
+        if let Some(player) = self.get_entity_mut::<PlayerEntity>(player_entity_id) {
+            let inv = &mut player.inventory;
+            let slot = inv.hotbar_slot_mut(player.hotbar_index);
+            slot.count -= 1;
+            if slot.count == 0 {
+                slot.item = crate::item::Item::AIR;
+            }
+            inv.dirty = true;
+        }
+
+        true
+    }
+
     /// Handles a block interaction at the given world position and face index. If the block is not
     /// interactive, this will attempt to place a block on the face that was clicked.
     pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: u8) {
@@ -270,57 +304,30 @@ impl World {
                 self.interact_glungus(block_pos);
                 return;
             }
-            Some((ident, state)) if state == BlockState::slab(false) && face == 4 => {
-                let player = match self.get_entity::<PlayerEntity>(player_entity_id) {
-                    Some(p) => p,
+            Some((ident, state))
+                if state == BlockState::slab(false) && face == 4
+                || state == BlockState::slab(true) && face == 5 =>
+            {
+                let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
+                    Some(p) => (
+                        p.inventory.hotbar_slot(p.hotbar_index).count,
+                        p.inventory.hotbar_slot(p.hotbar_index).item.assoc_block,
+                    ),
                     None => return,
                 };
 
-                let place_block = player
-                    .inventory
-                    .hotbar_slot(player.hotbar_index)
-                    .item
-                    .assoc_block;
+                if item_count == 0 {
+                    return;
+                }
 
                 if let Some(item_block) = place_block
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.urgent_set_block_at(
-                            block_pos,
-                            Block::STONE,
-                            BlockState::none(),
-                            BlockUpdateKind::Placed,
-                        )
+                        self.try_place_block(player_entity_id, block_pos, Block::STONE, BlockState::none());
                     }
-                    return;
                 }
-            }
-            Some((ident, state)) if state == BlockState::slab(true) && face == 5 => {
-                let player = match self.get_entity::<PlayerEntity>(player_entity_id) {
-                    Some(p) => p,
-                    None => return,
-                };
-
-                let place_block = player
-                    .inventory
-                    .hotbar_slot(player.hotbar_index)
-                    .item
-                    .assoc_block;
-
-                if let Some(item_block) = place_block
-                    && item_block.ident == ident
-                {
-                    if ident == "stone_slab" {
-                        self.urgent_set_block_at(
-                            block_pos,
-                            Block::STONE,
-                            BlockState::none(),
-                            BlockUpdateKind::Placed,
-                        )
-                    }
-                    return;
-                }
+                return;
             }
             _ => {}
         }
@@ -337,37 +344,22 @@ impl World {
                 _ => return,
             };
 
-        let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
-            Some(p) => p,
+        let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
+            Some(p) => (
+                p.inventory.hotbar_slot(p.hotbar_index).count,
+                p.inventory.hotbar_slot(p.hotbar_index).item.assoc_block,
+            ),
             None => return,
         };
 
-        let player_pos = player.position;
-
-        let place_block = player
-            .inventory
-            .hotbar_slot(player.hotbar_index)
-            .item
-            .assoc_block;
+        if item_count == 0 {
+            return;
+        }
 
         if let Some(block) = place_block
             && let Some(state) = BlockState::default_state(block.state_type)
         {
-            let old_block = *self
-                .get_block_at(place_pos)
-                .map(|(b, _)| b)
-                .unwrap_or(&Block::AIR);
-
-            self.urgent_set_block_at(place_pos, *block, state, BlockUpdateKind::Placed);
-
-            if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
-                self.urgent_set_block_at(
-                    place_pos,
-                    old_block,
-                    BlockState::none(),
-                    BlockUpdateKind::Removed,
-                );
-            }
+            self.try_place_block(player_entity_id, place_pos, *block, state);
         }
     }
 
