@@ -329,12 +329,7 @@ impl Server {
                         self.world
                             .block_interaction(session.entity_id, position, face);
                     } else {
-                        self.world.urgent_set_block_at(
-                            position,
-                            crate::block::Block::AIR,
-                            crate::block::BlockState::none(),
-                            crate::protocol::BlockUpdateKind::Removed,
-                        );
+                        self.world.break_block(session.entity_id, position);
                     }
                 }
             }

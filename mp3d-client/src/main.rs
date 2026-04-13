@@ -47,7 +47,7 @@ macro_rules! shader_program {
     }};
 }
 
-pub static ASSETS: include_dir::Dir<'_> =
+pub const ASSETS: include_dir::Dir<'_> =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/src/assets");
 
 static GAME_DIR: OnceLock<PathBuf> = OnceLock::new();

@@ -5,6 +5,7 @@
 use glam::{IVec3, Vec3, Vec4};
 
 pub mod block;
+pub mod datapack;
 pub mod entity;
 pub mod item;
 pub mod protocol;

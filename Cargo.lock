@@ -872,6 +872,7 @@ dependencies = [
  "fastnoise-lite",
  "fxhash",
  "glam",
+ "include_dir",
  "log",
  "rand 0.9.2",
  "serde",

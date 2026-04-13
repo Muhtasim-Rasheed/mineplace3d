@@ -13,6 +13,7 @@ use glam::{IVec3, Vec3};
 use crate::{
     UniqueQueue,
     block::{Block, BlockState},
+    datapack::GameData,
     entity::{Entity, EntityType, PlayerEntity},
     protocol::{BlockUpdate, BlockUpdateKind},
     saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
@@ -39,6 +40,8 @@ pub struct World {
     /// state. This is used to track changes to chunks that have been modified by the player or
     /// other entities.
     changes: HashMap<IVec3, HashMap<IVec3, (Block, BlockState)>>,
+
+    game_data: GameData,
 }
 
 impl World {
@@ -64,6 +67,7 @@ impl World {
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
             changes: HashMap::new(),
+            game_data: GameData::new(),
         }
     }
 
@@ -274,7 +278,10 @@ impl World {
             None => return false,
         };
 
-        let old_block = *self.get_block_at(pos).map(|(b, _)| b).unwrap_or(&Block::AIR);
+        let old_block = *self
+            .get_block_at(pos)
+            .map(|(b, _)| b)
+            .unwrap_or(&Block::AIR);
 
         self.urgent_set_block_at(pos, block, state, BlockUpdateKind::Placed);
 
@@ -306,15 +313,16 @@ impl World {
             }
             Some((ident, state))
                 if state == BlockState::slab(false) && face == 4
-                || state == BlockState::slab(true) && face == 5 =>
+                    || state == BlockState::slab(true) && face == 5 =>
             {
-                let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
-                    Some(p) => (
-                        p.inventory.hotbar_slot(p.hotbar_index).count,
-                        p.inventory.hotbar_slot(p.hotbar_index).item.assoc_block,
-                    ),
-                    None => return,
-                };
+                let (item_count, place_block) =
+                    match self.get_entity::<PlayerEntity>(player_entity_id) {
+                        Some(p) => (
+                            p.inventory.hotbar_slot(p.hotbar_index).count,
+                            p.inventory.hotbar_slot(p.hotbar_index).item.assoc_block,
+                        ),
+                        None => return,
+                    };
 
                 if item_count == 0 {
                     return;
@@ -324,7 +332,12 @@ impl World {
                     && item_block.ident == ident
                 {
                     if ident == "stone_slab" {
-                        self.try_place_block(player_entity_id, block_pos, Block::STONE, BlockState::none());
+                        self.try_place_block(
+                            player_entity_id,
+                            block_pos,
+                            Block::STONE,
+                            BlockState::none(),
+                        );
                     }
                 }
                 return;
@@ -379,6 +392,58 @@ impl World {
                     }
                 }
             }
+        }
+    }
+
+    pub fn break_block(&mut self, player_entity_id: u64, block_pos: IVec3) {
+        let block = match self.get_block_at(block_pos) {
+            Some((b, _)) => *b,
+            None => return,
+        };
+
+        let Some(loot_table_entry) = self.game_data.get_block_drops(block.ident) else {
+            return;
+        };
+        let drops = &loot_table_entry.drops.clone();
+
+        self.urgent_set_block_at(
+            block_pos,
+            crate::block::Block::AIR,
+            crate::block::BlockState::none(),
+            crate::protocol::BlockUpdateKind::Removed,
+        );
+
+        let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
+            Some(p) => p,
+            None => return,
+        };
+
+        for (item, drop_entry) in drops {
+            let count = if drop_entry.max == drop_entry.min {
+                drop_entry.min
+            } else {
+                let mut rng = rand::rng();
+                let roll = rand::Rng::random_range(&mut rng, 0.0..1.0);
+                if roll < drop_entry.min_chance {
+                    drop_entry.min
+                } else if roll < drop_entry.max_chance {
+                    drop_entry.max
+                } else {
+                    0
+                }
+            };
+
+            let item = match crate::item::Item::from_ident(item) {
+                Some(i) => i,
+                None => {
+                    log::warn!("Unknown item '{}' in loot table for block '{}'", item, block.ident);
+                    continue;
+                }
+            };
+
+            // TODO: implement item entities, for now just add the items directly to the player's
+            // inventory
+            player.inventory.add_stack(*item, count as u16);
         }
     }
 }
@@ -623,6 +688,7 @@ fn load_v0_1_2(
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
         changes: HashMap::new(),
+        game_data: GameData::new(),
     };
 
     // CHUNKS
