@@ -22,7 +22,7 @@
 243| 3D graphics!
 243| By a handful of people!
 243| Multithreaded!
-243| SSAO!
+243| Baked Ambient Occlusion!
 243| Walking ~15 million blocks may cause weird physics and graphics!
 243| Panics when an invalid world is loaded!
 243| Not for children under 3 years old! (cause they can't read)
