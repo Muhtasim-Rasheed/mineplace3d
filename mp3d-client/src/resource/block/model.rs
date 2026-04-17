@@ -3,12 +3,54 @@ use std::{collections::HashMap, path::PathBuf};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use mp3d_core::block::Block;
 
-use crate::{render::meshing::FACE_VERTS, resource::ResourceManager};
+use crate::resource::ResourceManager;
 
 use super::{
     TextureAtlas, TextureRef,
     raw_model::{RawBlockElement, RawBlockFace, RawBlockModel},
 };
+
+fn face_corners(from: Vec3, to: Vec3, face: u8) -> [Vec3; 4] {
+    match face {
+        0 => [
+            glam::vec3(from.x, from.y, from.z),
+            glam::vec3(to.x, from.y, from.z),
+            glam::vec3(to.x, to.y, from.z),
+            glam::vec3(from.x, to.y, from.z),
+        ],
+        1 => [
+            glam::vec3(to.x, from.y, to.z),
+            glam::vec3(from.x, from.y, to.z),
+            glam::vec3(from.x, to.y, to.z),
+            glam::vec3(to.x, to.y, to.z),
+        ],
+        2 => [
+            glam::vec3(to.x, from.y, from.z),
+            glam::vec3(to.x, from.y, to.z),
+            glam::vec3(to.x, to.y, to.z),
+            glam::vec3(to.x, to.y, from.z),
+        ],
+        3 => [
+            glam::vec3(from.x, from.y, to.z),
+            glam::vec3(from.x, from.y, from.z),
+            glam::vec3(from.x, to.y, from.z),
+            glam::vec3(from.x, to.y, to.z),
+        ],
+        4 => [
+            glam::vec3(from.x, to.y, from.z),
+            glam::vec3(to.x, to.y, from.z),
+            glam::vec3(to.x, to.y, to.z),
+            glam::vec3(from.x, to.y, to.z),
+        ],
+        5 => [
+            glam::vec3(from.x, from.y, to.z),
+            glam::vec3(to.x, from.y, to.z),
+            glam::vec3(to.x, from.y, from.z),
+            glam::vec3(from.x, from.y, from.z),
+        ],
+        _ => unreachable!(),
+    }
+}
 
 /// A block model, containing all the information needed to render a block.
 pub struct BlockModel {
@@ -161,15 +203,17 @@ impl BlockModel {
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
-                    Vec2::new(uv_min.x, uv_max.y),
-                    Vec2::new(uv_max.x, uv_max.y),
                     Vec2::new(uv_max.x, uv_min.y),
                     Vec2::new(uv_min.x, uv_min.y),
+                    Vec2::new(uv_min.x, uv_max.y),
+                    Vec2::new(uv_max.x, uv_max.y),
                 ];
 
                 let mut vertices = Vec::new();
 
-                for (vert, uv) in FACE_VERTS[i ^ 1].iter().zip(uvs.iter()) {
+                // idk why but we need to swap to and from
+                let corners = face_corners(element.to, element.from, i as u8);
+                for (vert, uv) in corners.iter().zip(uvs.iter()) {
                     let from = element.from + 0.5;
                     let to = element.to + 0.5;
                     let rotated = rotation.transform_point3(*vert - (to - from) + from);

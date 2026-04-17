@@ -138,7 +138,7 @@ impl super::Scene for PackSelection {
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(_window.size().0 as f32, _window.size().1 as f32),
             cursor: Vec2::ZERO,
-            assets: assets,
+            assets,
         });
 
         let available_len = self
@@ -159,7 +159,7 @@ impl super::Scene for PackSelection {
                 .unwrap()
                 .resource_packs
                 .as_ref()
-                .map_or(false, |packs| packs.contains(&button.label));
+                .is_some_and(|packs| packs.contains(&button.label));
 
             if button.is_released() {
                 self.available_selected = Some(i);
@@ -212,8 +212,7 @@ impl super::Scene for PackSelection {
             .find_widget::<Button>(&[1, 1, 0])
             .unwrap()
             .is_released()
-        {
-            if let Some(selected) = self.available_selected {
+            && let Some(selected) = self.available_selected {
                 let button = self
                     .container
                     .find_widget_mut::<Button>(&[1, 0, selected])
@@ -235,41 +234,36 @@ impl super::Scene for PackSelection {
                     self.available_selected = None;
                 }
             }
-        }
 
         if self
             .container
             .find_widget::<Button>(&[1, 1, 1])
             .unwrap()
             .is_released()
-        {
-            if let Some(selected) = self.using_selected {
+            && let Some(selected) = self.using_selected {
                 let button = self
                     .container
                     .find_widget_mut::<Button>(&[1, 2, selected])
                     .unwrap();
                 let pack_name = button.label.clone();
                 let mut guard = config.write().unwrap();
-                if let Some(resource_packs) = guard.resource_packs.as_mut() {
-                    if let Some(pos) = resource_packs.iter().position(|x| x == &pack_name) {
+                if let Some(resource_packs) = guard.resource_packs.as_mut()
+                    && let Some(pos) = resource_packs.iter().position(|x| x == &pack_name) {
                         resource_packs.remove(pos);
                         let using_column =
                             self.container.find_widget_mut::<Column>(&[1, 2]).unwrap();
                         using_column.widgets.remove(selected);
                         self.using_selected = None;
                     }
-                }
             }
-        }
 
         if self
             .container
             .find_widget::<Button>(&[1, 1, 2])
             .unwrap()
             .is_released()
-        {
-            if let Some(selected) = self.using_selected {
-                if selected > 1 {
+            && let Some(selected) = self.using_selected
+                && selected > 1 {
                     self.container
                         .find_widget_mut::<Column>(&[1, 2])
                         .unwrap()
@@ -281,16 +275,13 @@ impl super::Scene for PackSelection {
                     }
                     self.using_selected = Some(selected - 1);
                 }
-            }
-        }
 
         if self
             .container
             .find_widget::<Button>(&[1, 1, 3])
             .unwrap()
             .is_released()
-        {
-            if let Some(selected) = self.using_selected {
+            && let Some(selected) = self.using_selected {
                 let using_len = self
                     .container
                     .find_widget::<Column>(&[1, 2])
@@ -310,7 +301,6 @@ impl super::Scene for PackSelection {
                     self.using_selected = Some(selected + 1);
                 }
             }
-        }
 
         if self
             .container

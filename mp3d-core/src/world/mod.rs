@@ -330,8 +330,7 @@ impl World {
 
                 if let Some(item_block) = place_block
                     && item_block.ident == ident
-                {
-                    if ident == "stone_slab" {
+                    && ident == "stone_slab" {
                         self.try_place_block(
                             player_entity_id,
                             block_pos,
@@ -339,7 +338,6 @@ impl World {
                             BlockState::none(),
                         );
                     }
-                }
                 return;
             }
             _ => {}
@@ -436,7 +434,11 @@ impl World {
             let item = match crate::item::Item::from_ident(item) {
                 Some(i) => i,
                 None => {
-                    log::warn!("Unknown item '{}' in loot table for block '{}'", item, block.ident);
+                    log::warn!(
+                        "Unknown item '{}' in loot table for block '{}'",
+                        item,
+                        block.ident
+                    );
                     continue;
                 }
             };

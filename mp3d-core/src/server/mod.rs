@@ -440,8 +440,8 @@ impl Server {
                     );
                 }
 
-                if entity.inventory.dirty {
-                    if let Some(session) = Self::get_session_by_entity_mut(
+                if entity.inventory.dirty
+                    && let Some(session) = Self::get_session_by_entity_mut(
                         &self.entity_to_user,
                         &mut self.sessions,
                         entity.id(),
@@ -450,7 +450,6 @@ impl Server {
                             inventory: entity.inventory.clone(),
                         });
                     }
-                }
             }
         }
     }

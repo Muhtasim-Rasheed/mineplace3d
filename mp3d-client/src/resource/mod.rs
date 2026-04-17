@@ -25,11 +25,7 @@ pub struct FolderAssetSource {
 impl AssetSource for FolderAssetSource {
     fn read(&self, path: &std::path::Path) -> Option<Vec<u8>> {
         let full_path = self.root.join(path);
-        if let Ok(contents) = std::fs::read(full_path) {
-            Some(contents)
-        } else {
-            None
-        }
+        std::fs::read(full_path).ok()
     }
 }
 

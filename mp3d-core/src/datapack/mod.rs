@@ -73,6 +73,12 @@ pub struct GameData {
     loot_table: LootTable,
 }
 
+impl Default for GameData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GameData {
     pub fn new() -> Self {
         Self {

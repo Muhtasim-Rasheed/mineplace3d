@@ -137,7 +137,7 @@ fn block_is_full_cube(
 }
 
 /// The vertex positions for each face of a cube, in the order of NSEWUD.
-pub const FACE_VERTS: [[Vec3; 4]; 6] = [
+const FACE_VERTS: [[Vec3; 4]; 6] = [
     // North (-Z)
     [
         Vec3::new(1.0, 0.0, 0.0),

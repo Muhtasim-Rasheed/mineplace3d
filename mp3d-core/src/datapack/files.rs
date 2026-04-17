@@ -18,6 +18,12 @@ pub struct DataSources {
     sources: Vec<Box<dyn DataSource>>,
 }
 
+impl Default for DataSources {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DataSources {
     pub fn new() -> Self {
         Self {
