@@ -236,6 +236,33 @@ pub(crate) fn ray_intersect_aabb(
     }
 }
 
+fn parse_coord(coord: &str, player_coord: f32) -> Result<f32, String> {
+    // supports
+    // "100"
+    // "100.5"
+    // "~"
+    // "~1"
+    // "~1.5"
+    if let Some(stripped) = coord.strip_prefix('~') {
+        let offset = if stripped.is_empty() {
+            0.0
+        } else {
+            stripped.parse::<f32>().map_err(|_| format!("Invalid coordinate: {}", coord))?
+        };
+        Ok(player_coord + offset)
+    } else {
+        coord.parse::<f32>().map_err(|_| format!("Invalid coordinate: {}", coord))
+    }
+}
+
+pub(crate) fn parse_coords(x: &str, y: &str, z: &str, player_pos: Vec3) -> Result<Vec3, String> {
+    Ok(Vec3::new(
+        parse_coord(x, player_pos.x)?,
+        parse_coord(y, player_pos.y)?,
+        parse_coord(z, player_pos.z)?,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

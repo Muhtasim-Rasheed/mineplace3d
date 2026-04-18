@@ -407,20 +407,17 @@ impl<C: Connection> Client<C> {
                 S2CMessage::PlayerMoved {
                     entity_id,
                     position,
-                    yaw,
-                    pitch,
+                    ..
                 } => {
                     if Some(entity_id) != self.entity_id {
                         continue;
                     }
                     let delta = position - self.player.position;
-                    if delta.length_squared() > 9.0 {
+                    if delta.length_squared() > 3.0 * 3.0 {
                         self.player.position = position;
                     } else {
                         self.player.position += delta * 0.15;
                     }
-                    self.player.yaw = yaw;
-                    self.player.pitch = pitch;
                 }
                 S2CMessage::InventoryUpdated { inventory } => {
                     self.player

@@ -367,6 +367,29 @@ impl Server {
         let mut parts = command.split_whitespace();
         let cmd = parts.next().ok_or("No command provided")?;
         match cmd {
+            "/tp" => {
+                let x_str = parts.next().ok_or("No X coordinate specified")?;
+                let y_str = parts.next().ok_or("No Y coordinate specified")?;
+                let z_str = parts.next().ok_or("No Z coordinate specified")?;
+                if let Some(user_id) = self.connections.get(&connection_id)
+                    && let Some(session) = self.sessions.get_mut(user_id)
+                    && let Some(player_entity) =
+                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                {
+                    let pos = player_entity.position;
+                    let coords = crate::parse_coords(x_str, y_str, z_str, pos)?;
+                    player_entity.position = coords;
+                    // change the velocity to force the client to update the position
+                    // immediately
+                    player_entity.velocity += Vec3::new(0.0, 1.0, 0.0);
+                    Ok(Some(format!(
+                        "%b7FTeleported you to {}, {}, {}%r",
+                        coords.x, coords.y, coords.z
+                    ).parse().unwrap()))
+                } else {
+                    Err("You must be connected to use this command".to_string())
+                }
+            }
             "/give" => {
                 let item_name = parts.next().ok_or("No item specified")?;
                 let count_str = parts.next().ok_or("No count specified")?;
@@ -430,7 +453,7 @@ impl Server {
                 if entity.velocity.length_squared() > 0.0 {
                     broadcast_message(
                         &mut self.sessions,
-                        Some(entity.id()),
+                        None,
                         S2CMessage::PlayerMoved {
                             entity_id: entity.id(),
                             position: entity.position(),
