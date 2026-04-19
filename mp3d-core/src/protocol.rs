@@ -14,8 +14,10 @@ use crate::{
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct MoveInstructions {
     /// Forward movement: -1 (backward), 0 (none), 1 (forward), 2 (sprint).
+    /// Invalid values will be treated as 0.
     pub forward: i8,
     /// Strafe movement: -1 (left), 0 (none), 1 (right).
+    /// Invalid values will be treated as 0.
     pub strafe: i8,
     /// Whether the player is jumping.
     pub jump: bool,
@@ -29,7 +31,7 @@ pub struct MoveInstructions {
 
 /// The type of block update, which can be used to determine how the client should animate the
 /// update.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockUpdateKind {
     /// A block was placed by a player.
     Placed,

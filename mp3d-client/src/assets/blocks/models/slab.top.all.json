@@ -1,6 +1,7 @@
 {
 	"parent": "slab.top",
 	"textures": {
+		"$particle": "$a",
 		"$n": "$a",
 		"$s": "$a",
 		"$e": "$a",

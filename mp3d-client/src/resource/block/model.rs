@@ -55,6 +55,7 @@ fn face_corners(from: Vec3, to: Vec3, face: u8) -> [Vec3; 4] {
 /// A block model, containing all the information needed to render a block.
 pub struct BlockModel {
     pub elements: Vec<BlockElement>,
+    pub particle: Option<String>,
 }
 
 impl BlockModel {
@@ -126,7 +127,12 @@ impl BlockModel {
             .map_err(|e| format!("Failed to resolve parent model '{}': {}", parent, e))?;
         }
 
-        Ok(BlockModel { elements })
+        let particle = textures
+            .get("$particle")
+            .and_then(|tex_ref| tex_ref.resolve(&textures))
+            .map(|(_, name)| name);
+
+        Ok(BlockModel { elements, particle })
     }
 
     /// Recursively resolves elements from parent models, while also resolving texture references

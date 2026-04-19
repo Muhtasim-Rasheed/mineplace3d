@@ -24,6 +24,7 @@ use mp3d_core::{
 use crate::{
     client::{player::ClientInventory, world::ClientWorld},
     other::UpdateContext,
+    render::particles::ParticleSystem,
 };
 
 /// The [`Connection`] trait defines the interface for client-server communication.
@@ -365,7 +366,7 @@ impl<C: Connection> Client<C> {
     }
 
     /// Updates any state on the client side from all recieved messages from the server.
-    pub fn recieve_state(&mut self) -> Result<(), String> {
+    pub fn recieve_state(&mut self, particle_system: &mut ParticleSystem) -> Result<(), String> {
         let messages = self.connection.receive();
         for message in messages {
             match message {
@@ -448,6 +449,14 @@ impl<C: Connection> Client<C> {
                 }
                 S2CMessage::BlocksUpdated { updates } => {
                     for update in updates {
+                        if update.kind == mp3d_core::protocol::BlockUpdateKind::Removed {
+                            let Some((old_block, old_state)) =
+                                self.world.get_block_at(update.position)
+                            else {
+                                continue;
+                            };
+                            particle_system.block_break(update.position, old_block, old_state);
+                        }
                         self.world.set_block_at(
                             update.position,
                             update.block,

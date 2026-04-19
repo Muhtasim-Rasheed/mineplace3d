@@ -1,6 +1,7 @@
 {
 	"parent": "cube",
 	"textures": {
+		"$particle": "$a",
 		"$n": "$a",
 		"$s": "$a",
 		"$e": "$a",

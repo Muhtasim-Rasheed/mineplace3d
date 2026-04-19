@@ -13,7 +13,9 @@ use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 use crate::{
     abs::{Mesh, ShaderProgram, framebuffer::Framebuffer},
     client::{Client, Connection, LocalConnection},
-    render::{clouds::CloudRenderer, meshing::mesh_world, ui::widgets::*},
+    render::{
+        clouds::CloudRenderer, meshing::mesh_world, particles::ParticleSystem, ui::widgets::*,
+    },
     scenes::Assets,
     shader_program,
 };
@@ -28,6 +30,7 @@ struct WorldRenderer {
     chunk_meshes: HashMap<IVec3, Mesh>,
     chunk_mesh_pool: Vec<Mesh>,
     cloud_renderer: CloudRenderer,
+    particle_system: ParticleSystem,
     framebuffer: Framebuffer,
     chunk_shader: ShaderProgram,
     postprocess_shader: ShaderProgram,
@@ -144,6 +147,7 @@ impl SinglePlayer {
         pause_screen.add_widget(quit);
 
         let cloud_renderer = CloudRenderer::new(gl);
+        let particle_system = ParticleSystem::new(gl);
 
         Self {
             client,
@@ -151,6 +155,7 @@ impl SinglePlayer {
                 chunk_meshes: HashMap::new(),
                 chunk_mesh_pool: Vec::new(),
                 cloud_renderer,
+                particle_system,
                 framebuffer: Framebuffer::new(
                     gl,
                     window_size.0 as i32,
@@ -234,7 +239,10 @@ impl super::Scene for SinglePlayer {
         if self.playing {
             self.client
                 .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
-            if let Err(_reason) = self.client.recieve_state() {
+            if let Err(_reason) = self
+                .client
+                .recieve_state(&mut self.renderer.particle_system)
+            {
                 todo!("Save world and exit.")
             }
         } else {
@@ -330,6 +338,7 @@ impl super::Scene for SinglePlayer {
                 self.renderer.chunk_mesh_pool.push(mesh);
             }
         }
+        self.renderer.particle_system.update(ctx.delta_time, assets);
         if !self.client.world.remesh_queue.is_empty() {
             mesh_world(
                 gl,
@@ -408,6 +417,15 @@ impl super::Scene for SinglePlayer {
 
                 mesh.draw();
             }
+
+            self.renderer.particle_system.render(
+                gl,
+                assets,
+                self.client.player.view(&self.client.world),
+                self.client
+                    .player
+                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
+            );
 
             gl.disable(glow::CULL_FACE);
             gl.depth_mask(false);

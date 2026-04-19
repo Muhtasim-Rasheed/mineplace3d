@@ -5,4 +5,5 @@
 
 pub mod clouds;
 pub mod meshing;
+pub mod particles;
 pub mod ui;
