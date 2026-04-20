@@ -1,6 +1,6 @@
 //! All utilities related to rendering particles
 
-use glam::{FloatExt, IVec3, Mat4, Vec2, Vec3};
+use glam::{IVec3, Mat4, Vec2, Vec3};
 use glow::HasContext;
 use mp3d_core::block::{Block, BlockState};
 
@@ -69,6 +69,9 @@ impl ParticleSystem {
     }
 
     pub fn block_break(&mut self, position: IVec3, block: &Block, block_state: &BlockState) {
+        if !block.visible {
+            return;
+        }
         if let Some(state_ident) = block_state.to_ident() {
             for _ in 0..64 {
                 let position = position.as_vec3()
