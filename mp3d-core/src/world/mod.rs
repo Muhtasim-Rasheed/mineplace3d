@@ -16,7 +16,7 @@ use crate::{
     datapack::GameData,
     entity::{Entity, EntityType, PlayerEntity},
     protocol::{BlockUpdate, BlockUpdateKind},
-    saving::{SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
     world::chunk::{CHUNK_SIZE, Chunk},
 };
 
@@ -27,6 +27,7 @@ pub struct World {
     pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
     pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
     pub noise: fastnoise_lite::FastNoiseLite,
+    pub generator_version: u8,
 
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
@@ -56,7 +57,7 @@ impl World {
             for y in -1..1 {
                 for z in -PRELOAD_RADIUS..PRELOAD_RADIUS {
                     let chunk_pos = IVec3::new(x, y, z);
-                    chunks.insert(chunk_pos, Chunk::new(chunk_pos, &noise));
+                    chunks.insert(chunk_pos, Chunk::new(chunk_pos, &noise, GENERATOR_VERSION));
                 }
             }
         }
@@ -64,6 +65,7 @@ impl World {
             chunks,
             entities: fxhash::FxHashMap::default(),
             noise,
+            generator_version: GENERATOR_VERSION,
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
             changes: HashMap::new(),
@@ -151,7 +153,7 @@ impl World {
     /// Gets a reference to a chunk at the given chunk position, or loads it if it doesn't exist.
     pub fn get_chunk_or_new(&mut self, chunk_pos: IVec3) -> &Chunk {
         self.chunks.entry(chunk_pos).or_insert_with(|| {
-            let mut chunk = Chunk::new(chunk_pos, &self.noise);
+            let mut chunk = Chunk::new(chunk_pos, &self.noise, self.generator_version);
             if let Some(changes) = self.changes.get(&chunk_pos) {
                 for (local_pos, (block, state)) in changes {
                     chunk.set_block(*local_pos, *block, *state);
@@ -165,7 +167,7 @@ impl World {
     /// exist.
     pub fn get_chunk_mut_or_new(&mut self, chunk_pos: IVec3) -> &mut Chunk {
         self.chunks.entry(chunk_pos).or_insert_with(|| {
-            let mut chunk = Chunk::new(chunk_pos, &self.noise);
+            let mut chunk = Chunk::new(chunk_pos, &self.noise, self.generator_version);
             if let Some(changes) = self.changes.get(&chunk_pos) {
                 for (local_pos, (block, state)) in changes {
                     chunk.set_block(*local_pos, *block, *state);
@@ -330,14 +332,15 @@ impl World {
 
                 if let Some(item_block) = place_block
                     && item_block.ident == ident
-                    && ident == "stone_slab" {
-                        self.try_place_block(
-                            player_entity_id,
-                            block_pos,
-                            Block::STONE,
-                            BlockState::none(),
-                        );
-                    }
+                    && ident == "stone_slab"
+                {
+                    self.try_place_block(
+                        player_entity_id,
+                        block_pos,
+                        Block::STONE,
+                        BlockState::none(),
+                    );
+                }
                 return;
             }
             _ => {}
@@ -558,6 +561,7 @@ impl World {
     ///
     /// # save.bin
     /// - 1 byte: save format version (u8)
+    /// - 1 byte: generator version (u8)
     /// - 4 bytes: world seed (i32)
     ///
     /// # entities.bin
@@ -577,13 +581,14 @@ impl World {
     pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
         let mut save_file = std::fs::File::create(path.join("save.bin"))?;
         std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
+        std::io::Write::write_all(&mut save_file, &[self.generator_version])?;
         std::io::Write::write_all(&mut save_file, &self.noise.seed.to_le_bytes())?;
 
         log::info!("Saved save.bin");
 
         std::fs::create_dir_all(path.join("chunks"))?;
         for (chunk_pos, changes) in &self.changes {
-            let mut chunk = Chunk::new(*chunk_pos, &self.noise);
+            let mut chunk = Chunk::new(*chunk_pos, &self.noise, self.generator_version);
             for (local_pos, (block, state)) in changes {
                 chunk.set_block(*local_pos, *block, *state);
             }
@@ -660,7 +665,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 2 => load_v0_1_2(path, &mut save_iter, version),
+            Some(version) if version <= 3 => load_v0_to_3(path, &mut save_iter, version),
             Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
                 "Unsupported save version: {}",
                 version
@@ -672,11 +677,26 @@ impl World {
     }
 }
 
-fn load_v0_1_2(
+fn load_v0_to_3(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,
 ) -> Result<World, WorldLoadError> {
+    // GENERATOR VERSION
+    let generator_version = if version >= 3 {
+        let generator_version = read_u8(save_iter, "Generator version")?;
+        if !(0..=GENERATOR_VERSION).contains(&generator_version) {
+            return Err(WorldLoadError::InvalidSaveFormat(format!(
+                "Unsupported generator version: {}",
+                generator_version
+            )));
+        }
+        generator_version
+    } else {
+        // First beta generator used by versions 0 to 2
+        1
+    };
+
     // SEED
     let seed = read_i32(save_iter, "World seed")?;
     let mut noise = fastnoise_lite::FastNoiseLite::new();
@@ -687,6 +707,7 @@ fn load_v0_1_2(
         chunks: fxhash::FxHashMap::default(),
         entities: fxhash::FxHashMap::default(),
         noise,
+        generator_version,
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
         changes: HashMap::new(),
