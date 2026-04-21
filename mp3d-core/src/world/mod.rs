@@ -5,6 +5,7 @@
 //! and accessing chunks, as well as handling world generation and updates.
 
 pub mod chunk;
+pub mod generator;
 
 use std::collections::HashMap;
 
@@ -17,7 +18,10 @@ use crate::{
     entity::{Entity, EntityType, PlayerEntity},
     protocol::{BlockUpdate, BlockUpdateKind},
     saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
-    world::chunk::{CHUNK_SIZE, Chunk},
+    world::{
+        chunk::{CHUNK_SIZE, Chunk},
+        generator::Generator,
+    },
 };
 
 const PRELOAD_RADIUS: i32 = 8;
@@ -26,8 +30,7 @@ const PRELOAD_RADIUS: i32 = 8;
 pub struct World {
     pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
     pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
-    pub noise: fastnoise_lite::FastNoiseLite,
-    pub generator_version: u8,
+    pub generator: Generator,
 
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
@@ -48,24 +51,21 @@ pub struct World {
 impl World {
     /// Creates a new empty world.
     pub fn new(seed: i32) -> Self {
-        let mut noise = fastnoise_lite::FastNoiseLite::new();
-        noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
-        noise.set_seed(Some(seed));
+        let generator = Generator::new(GENERATOR_VERSION, seed).unwrap();
         let mut chunks = fxhash::FxHashMap::default();
         // Preload some chunks around the origin
         for x in -PRELOAD_RADIUS..PRELOAD_RADIUS {
             for y in -1..1 {
                 for z in -PRELOAD_RADIUS..PRELOAD_RADIUS {
                     let chunk_pos = IVec3::new(x, y, z);
-                    chunks.insert(chunk_pos, Chunk::new(chunk_pos, &noise, GENERATOR_VERSION));
+                    chunks.insert(chunk_pos, generator.generate_chunk(chunk_pos));
                 }
             }
         }
         World {
             chunks,
             entities: fxhash::FxHashMap::default(),
-            noise,
-            generator_version: GENERATOR_VERSION,
+            generator,
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
             changes: HashMap::new(),
@@ -153,7 +153,7 @@ impl World {
     /// Gets a reference to a chunk at the given chunk position, or loads it if it doesn't exist.
     pub fn get_chunk_or_new(&mut self, chunk_pos: IVec3) -> &Chunk {
         self.chunks.entry(chunk_pos).or_insert_with(|| {
-            let mut chunk = Chunk::new(chunk_pos, &self.noise, self.generator_version);
+            let mut chunk = self.generator.generate_chunk(chunk_pos);
             if let Some(changes) = self.changes.get(&chunk_pos) {
                 for (local_pos, (block, state)) in changes {
                     chunk.set_block(*local_pos, *block, *state);
@@ -167,7 +167,7 @@ impl World {
     /// exist.
     pub fn get_chunk_mut_or_new(&mut self, chunk_pos: IVec3) -> &mut Chunk {
         self.chunks.entry(chunk_pos).or_insert_with(|| {
-            let mut chunk = Chunk::new(chunk_pos, &self.noise, self.generator_version);
+            let mut chunk = self.generator.generate_chunk(chunk_pos);
             if let Some(changes) = self.changes.get(&chunk_pos) {
                 for (local_pos, (block, state)) in changes {
                     chunk.set_block(*local_pos, *block, *state);
@@ -581,14 +581,13 @@ impl World {
     pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
         let mut save_file = std::fs::File::create(path.join("save.bin"))?;
         std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
-        std::io::Write::write_all(&mut save_file, &[self.generator_version])?;
-        std::io::Write::write_all(&mut save_file, &self.noise.seed.to_le_bytes())?;
+        std::io::Write::write_all(&mut save_file, &self.generator.save())?;
 
         log::info!("Saved save.bin");
 
         std::fs::create_dir_all(path.join("chunks"))?;
         for (chunk_pos, changes) in &self.changes {
-            let mut chunk = Chunk::new(*chunk_pos, &self.noise, self.generator_version);
+            let mut chunk = self.generator.generate_chunk(*chunk_pos);
             for (local_pos, (block, state)) in changes {
                 chunk.set_block(*local_pos, *block, *state);
             }
@@ -682,32 +681,15 @@ fn load_v0_to_3(
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,
 ) -> Result<World, WorldLoadError> {
-    // GENERATOR VERSION
-    let generator_version = if version >= 3 {
-        let generator_version = read_u8(save_iter, "Generator version")?;
-        if !(0..=GENERATOR_VERSION).contains(&generator_version) {
-            return Err(WorldLoadError::InvalidSaveFormat(format!(
-                "Unsupported generator version: {}",
-                generator_version
-            )));
-        }
-        generator_version
-    } else {
-        // First beta generator used by versions 0 to 2
-        1
-    };
-
-    // SEED
-    let seed = read_i32(save_iter, "World seed")?;
-    let mut noise = fastnoise_lite::FastNoiseLite::new();
-    noise.set_noise_type(Some(fastnoise_lite::NoiseType::Perlin));
-    noise.set_seed(Some(seed));
+    // GENERATOR
+    let generator = Generator::load(save_iter, version).map_err(|e| {
+        WorldLoadError::InvalidSaveFormat(format!("Failed to load generator: {}", e))
+    })?;
 
     let mut world = World {
         chunks: fxhash::FxHashMap::default(),
         entities: fxhash::FxHashMap::default(),
-        noise,
-        generator_version,
+        generator,
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
         changes: HashMap::new(),
