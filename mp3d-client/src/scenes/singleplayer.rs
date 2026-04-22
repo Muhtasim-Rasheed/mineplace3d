@@ -20,10 +20,16 @@ use crate::{
     shader_program,
 };
 
+const FPS_HISTORY_LEN: usize = 120;
+
 struct SinglePlayerUI {
     chat_input_label: Option<Label>,
     pause_screen: Column,
     inventory: Stack,
+    debug_opened: bool,
+    fps_timer: f32,
+    fps: f32,
+    fps_history: [f32; FPS_HISTORY_LEN],
 }
 
 struct WorldRenderer {
@@ -49,7 +55,7 @@ pub struct SinglePlayer {
     ui: SinglePlayerUI,
     world_path: PathBuf,
     mouse_pos: Vec2,
-    total_time: f32,
+    timer: f32,
 }
 
 impl SinglePlayer {
@@ -180,11 +186,20 @@ impl SinglePlayer {
                 chat_input_label: None,
                 pause_screen,
                 inventory: inventory_stack,
+                debug_opened: false,
+                fps_timer: 0.0,
+                fps: 0.0,
+                fps_history: [0.0; FPS_HISTORY_LEN],
             },
             world_path,
             mouse_pos: Vec2::ZERO,
-            total_time: 0.0,
+            timer: 0.0,
         }
+    }
+
+    fn fps_entry(&mut self, fps: f32) {
+        self.ui.fps_history.rotate_left(1);
+        self.ui.fps_history[FPS_HISTORY_LEN - 1] = fps;
     }
 }
 
@@ -230,13 +245,25 @@ impl super::Scene for SinglePlayer {
         sdl_ctx.mouse().set_relative_mouse_mode(
             self.playing && !self.client.chat_open && !self.client.inventory_open,
         );
-        self.total_time += ctx.delta_time;
+        self.timer += ctx.delta_time;
+        self.ui.fps_timer += ctx.delta_time;
+
+        let fps = 1.0 / ctx.delta_time;
+        self.fps_entry(fps);
+        if self.ui.fps_timer > 0.5 {
+            self.ui.fps = fps;
+            self.ui.fps_timer = 0.0;
+        }
 
         if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F6) {
             return super::SceneAction::ReloadAssets;
         }
 
         if self.playing {
+            if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F3) {
+                self.ui.debug_opened = !self.ui.debug_opened;
+            }
+
             self.client
                 .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
             if let Err(_reason) = self
@@ -447,7 +474,7 @@ impl super::Scene for SinglePlayer {
             self.renderer
                 .cloud_renderer
                 .shader
-                .set_uniform("u_time", self.total_time);
+                .set_uniform("u_time", self.timer);
             self.renderer
                 .cloud_renderer
                 .shader
@@ -464,14 +491,13 @@ impl super::Scene for SinglePlayer {
             self.renderer.postprocess_shader.set_uniform("u_texture", 0);
             self.renderer
                 .postprocess_shader
-                .set_uniform("u_time", self.total_time);
+                .set_uniform("u_time", self.timer);
             self.renderer.framebuffer.textures()[0].bind(0);
             self.renderer.fullscreen_quad.draw();
 
             gl.clear(glow::DEPTH_BUFFER_BIT);
             gl.disable(glow::DEPTH_TEST);
 
-            // draw crosshair
             let crosshair_size = 20.0;
             let crosshair_thickness = 2.0;
             ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
@@ -509,7 +535,6 @@ impl super::Scene for SinglePlayer {
                 layer: 0,
             });
 
-            // draw chat messages
             let messages = self
                 .client
                 .messages
@@ -564,6 +589,104 @@ impl super::Scene for SinglePlayer {
                 ui.add_command(cmd);
             }
             ui.finish();
+
+            if self.ui.debug_opened {
+                let chunk = self
+                    .client
+                    .player
+                    .position
+                    .as_ivec3()
+                    .div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+                let chunk_local = self
+                    .client
+                    .player
+                    .position
+                    .as_ivec3()
+                    .rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+
+                let text = format!(
+                    r#"Mineplace3D v{}
+
+{} FPS
+X: {:.2} Y: {:.2} Z: {:.2}    AY: {:.2} AP: {:.2}
+Chunk: X: {} Y: {} Z: {}
+Chunk local: X: {} Y: {} Z: {}"#,
+                    env!("CARGO_PKG_VERSION"),
+                    self.ui.fps as u32,
+                    self.client.player.position.x,
+                    self.client.player.position.y,
+                    self.client.player.position.z,
+                    self.client.player.yaw,
+                    self.client.player.pitch,
+                    chunk.x,
+                    chunk.y,
+                    chunk.z,
+                    chunk_local.x,
+                    chunk_local.y,
+                    chunk_local.z,
+                );
+
+                for mut cmd in assets.font.text(&text, 24.0, Vec4::ONE) {
+                    match &mut cmd {
+                        crate::render::ui::uirenderer::DrawCommand::Quad { rect, .. } => {
+                            rect[0] += Vec2::new(10.0, 10.0);
+                            rect[1] += Vec2::new(10.0, 10.0);
+                        }
+                        crate::render::ui::uirenderer::DrawCommand::Mesh { vertices, .. } => {
+                            for v in vertices {
+                                v.position += Vec3::new(10.0, 10.0, 0.0);
+                            }
+                        }
+                    }
+                    ui.add_command(cmd);
+                }
+
+                // draw the fps graph on the top right side and also show the current, average, min
+                // and max fps
+                let graph_width = 500.0;
+                let graph_height = 200.0;
+                let graph_x = self.screen_size.x as f32 - graph_width - 10.0;
+                let graph_y = 10.0;
+                let bar_width = graph_width / FPS_HISTORY_LEN as f32;
+                let max_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::max);
+                let min_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::min);
+                let average_fps = self.ui.fps_history.iter().sum::<f32>() / FPS_HISTORY_LEN as f32;
+                for (i, fps) in self.ui.fps_history.iter().enumerate() {
+                    let x = graph_x + i as f32 / FPS_HISTORY_LEN as f32 * graph_width;
+                    let y = graph_y + graph_height - (fps / max_fps * graph_height);
+                    let bar_height = graph_y + graph_height - y;
+                    ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
+                        rect: [Vec2::new(x, y), Vec2::new(x + bar_width, y + bar_height)],
+                        uv_rect: [Vec2::ZERO, Vec2::ONE],
+                        mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
+                            0.0, 1.0, 0.0, 0.6,
+                        )),
+                        layer: 0,
+                    });
+                }
+
+                let stats_text = format!(
+                    "FPS: {:.2}\nAvg: {:.2}\nMin: {:.2}\nMax: {:.2}",
+                    self.ui.fps, average_fps, min_fps, max_fps
+                );
+                let measurement = assets.font.measure_text(&stats_text, 24.0);
+                let text_x = self.screen_size.x as f32 - measurement.x - 10.0;
+                let text_y = graph_y + graph_height + 10.0;
+                for mut cmd in assets.font.text(&stats_text, 24.0, Vec4::ONE) {
+                    match &mut cmd {
+                        crate::render::ui::uirenderer::DrawCommand::Quad { rect, .. } => {
+                            rect[0] += Vec2::new(text_x, text_y);
+                            rect[1] += Vec2::new(text_x, text_y);
+                        }
+                        crate::render::ui::uirenderer::DrawCommand::Mesh { vertices, .. } => {
+                            for v in vertices {
+                                v.position += Vec3::new(text_x, text_y, 0.0);
+                            }
+                        }
+                    }
+                    ui.add_command(cmd);
+                }
+            }
 
             if !self.playing {
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
