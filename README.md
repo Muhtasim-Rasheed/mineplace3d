@@ -8,7 +8,7 @@ We welcome contributions from the community! If you're interested in helping out
 
 ## Download
 
-You can download the latest version of the Mineplace3D Launcher [here](https://github.com/Muhtasim-Rasheed/mineplace3d-launcher/releases). The launcher will help you install and manage the game easily. The latest stable version of Mineplace3D is `0.1.0-beta`, which you can download through the launcher.
+You can download the latest version of the Mineplace3D Launcher [here](https://github.com/Muhtasim-Rasheed/mineplace3d-launcher/releases). The launcher will help you install and manage the game easily. The latest stable version of Mineplace3D is `0.1.1-beta`, which you can download through the launcher.
 
 ## License
 
