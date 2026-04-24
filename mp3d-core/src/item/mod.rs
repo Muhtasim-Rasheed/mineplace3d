@@ -301,14 +301,30 @@ impl Inventory {
     /// Searches for a place to put the given item stack in the inventory and adds it to the first
     /// suitable slot.
     pub fn add_stack_single(&mut self, stack: ItemStack) {
-        for slot in self.slots_mut() {
+        // hotbar first
+        for i in 27..36 {
+            let slot = &mut self.main[i];
             if slot.can_merge(&stack) {
                 let remainder = slot.add_stack(&stack);
                 if remainder.is_empty() {
-                    break;
+                    self.dirty = true;
+                    return;
                 }
             }
         }
+
+        // then rest
+        for i in 0..27 {
+            let slot = &mut self.main[i];
+            if slot.can_merge(&stack) {
+                let remainder = slot.add_stack(&stack);
+                if remainder.is_empty() {
+                    self.dirty = true;
+                    return;
+                }
+            }
+        }
+
         self.dirty = true;
     }
 
