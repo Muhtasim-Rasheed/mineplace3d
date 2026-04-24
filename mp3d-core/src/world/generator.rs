@@ -122,7 +122,7 @@ impl Saveable for Generator {
     where
         Self: Sized,
     {
-        if version > 0x03 {
+        if version >= 0x03 {
             let generator_version = read_u8(data, "Generator version")?;
             let seed = read_i32(data, "Generator seed")?;
             Self::new(generator_version, seed)
