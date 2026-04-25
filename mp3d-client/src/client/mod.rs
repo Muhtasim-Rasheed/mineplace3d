@@ -20,6 +20,7 @@ use mp3d_core::{
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
 };
+use sdl2::keyboard::Keycode;
 
 use crate::{
     client::{player::ClientInventory, world::ClientWorld},
@@ -147,61 +148,31 @@ impl<C: Connection> Client<C> {
             self.player.input.yaw = self.player.yaw;
             self.player.input.pitch = self.player.pitch;
 
-            if update_context
-                .keyboard
-                .down
-                .contains(&sdl2::keyboard::Keycode::W)
-            {
-                if update_context
-                    .keyboard
-                    .down
-                    .contains(&sdl2::keyboard::Keycode::LCtrl)
-                {
+            if update_context.keyboard.down.contains(&Keycode::W) {
+                if update_context.keyboard.down.contains(&Keycode::LCtrl) {
                     self.player.input.forward = 2;
                 } else {
                     self.player.input.forward = 1;
                 }
-            } else if update_context
-                .keyboard
-                .down
-                .contains(&sdl2::keyboard::Keycode::S)
-            {
+            } else if update_context.keyboard.down.contains(&Keycode::S) {
                 self.player.input.forward = -1;
             } else {
                 self.player.input.forward = 0;
             }
 
-            if update_context
-                .keyboard
-                .down
-                .contains(&sdl2::keyboard::Keycode::A)
-            {
+            if update_context.keyboard.down.contains(&Keycode::A) {
                 self.player.input.strafe = 1;
-            } else if update_context
-                .keyboard
-                .down
-                .contains(&sdl2::keyboard::Keycode::D)
-            {
+            } else if update_context.keyboard.down.contains(&Keycode::D) {
                 self.player.input.strafe = -1;
             } else {
                 self.player.input.strafe = 0;
             }
 
-            self.player.input.jump = update_context
-                .keyboard
-                .down
-                .contains(&sdl2::keyboard::Keycode::Space);
+            self.player.input.jump = update_context.keyboard.down.contains(&Keycode::Space);
 
-            self.player.input.sneak = update_context
-                .keyboard
-                .down
-                .contains(&sdl2::keyboard::Keycode::LShift);
+            self.player.input.sneak = update_context.keyboard.down.contains(&Keycode::LShift);
 
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::F5)
-            {
+            if update_context.keyboard.pressed.contains(&Keycode::F5) {
                 self.player.third_person = !self.player.third_person;
             }
 
@@ -252,41 +223,29 @@ impl<C: Connection> Client<C> {
                 }
             }
 
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::T)
-            {
+            if update_context.keyboard.pressed.contains(&Keycode::T) {
                 self.chat_open = true;
             }
 
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::Slash)
-            {
+            if update_context.keyboard.pressed.contains(&Keycode::Slash) {
                 self.chat_open = true;
                 self.chat_message = Some("/".to_string());
             }
 
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::E)
-            {
+            if update_context.keyboard.pressed.contains(&Keycode::E) {
                 self.inventory_open = !self.inventory_open;
             }
 
             for (i, numbers) in [
-                sdl2::keyboard::Keycode::Num1,
-                sdl2::keyboard::Keycode::Num2,
-                sdl2::keyboard::Keycode::Num3,
-                sdl2::keyboard::Keycode::Num4,
-                sdl2::keyboard::Keycode::Num5,
-                sdl2::keyboard::Keycode::Num6,
-                sdl2::keyboard::Keycode::Num7,
-                sdl2::keyboard::Keycode::Num8,
-                sdl2::keyboard::Keycode::Num9,
+                Keycode::Num1,
+                Keycode::Num2,
+                Keycode::Num3,
+                Keycode::Num4,
+                Keycode::Num5,
+                Keycode::Num6,
+                Keycode::Num7,
+                Keycode::Num8,
+                Keycode::Num9,
             ]
             .iter()
             .enumerate()
@@ -302,10 +261,7 @@ impl<C: Connection> Client<C> {
                 .get_or_insert_with(String::new)
                 .push_str(&update_context.keyboard.text_input);
 
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::Return)
+            if update_context.keyboard.pressed.contains(&Keycode::Return)
                 && let Some(message) = self.chat_message.take()
                 && !message.trim().is_empty()
             {
@@ -316,11 +272,7 @@ impl<C: Connection> Client<C> {
                 self.chat_message = None;
             }
 
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::Escape)
-            {
+            if update_context.keyboard.pressed.contains(&Keycode::Escape) {
                 self.chat_open = false;
                 self.chat_message = None;
             }
@@ -328,7 +280,7 @@ impl<C: Connection> Client<C> {
             if update_context
                 .keyboard
                 .pressed
-                .contains(&sdl2::keyboard::Keycode::Backspace)
+                .contains(&Keycode::Backspace)
                 && let Some(message) = self.chat_message.as_mut()
             {
                 message.pop();
@@ -340,11 +292,7 @@ impl<C: Connection> Client<C> {
                     self.chat_message = Some(replaced);
                 }
             }
-        } else if self.inventory_open
-            && update_context
-                .keyboard
-                .pressed
-                .contains(&sdl2::keyboard::Keycode::Escape)
+        } else if self.inventory_open && update_context.keyboard.pressed.contains(&Keycode::Escape)
         {
             self.inventory_open = false;
         }

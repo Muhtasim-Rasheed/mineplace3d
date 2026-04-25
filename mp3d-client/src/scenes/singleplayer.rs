@@ -40,8 +40,10 @@ struct WorldRenderer {
     framebuffer: Framebuffer,
     chunk_shader: ShaderProgram,
     postprocess_shader: ShaderProgram,
+    chunk_border_shader: ShaderProgram,
 
     fullscreen_quad: Mesh,
+    cube_wireframe: Mesh,
 }
 
 /// The [`SinglePlayer`] struct represents the single player scene.
@@ -176,7 +178,9 @@ impl SinglePlayer {
                 ),
                 chunk_shader,
                 postprocess_shader,
+                chunk_border_shader: shader_program!(chunk_border, gl, ".."),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
+                cube_wireframe: cube_wireframe(gl),
             },
             screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
@@ -481,6 +485,32 @@ impl super::Scene for SinglePlayer {
                 .set_uniform("u_texture", 0);
             self.renderer.cloud_renderer.texture.bind(0);
             self.renderer.cloud_renderer.mesh.draw();
+
+            if self.ui.debug_opened {
+                self.renderer.chunk_border_shader.use_program();
+                self.renderer
+                    .chunk_border_shader
+                    .set_uniform("u_view", self.client.player.view(&self.client.world));
+                self.renderer.chunk_border_shader.set_uniform(
+                    "u_projection",
+                    self.client
+                        .player
+                        .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
+                );
+
+                for pos in self.renderer.chunk_meshes.keys() {
+                    let world_pos = pos.as_vec3() * CHUNK_SIZE as f32;
+
+                    self.renderer
+                        .chunk_border_shader
+                        .set_uniform("u_offset", world_pos);
+                    self.renderer
+                        .chunk_border_shader
+                        .set_uniform("u_scale", CHUNK_SIZE as f32);
+
+                    self.renderer.cube_wireframe.draw();
+                }
+            }
 
             Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
 
@@ -806,4 +836,25 @@ fn fullscreen_quad_ndc(gl: &Arc<glow::Context>) -> Mesh {
         &[0, 1, 2, 2, 3, 0],
         glow::TRIANGLES,
     )
+}
+
+fn cube_wireframe(gl: &Arc<glow::Context>) -> Mesh {
+    let vertices = [
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(1.0, 1.0, 1.0),
+        Vec3::new(0.0, 1.0, 1.0),
+    ];
+
+    let indices = [
+        0, 1, 1, 2, 2, 3, 3, 0, // bottom
+        4, 5, 5, 6, 6, 7, 7, 4, // top
+        0, 4, 1, 5, 2, 6, 3, 7, // verticals
+    ];
+
+    Mesh::new(gl, &vertices, &indices, glow::LINES)
 }
