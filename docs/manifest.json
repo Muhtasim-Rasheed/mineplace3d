@@ -6,57 +6,77 @@
 	"base": "https://github.com/Muhtasim-Rasheed/mineplace3d/releases/download/",
 	"versions": {
 		"0.1.2-beta": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
-			"windows_aarch64": "mineplace3d-windows-aarch64.exe",
+			"files": {
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+				"windows_aarch64": "mineplace3d-windows-aarch64.exe"
+			},
 			"uploaded_on": "2026-04-24T11:56:00+06:00"
 		},
 		"0.1.1-beta": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
-			"windows_aarch64": "mineplace3d-windows-aarch64.exe",
+			"files": {
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+				"windows_aarch64": "mineplace3d-windows-aarch64.exe"
+			},
 			"uploaded_on": "2026-04-22T17:54:00+06:00"
 		},
 		"0.1.0-beta": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
-			"windows_aarch64": "mineplace3d-windows-aarch64.exe",
+			"files": {  
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+				"windows_aarch64": "mineplace3d-windows-aarch64.exe"
+			},
 			"uploaded_on": "2026-03-22T14:28:00+06:00"
 		},
 		"0.3.2-alpha": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
-			"windows_aarch64": "mineplace3d-windows-aarch64.exe",
+			"files": {  
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+				"windows_aarch64": "mineplace3d-windows-aarch64.exe"
+			},
 			"uploaded_on": "2026-02-23T20:23:00+06:00"
 		},
 		"0.3.1-alpha": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
-			"windows_aarch64": "mineplace3d-windows-aarch64.exe",
+			"files": {  
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+				"windows_aarch64": "mineplace3d-windows-aarch64.exe"
+			},
 			"uploaded_on": "2026-01-04T20:12:00+06:00"
 		},
 		"0.3.0-alpha.1": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
-			"windows_aarch64": "mineplace3d-windows-aarch64.exe",
+			"files": {  
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+				"windows_aarch64": "mineplace3d-windows-aarch64.exe"
+			},
 			"uploaded_on": "2025-12-31T16:27:00+06:00"
 		},
 		"0.3.0-alpha": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+			"files": {
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe"
+			},
 			"uploaded_on": "2025-12-30T17:56:00+06:00"
 		},
 		"0.2.4-alpha": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
+			"files": {
+				"linux_x86_64": "mineplace3d-linux-x86_64"
+			},
 			"uploaded_on": "2025-12-23T19:09:00+06:00"
 		},
 		"0.2.3-alpha": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
+			"files": {
+				"linux_x86_64": "mineplace3d-linux-x86_64"
+			},
 			"uploaded_on": "2025-12-23T19:09:00+06:00"
 		},
 		"0.2.2": {
-			"linux_x86_64": "mineplace3d-linux-x86_64",
-			"windows_x86_64": "mineplace3d-windows-x86_64.exe",
+			"files": {
+				"linux_x86_64": "mineplace3d-linux-x86_64",
+				"windows_x86_64": "mineplace3d-windows-x86_64.exe"
+			},
 			"uploaded_on": "2025-10-14T21:28:00+06:00"
 		}
 	}
