@@ -1,0 +1,85 @@
+name: Update Manifest
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js (for JSON handling)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Extract release info
+        id: release
+        run: |
+          echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "DATE=$(date -u +"%Y-%m-%dT%H:%M:%S%:z")" >> $GITHUB_OUTPUT
+
+      - name: Fetch release assets
+        id: assets
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.release.outputs.TAG }} \
+            > release.json
+
+      - name: Update manifest
+        run: |
+          node << 'EOF'
+          const fs = require('fs');
+
+          const manifestPath = 'docs/manifest.json';
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const release = JSON.parse(fs.readFileSync('release.json', 'utf8'));
+
+          const version = release.tag_name.replace(/^v/, '');
+
+          const files = {};
+
+          for (const asset of release.assets) {
+            const name = asset.name;
+
+            // Example: mineplace3d-windows-x86_64.exe
+            const match = name.match(/mineplace3d-(.+)\.(exe|app)?$/);
+
+            if (!match) continue;
+
+            const platform = match[1].replace('-', '_');
+            files[platform] = name;
+          }
+
+          manifest.versions[version] = {
+            uploaded_on: release.published_at,
+            files
+          };
+
+          if (version.includes("alpha")) {
+            manifest.latest.alpha = version;
+          } else if (version.includes("beta")) {
+            manifest.latest.beta = version;
+          } else {
+            manifest.latest.stable = version;
+          }
+
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+          EOF
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add docs/manifest.json
+          git commit -m "Update manifest for ${{ steps.release.outputs.TAG }}" || echo "No changes"
+          git push
