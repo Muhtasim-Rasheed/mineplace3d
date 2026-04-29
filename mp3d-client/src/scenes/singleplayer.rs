@@ -605,24 +605,19 @@ impl super::Scene for SinglePlayer {
             }
 
             if self.ui.debug_opened {
-                let chunk = self
-                    .client
-                    .player
-                    .position
-                    .as_ivec3()
-                    .div_euclid(IVec3::splat(CHUNK_SIZE as i32));
-                let chunk_local = self
-                    .client
-                    .player
-                    .position
-                    .as_ivec3()
-                    .rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+                let block_pos = self.client.player.position.as_ivec3();
+                let chunk = block_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+                let chunk_local = block_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
                 let text = format!(
                     r#"Mineplace3D v{}
 
 {} FPS
-X: {:.2} Y: {:.2} Z: {:.2}    AY: {:.2} AP: {:.2}
+
+X: {:.2} Y: {:.2} Z: {:.2}
+Yaw: {:.2} Pitch: {:.2}
+
+Block: X: {} Y: {} Z: {}
 Chunk: X: {} Y: {} Z: {}
 Chunk local: X: {} Y: {} Z: {}"#,
                     env!("CARGO_PKG_VERSION"),
@@ -632,6 +627,9 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     self.client.player.position.z,
                     self.client.player.yaw,
                     self.client.player.pitch,
+                    block_pos.x,
+                    block_pos.y,
+                    block_pos.z,
                     chunk.x,
                     chunk.y,
                     chunk.z,
