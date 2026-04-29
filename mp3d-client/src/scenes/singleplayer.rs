@@ -12,7 +12,7 @@ use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
     abs::{Mesh, ShaderProgram, framebuffer::Framebuffer},
-    client::{Client, Connection, LocalConnection},
+    client::{Client, Connection, CurrentGUI, LocalConnection},
     render::{
         clouds::CloudRenderer, meshing::mesh_world, particles::ParticleSystem, ui::widgets::*,
     },
@@ -23,7 +23,7 @@ use crate::{
 const FPS_HISTORY_LEN: usize = 120;
 
 struct SinglePlayerUI {
-    chat_input_label: Option<Label>,
+    chat_input_label: Label,
     pause_screen: Column,
     inventory: Stack,
     debug_opened: bool,
@@ -53,7 +53,6 @@ pub struct SinglePlayer {
     screen_size: UVec2,
     tick_acc: f32,
     tick_rate: f32,
-    playing: bool,
     ui: SinglePlayerUI,
     world_path: PathBuf,
     mouse_pos: Vec2,
@@ -185,9 +184,8 @@ impl SinglePlayer {
             screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
             tick_rate: 48.0,
-            playing: true,
             ui: SinglePlayerUI {
-                chat_input_label: None,
+                chat_input_label: Label::new("", 24.0, Vec4::ONE),
                 pause_screen,
                 inventory: inventory_stack,
                 debug_opened: false,
@@ -221,13 +219,6 @@ impl super::Scene for SinglePlayer {
             }
             self.renderer.framebuffer.resize(*width, *height);
         }
-        if let sdl2::event::Event::KeyDown { keycode, .. } = event
-            && *keycode == Some(sdl2::keyboard::Keycode::Escape)
-            && !self.client.chat_open
-            && !self.client.inventory_open
-        {
-            self.playing = !self.playing;
-        }
     }
 
     fn update(
@@ -246,9 +237,9 @@ impl super::Scene for SinglePlayer {
         };
 
         window.set_title("Mineplace3D - Single Player").unwrap();
-        sdl_ctx.mouse().set_relative_mouse_mode(
-            self.playing && !self.client.chat_open && !self.client.inventory_open,
-        );
+        sdl_ctx
+            .mouse()
+            .set_relative_mouse_mode(self.client.gui.none());
         self.timer += ctx.delta_time;
         self.ui.fps_timer += ctx.delta_time;
 
@@ -263,13 +254,14 @@ impl super::Scene for SinglePlayer {
             return super::SceneAction::ReloadAssets;
         }
 
-        if self.playing {
+        self.client
+            .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
+
+        if !self.client.gui.pause_menu() {
             if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F3) {
                 self.ui.debug_opened = !self.ui.debug_opened;
             }
 
-            self.client
-                .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
             if let Err(_reason) = self
                 .client
                 .recieve_state(&mut self.renderer.particle_system)
@@ -277,8 +269,6 @@ impl super::Scene for SinglePlayer {
                 todo!("Save world and exit.")
             }
         } else {
-            self.client.inventory_open = false;
-            self.client.chat_open = false;
             self.ui.pause_screen.update(ctx);
             self.ui
                 .pause_screen
@@ -293,7 +283,7 @@ impl super::Scene for SinglePlayer {
                 .get_widget::<Button>(0)
                 .is_some_and(|btn| btn.is_released())
             {
-                self.playing = true;
+                self.client.gui = CurrentGUI::None;
             }
             if self
                 .ui
@@ -329,24 +319,20 @@ impl super::Scene for SinglePlayer {
             self.tick_acc -= tick_time;
         }
 
-        if let Some(chat) = self.client.chat_message.as_ref() {
-            if let Some(label) = self.ui.chat_input_label.as_mut() {
-                label.text = chat.clone();
-            } else {
-                self.ui.chat_input_label = Some(Label::new(chat, 24.0, Vec4::ONE));
-            }
+        if let Some(chat) = self.client.gui.chat() {
+            self.ui.chat_input_label.text = chat.clone();
         } else {
-            self.ui.chat_input_label = None;
+            self.ui.chat_input_label.text = "".to_string();
         }
-        if let Some(label) = self.ui.chat_input_label.as_mut() {
-            label.update(ctx);
-            label.layout(&crate::render::ui::widgets::LayoutContext {
+        self.ui.chat_input_label.update(ctx);
+        self.ui
+            .chat_input_label
+            .layout(&crate::render::ui::widgets::LayoutContext {
                 max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
                 cursor: Vec2::new(10.0, self.screen_size.y as f32 - 34.0),
                 assets,
             });
-        }
-        if self.client.inventory_open {
+        if self.client.gui.inventory() {
             self.ui.inventory.update(ctx);
             let inventory_size = self.ui.inventory.size_hint(&layout_ctx);
             self.ui
@@ -578,9 +564,9 @@ impl super::Scene for SinglePlayer {
 
             let mut messages_start_y = self.screen_size.y as f32 - message_size.y - 10.0;
 
-            if let Some(chat) = self.ui.chat_input_label.as_ref() {
+            if self.client.gui.chat().is_some() {
                 messages_start_y -= 34.0 + 15.0;
-                let label_size = chat.size_hint(&layout_ctx);
+                let label_size = self.ui.chat_input_label.size_hint(&layout_ctx);
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [
                         Vec2::new(5.0, self.screen_size.y as f32 - label_size.y - 15.0),
@@ -592,8 +578,7 @@ impl super::Scene for SinglePlayer {
                     )),
                     layer: 0,
                 });
-                ui.finish();
-                chat.draw(ui, assets);
+                self.ui.chat_input_label.draw(ui, assets);
             }
 
             ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
@@ -618,7 +603,6 @@ impl super::Scene for SinglePlayer {
             ) {
                 ui.add_command(cmd);
             }
-            ui.finish();
 
             if self.ui.debug_opened {
                 let chunk = self
@@ -718,7 +702,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                 }
             }
 
-            if !self.playing {
+            if self.client.gui.pause_menu() {
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [
                         Vec2::new(0.0, 0.0),
@@ -730,12 +714,11 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     )),
                     layer: -1,
                 });
-                ui.finish();
 
                 self.ui.pause_screen.draw(ui, assets);
             }
 
-            if self.client.inventory_open {
+            if self.client.gui.inventory() {
                 self.ui.inventory.draw(ui, assets);
 
                 let temp_stack = &self.client.player.inventory.borrow().inner.temp;
@@ -753,8 +736,6 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     }
                 }
             }
-
-            ui.finish();
         }
     }
 }

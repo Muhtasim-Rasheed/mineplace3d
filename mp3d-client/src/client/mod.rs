@@ -84,15 +84,43 @@ impl Connection for LocalConnection {
     }
 }
 
+/// An enum representing the different GUIs that can be opened on the client.
+pub enum CurrentGUI {
+    None,
+    Chat(String),
+    Inventory,
+    PauseMenu,
+}
+
+impl CurrentGUI {
+    pub fn none(&self) -> bool {
+        matches!(self, CurrentGUI::None)
+    }
+
+    pub fn chat(&self) -> Option<&String> {
+        if let CurrentGUI::Chat(message) = self {
+            Some(message)
+        } else {
+            None
+        }
+    }
+
+    pub fn inventory(&self) -> bool {
+        matches!(self, CurrentGUI::Inventory)
+    }
+
+    pub fn pause_menu(&self) -> bool {
+        matches!(self, CurrentGUI::PauseMenu)
+    }
+}
+
 /// The client struct that uses a connection to communicate with the server.
 pub struct Client<C: Connection> {
     pub connection: C,
     pub player: player::ClientPlayer,
     pub user_id: Option<u64>,
     pub entity_id: Option<u64>,
-    pub chat_message: Option<String>,
-    pub chat_open: bool,
-    pub inventory_open: bool,
+    pub gui: CurrentGUI,
     pub messages: Vec<TextComponent>,
     pub world: ClientWorld,
 }
@@ -129,9 +157,7 @@ impl<C: Connection> Client<C> {
             },
             user_id: None,
             entity_id: None,
-            chat_message: None,
-            chat_open: false,
-            inventory_open: false,
+            gui: CurrentGUI::None,
             messages: vec![],
             world: ClientWorld::new(),
         }
@@ -139,57 +165,89 @@ impl<C: Connection> Client<C> {
 
     /// Takes in player input and sends it to the server through the connection.
     pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32, sensitivity: f32) {
-        if self.chat_open || self.inventory_open {
+        if update_context.keyboard.pressed.contains(&Keycode::Escape) {
+            self.gui = match self.gui {
+                CurrentGUI::None => CurrentGUI::PauseMenu,
+                CurrentGUI::PauseMenu => CurrentGUI::None,
+                CurrentGUI::Chat(_) => CurrentGUI::None,
+                CurrentGUI::Inventory => CurrentGUI::None,
+            };
+        }
+
+        if !self.gui.none() {
             self.player.input = MoveInstructions::default();
         }
 
-        if !self.chat_open && !self.inventory_open {
-            let mouse_delta = update_context.mouse.delta;
-            self.player.yaw -= mouse_delta.x * 0.1 * sensitivity;
-            self.player.pitch += mouse_delta.y * 0.1 * sensitivity;
-            self.player.pitch = self.player.pitch.clamp(-89.0, 89.0);
-            self.player.yaw = self.player.yaw.rem_euclid(360.0);
-            self.player.input.yaw = self.player.yaw;
-            self.player.input.pitch = self.player.pitch;
+        // woah is that a state machine
+        match &mut self.gui {
+            CurrentGUI::None => {
+                let mouse_delta = update_context.mouse.delta;
+                self.player.yaw -= mouse_delta.x * 0.1 * sensitivity;
+                self.player.pitch += mouse_delta.y * 0.1 * sensitivity;
+                self.player.pitch = self.player.pitch.clamp(-89.0, 89.0);
+                self.player.yaw = self.player.yaw.rem_euclid(360.0);
 
-            if update_context.keyboard.down.contains(&Keycode::W) {
-                if update_context.keyboard.down.contains(&Keycode::LCtrl) {
-                    self.player.input.forward = 2;
+                self.player.input.yaw = self.player.yaw;
+                self.player.input.pitch = self.player.pitch;
+
+                let kb = &update_context.keyboard;
+
+                self.player.input.forward = if kb.down.contains(&Keycode::W) {
+                    if kb.down.contains(&Keycode::LCtrl) {
+                        2
+                    } else {
+                        1
+                    }
+                } else if kb.down.contains(&Keycode::S) {
+                    -1
                 } else {
-                    self.player.input.forward = 1;
+                    0
+                };
+
+                self.player.input.strafe = if kb.down.contains(&Keycode::A) {
+                    1
+                } else if kb.down.contains(&Keycode::D) {
+                    -1
+                } else {
+                    0
+                };
+
+                self.player.input.jump = kb.down.contains(&Keycode::Space);
+                self.player.input.sneak = kb.down.contains(&Keycode::LShift);
+
+                if kb.pressed.contains(&Keycode::F5) {
+                    self.player.third_person = !self.player.third_person;
                 }
-            } else if update_context.keyboard.down.contains(&Keycode::S) {
-                self.player.input.forward = -1;
-            } else {
-                self.player.input.forward = 0;
-            }
 
-            if update_context.keyboard.down.contains(&Keycode::A) {
-                self.player.input.strafe = 1;
-            } else if update_context.keyboard.down.contains(&Keycode::D) {
-                self.player.input.strafe = -1;
-            } else {
-                self.player.input.strafe = 0;
-            }
+                if update_context
+                    .mouse
+                    .pressed
+                    .contains(&sdl2::mouse::MouseButton::Left)
+                {
+                    if let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0) {
+                        self.connection.send(C2SMessage::BlockClick {
+                            position,
+                            face: match face {
+                                IVec3 { z: -1, .. } => 0,
+                                IVec3 { z: 1, .. } => 1,
+                                IVec3 { x: 1, .. } => 2,
+                                IVec3 { x: -1, .. } => 3,
+                                IVec3 { y: 1, .. } => 4,
+                                IVec3 { y: -1, .. } => 5,
+                                _ => unreachable!(),
+                            },
+                            right: false,
+                        });
+                    }
+                }
 
-            self.player.input.jump = update_context.keyboard.down.contains(&Keycode::Space);
-
-            self.player.input.sneak = update_context.keyboard.down.contains(&Keycode::LShift);
-
-            if update_context.keyboard.pressed.contains(&Keycode::F5) {
-                self.player.third_person = !self.player.third_person;
-            }
-
-            if update_context
-                .mouse
-                .pressed
-                .contains(&sdl2::mouse::MouseButton::Left)
-            {
-                let raycast_result = cast_ray(&self.world, &self.player, 5.0);
-                if let Some((position, face)) = raycast_result {
-                    self.connection.send(C2SMessage::BlockClick {
-                        position,
-                        face: match face {
+                if update_context
+                    .mouse
+                    .pressed
+                    .contains(&sdl2::mouse::MouseButton::Right)
+                {
+                    if let Some((block_pos, normal)) = cast_ray(&self.world, &self.player, 5.0) {
+                        let face_idx = match normal {
                             IVec3 { z: -1, .. } => 0,
                             IVec3 { z: 1, .. } => 1,
                             IVec3 { x: 1, .. } => 2,
@@ -197,108 +255,79 @@ impl<C: Connection> Client<C> {
                             IVec3 { y: 1, .. } => 4,
                             IVec3 { y: -1, .. } => 5,
                             _ => unreachable!(),
-                        },
-                        right: false,
+                        };
+
+                        self.connection.send(C2SMessage::BlockClick {
+                            position: block_pos,
+                            face: face_idx,
+                            right: true,
+                        });
+                    }
+                }
+
+                if kb.pressed.contains(&Keycode::T) {
+                    self.gui = CurrentGUI::Chat(String::new());
+                }
+
+                if kb.pressed.contains(&Keycode::Slash) {
+                    self.gui = CurrentGUI::Chat("/".to_string());
+                }
+
+                if kb.pressed.contains(&Keycode::E) {
+                    self.gui = CurrentGUI::Inventory;
+                }
+
+                for (i, key) in [
+                    Keycode::Num1,
+                    Keycode::Num2,
+                    Keycode::Num3,
+                    Keycode::Num4,
+                    Keycode::Num5,
+                    Keycode::Num6,
+                    Keycode::Num7,
+                    Keycode::Num8,
+                    Keycode::Num9,
+                ]
+                .iter()
+                .enumerate()
+                {
+                    if kb.pressed.contains(key) {
+                        self.connection.send(C2SMessage::HotbarChange { idx: i });
+                        self.player.inventory.borrow_mut().slot = i;
+                        break;
+                    }
+                }
+            }
+
+            CurrentGUI::Chat(message) => {
+                let mut msg = message.clone();
+                msg.push_str(&update_context.keyboard.text_input);
+
+                let kb = &update_context.keyboard;
+
+                if kb.pressed.contains(&Keycode::Return) && !msg.trim().is_empty() {
+                    self.connection.send(C2SMessage::SendMessage {
+                        message: msg.trim().to_string(),
                     });
+                    self.gui = CurrentGUI::None;
+                } else if kb.pressed.contains(&Keycode::Backspace) {
+                    msg.pop();
+                    self.gui = CurrentGUI::Chat(msg);
+                } else {
+                    let replaced = emoji::replace_emojis(&msg);
+                    if replaced != msg {
+                        self.gui = CurrentGUI::Chat(replaced);
+                    } else {
+                        *message = msg;
+                    }
                 }
             }
 
-            if update_context
-                .mouse
-                .pressed
-                .contains(&sdl2::mouse::MouseButton::Right)
-            {
-                let raycast_result = cast_ray(&self.world, &self.player, 5.0);
-                if let Some((block_pos, normal)) = raycast_result {
-                    let face_idx = match normal {
-                        IVec3 { z: -1, .. } => 0,
-                        IVec3 { z: 1, .. } => 1,
-                        IVec3 { x: 1, .. } => 2,
-                        IVec3 { x: -1, .. } => 3,
-                        IVec3 { y: 1, .. } => 4,
-                        IVec3 { y: -1, .. } => 5,
-                        _ => unreachable!(),
-                    };
-                    self.connection.send(C2SMessage::BlockClick {
-                        position: block_pos,
-                        face: face_idx,
-                        right: true,
-                    });
-                }
+            CurrentGUI::Inventory => {
+                // Handled elsewhere
             }
 
-            if update_context.keyboard.pressed.contains(&Keycode::T) {
-                self.chat_open = true;
-            }
-
-            if update_context.keyboard.pressed.contains(&Keycode::Slash) {
-                self.chat_open = true;
-                self.chat_message = Some("/".to_string());
-            }
-
-            if update_context.keyboard.pressed.contains(&Keycode::E) {
-                self.inventory_open = !self.inventory_open;
-            }
-
-            for (i, numbers) in [
-                Keycode::Num1,
-                Keycode::Num2,
-                Keycode::Num3,
-                Keycode::Num4,
-                Keycode::Num5,
-                Keycode::Num6,
-                Keycode::Num7,
-                Keycode::Num8,
-                Keycode::Num9,
-            ]
-            .iter()
-            .enumerate()
-            {
-                if update_context.keyboard.pressed.contains(numbers) {
-                    self.connection.send(C2SMessage::HotbarChange { idx: i });
-                    self.player.inventory.borrow_mut().slot = i;
-                    break;
-                }
-            }
-        } else if self.chat_open {
-            self.chat_message
-                .get_or_insert_with(String::new)
-                .push_str(&update_context.keyboard.text_input);
-
-            if update_context.keyboard.pressed.contains(&Keycode::Return)
-                && let Some(message) = self.chat_message.take()
-                && !message.trim().is_empty()
-            {
-                self.connection.send(C2SMessage::SendMessage {
-                    message: message.trim().to_string(),
-                });
-                self.chat_open = false;
-                self.chat_message = None;
-            }
-
-            if update_context.keyboard.pressed.contains(&Keycode::Escape) {
-                self.chat_open = false;
-                self.chat_message = None;
-            }
-
-            if update_context
-                .keyboard
-                .pressed
-                .contains(&Keycode::Backspace)
-                && let Some(message) = self.chat_message.as_mut()
-            {
-                message.pop();
-            }
-
-            if let Some(message) = &self.chat_message {
-                let replaced = emoji::replace_emojis(message);
-                if replaced != *message {
-                    self.chat_message = Some(replaced);
-                }
-            }
-        } else if self.inventory_open && update_context.keyboard.pressed.contains(&Keycode::Escape)
-        {
-            self.inventory_open = false;
+            CurrentGUI::PauseMenu => {}
         }
 
         self.player.optimistic(dt, &self.world);
