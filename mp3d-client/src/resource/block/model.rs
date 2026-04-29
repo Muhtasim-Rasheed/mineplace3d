@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use mp3d_core::block::Block;
 
-use crate::resource::ResourceManager;
+use crate::resource::{ResourceManager, block::raw_model::RawBlockModelTransform};
 
 use super::{
     TextureAtlas, TextureRef,
@@ -110,9 +110,14 @@ impl BlockModel {
 
         if let Some(raw_elements) = raw.elements {
             for (i, raw_element) in raw_elements.into_iter().enumerate() {
-                let element =
-                    BlockElement::from_raw(raw_element, &textures, resource_manager, atlas)
-                        .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
+                let element = BlockElement::from_raw(
+                    raw_element,
+                    &textures,
+                    resource_manager,
+                    atlas,
+                    raw.transform,
+                )
+                .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 elements.push(element);
             }
         } else if let Some(parent) = raw.parent {
@@ -123,6 +128,7 @@ impl BlockModel {
                 &mut std::collections::HashSet::new(),
                 resource_manager,
                 atlas,
+                raw.transform,
             )
             .map_err(|e| format!("Failed to resolve parent model '{}': {}", parent, e))?;
         }
@@ -143,6 +149,7 @@ impl BlockModel {
         visited: &mut std::collections::HashSet<PathBuf>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
+        transform: Option<RawBlockModelTransform>,
     ) -> Result<Vec<BlockElement>, String> {
         if visited.contains(parent) {
             return Err(format!(
@@ -171,9 +178,23 @@ impl BlockModel {
         if let Some(elements) = parent_raw.elements {
             let mut resolved_elements = Vec::new();
             for (i, raw_element) in elements.into_iter().enumerate() {
-                let element =
-                    BlockElement::from_raw(raw_element, textures, resource_manager, atlas)
-                        .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
+                let combined_transform = if let Some(parent_transform) = parent_raw.transform {
+                    if let Some(current_transform) = transform {
+                        Some(parent_transform * current_transform)
+                    } else {
+                        Some(parent_transform)
+                    }
+                } else {
+                    transform.clone()
+                };
+                let element = BlockElement::from_raw(
+                    raw_element,
+                    textures,
+                    resource_manager,
+                    atlas,
+                    combined_transform,
+                )
+                .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 resolved_elements.push(element);
             }
             Ok(resolved_elements)
@@ -186,6 +207,7 @@ impl BlockModel {
                 visited,
                 resource_manager,
                 atlas,
+                parent_raw.transform,
             )
         } else {
             Err(format!("Model {:?} has no elements and no parent", parent))
@@ -247,7 +269,7 @@ impl BlockModel {
     pub fn is_full_cube(&self) -> bool {
         self.elements.len() == 1
             && self.elements[0].from == Vec3::ZERO
-            && self.elements[0].to == Vec3::splat(1.0)
+            && self.elements[0].to == Vec3::ONE
     }
 }
 
@@ -267,17 +289,99 @@ impl BlockElement {
         textures: &HashMap<String, TextureRef>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
+        transform: Option<RawBlockModelTransform>,
     ) -> Result<Self, String> {
-        Ok(BlockElement {
-            from: Vec3::from(raw.from) / 16.0,
-            to: Vec3::from(raw.to) / 16.0,
-            faces: [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
-                .into_iter()
-                .map(|raw_face| BlockFace::from_raw(raw_face, textures, resource_manager, atlas))
-                .collect::<Result<Vec<_>, _>>()?
-                .try_into()
-                .map_err(|_| "Expected exactly 6 faces".to_string())?,
-        })
+        let from = Vec3::from(raw.from) / 16.0;
+        let to = Vec3::from(raw.to) / 16.0;
+
+        let faces: [BlockFace; 6] = [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
+            .into_iter()
+            .map(|raw_face| BlockFace::from_raw(raw_face, textures, resource_manager, atlas))
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .map_err(|_| "Expected exactly 6 faces".to_string())?;
+
+        if let Some(transform) = transform {
+            let scale = Vec3::from(transform.scale);
+            let rotation = glam::Quat::from_euler(
+                glam::EulerRot::XYZ,
+                transform.rotation[0] as f32 * std::f32::consts::FRAC_PI_2,
+                transform.rotation[1] as f32 * std::f32::consts::FRAC_PI_2,
+                transform.rotation[2] as f32 * std::f32::consts::FRAC_PI_2,
+            );
+            let translation = Vec3::from(transform.translation) / 16.0;
+
+            let pivot = Vec3::splat(0.5);
+            let corners = [
+                Vec3::new(from.x, from.y, from.z),
+                Vec3::new(to.x, from.y, from.z),
+                Vec3::new(to.x, to.y, from.z),
+                Vec3::new(from.x, to.y, from.z),
+                Vec3::new(from.x, from.y, to.z),
+                Vec3::new(to.x, from.y, to.z),
+                Vec3::new(to.x, to.y, to.z),
+                Vec3::new(from.x, to.y, to.z),
+            ];
+
+            let transformed: Vec<Vec3> = corners
+                .iter()
+                .map(|c| {
+                    let mut p = *c;
+                    p = (p - pivot) * scale + pivot;
+                    p = rotation * (p - pivot) + pivot;
+                    p + translation
+                })
+                .collect();
+
+            let mut new_from = transformed[0];
+            let mut new_to = transformed[0];
+
+            for p in &transformed[1..] {
+                new_from = new_from.min(*p);
+                new_to = new_to.max(*p);
+            }
+
+            // update uvs
+            let mut new_faces = faces;
+            for face in &mut new_faces {
+                let uv_min = face.uv[0] * 16.0;
+                let uv_max = face.uv[1] * 16.0;
+                let uv_corners = [
+                    Vec3::new(uv_min.x, uv_min.y, 0.0),
+                    Vec3::new(uv_max.x, uv_min.y, 0.0),
+                    Vec3::new(uv_max.x, uv_max.y, 0.0),
+                    Vec3::new(uv_min.x, uv_max.y, 0.0),
+                ];
+
+                let transformed_uvs: Vec<Vec3> = uv_corners
+                    .iter()
+                    .map(|uv| {
+                        let mut p = *uv;
+                        p = (p - pivot) * scale + pivot;
+                        p = rotation * (p - pivot) + pivot;
+                        p + translation
+                    })
+                    .collect();
+
+                let mut new_uv_min = transformed_uvs[0];
+                let mut new_uv_max = transformed_uvs[0];
+
+                for uv in &transformed_uvs[1..] {
+                    new_uv_min = new_uv_min.min(*uv);
+                    new_uv_max = new_uv_max.max(*uv);
+                }
+
+                face.uv = [new_uv_min.truncate() / 16.0, new_uv_max.truncate() / 16.0];
+            }
+
+            Ok(BlockElement {
+                from: new_from,
+                to: new_to,
+                faces: new_faces,
+            })
+        } else {
+            Ok(BlockElement { from, to, faces })
+        }
     }
 }
 
