@@ -139,6 +139,10 @@ impl<C: Connection> Client<C> {
 
     /// Takes in player input and sends it to the server through the connection.
     pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32, sensitivity: f32) {
+        if self.chat_open || self.inventory_open {
+            self.player.input = MoveInstructions::default();
+        }
+
         if !self.chat_open && !self.inventory_open {
             let mouse_delta = update_context.mouse.delta;
             self.player.yaw -= mouse_delta.x * 0.1 * sensitivity;
