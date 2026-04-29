@@ -28,7 +28,7 @@ impl From<crate::protocol::MoveInstructions> for MoveInput {
                 -1 => -1.0,
                 0 => 0.0,
                 1 => 1.0,
-                2 => 1.5,
+                2 => 2.0,
                 _ => 0.0,
             },
             strafe: match instr.strafe {

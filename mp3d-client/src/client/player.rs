@@ -220,8 +220,17 @@ impl ClientPlayer {
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
         let mut movement = Vec3::ZERO;
-        movement += forward_vec * self.input.forward as f32 * 1.2;
-        movement += right_vec * self.input.strafe as f32 * 1.2;
+        match self.input.forward {
+            2 => movement += forward_vec * 2.0,
+            1 => movement += forward_vec,
+            -1 => movement -= forward_vec,
+            _ => {}
+        };
+        match self.input.strafe {
+            1 => movement += right_vec,
+            -1 => movement -= right_vec,
+            _ => {}
+        };
         if self.input.jump {
             if self.flying {
                 movement.y += 0.8;
