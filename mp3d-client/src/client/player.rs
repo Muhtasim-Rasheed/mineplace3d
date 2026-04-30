@@ -39,6 +39,7 @@ pub struct ClientPlayer {
     pub position: Vec3,
     pub velocity: Vec3,
     pub yaw: f32,
+    pub delta_yaw: f32,
     pub pitch: f32,
     pub fov: f32,
     pub flying: bool,
@@ -127,6 +128,13 @@ impl ClientPlayer {
         Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
     }
 
+    pub fn model(&self) -> Mat4 {
+        Mat4::from_rotation_translation(
+            glam::Quat::from_rotation_y((self.yaw - self.delta_yaw * 2.0).to_radians()),
+            self.position,
+        )
+    }
+
     pub fn view(&self, world: &ClientWorld) -> Mat4 {
         if self.third_person {
             self.third_person_view(world)
@@ -172,7 +180,9 @@ impl ClientPlayer {
         let mut snapshot = snapshot.iter().cloned();
         let _entity_id = read_u64(&mut snapshot, "ClientPlayer reading entity_id").unwrap();
         self.position = read_vec3(&mut snapshot, "ClientPlayer reading position").unwrap();
+        let previous_yaw = self.yaw;
         self.yaw = read_f32(&mut snapshot, "ClientPlayer reading yaw").unwrap();
+        self.delta_yaw = self.yaw - previous_yaw;
         self.pitch = read_f32(&mut snapshot, "ClientPlayer reading pitch").unwrap();
         self.inventory.borrow_mut().update_from_inventory(
             Inventory::load(&mut snapshot, mp3d_core::saving::SAVE_VERSION).unwrap(),

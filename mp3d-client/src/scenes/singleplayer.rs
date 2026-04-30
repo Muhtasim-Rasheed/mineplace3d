@@ -11,7 +11,7 @@ use glow::HasContext;
 use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
-    abs::{Mesh, ShaderProgram, framebuffer::Framebuffer},
+    abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},
     client::{Client, Connection, CurrentGUI, LocalConnection},
     render::{
         clouds::CloudRenderer, meshing::mesh_world, particles::ParticleSystem, ui::widgets::*,
@@ -38,12 +38,17 @@ struct WorldRenderer {
     cloud_renderer: CloudRenderer,
     particle_system: ParticleSystem,
     framebuffer: Framebuffer,
+
     chunk_shader: ShaderProgram,
+    entity_shader: ShaderProgram,
     postprocess_shader: ShaderProgram,
     chunk_border_shader: ShaderProgram,
 
+    entity_model: Mesh,
     fullscreen_quad: Mesh,
     cube_wireframe: Mesh,
+
+    white: Texture,
 }
 
 /// The [`SinglePlayer`] struct represents the single player scene.
@@ -96,8 +101,6 @@ impl SinglePlayer {
     ) -> Self {
         let connection = LocalConnection::new(server);
         let client = Client::new(connection, username, None);
-        let chunk_shader = shader_program!(chunk, gl, "..");
-        let postprocess_shader = shader_program!(postprocess, gl, "..");
 
         let return_to_game = Button::new("Return to Game", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
         let save = Button::new("Save and Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
@@ -156,6 +159,9 @@ impl SinglePlayer {
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
 
+        let image_bytes = [255u8; 4];
+        let white = Texture::new_bytes(gl, 1, 1, image_bytes.to_vec());
+
         Self {
             client,
             renderer: WorldRenderer {
@@ -175,11 +181,14 @@ impl SinglePlayer {
                         crate::abs::framebuffer::ColorUsage::RGB16F,
                     ],
                 ),
-                chunk_shader,
-                postprocess_shader,
+                chunk_shader: shader_program!(chunk, gl, ".."),
+                entity_shader: shader_program!(entity, gl, ".."),
+                postprocess_shader: shader_program!(postprocess, gl, ".."),
                 chunk_border_shader: shader_program!(chunk_border, gl, ".."),
+                entity_model: crate::render::entities::player_model(gl),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
+                white,
             },
             screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
@@ -388,7 +397,12 @@ impl super::Scene for SinglePlayer {
             assets,
         };
 
+        let player_model_mat = self.client.player.model();
+        let view = self.client.player.view(&self.client.world);
+
         unsafe {
+            // SETUP
+
             gl.enable(glow::DEPTH_TEST);
             gl.depth_mask(true);
             gl.enable(glow::CULL_FACE);
@@ -399,15 +413,17 @@ impl super::Scene for SinglePlayer {
             gl.clear_color(0.7, 0.7, 0.9, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
+            // WORLD
+
             self.renderer.framebuffer.bind();
 
             gl.clear_color(0.7, 0.7, 0.9, 1.0);
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
+            // CHUNKS
+
             self.renderer.chunk_shader.use_program();
-            self.renderer
-                .chunk_shader
-                .set_uniform("u_view", self.client.player.view(&self.client.world));
+            self.renderer.chunk_shader.set_uniform("u_view", view);
             self.renderer.chunk_shader.set_uniform(
                 "u_projection",
                 self.client
@@ -435,14 +451,37 @@ impl super::Scene for SinglePlayer {
                 mesh.draw();
             }
 
-            self.renderer.particle_system.render(
-                gl,
-                assets,
-                self.client.player.view(&self.client.world),
+            // PLAYER
+
+            self.renderer.entity_shader.use_program();
+            self.renderer
+                .entity_shader
+                .set_uniform("u_model", player_model_mat);
+            self.renderer.entity_shader.set_uniform("u_view", view);
+            self.renderer.entity_shader.set_uniform(
+                "u_projection",
                 self.client
                     .player
                     .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
             );
+            self.renderer.entity_shader.set_uniform("u_texture", 0);
+            // TODO: use a proper texture atlas for entities.
+            self.renderer.white.bind(0);
+
+            self.renderer.entity_model.draw();
+
+            // PARTICLES
+
+            self.renderer.particle_system.render(
+                gl,
+                assets,
+                view,
+                self.client
+                    .player
+                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
+            );
+
+            // CLOUDS
 
             gl.disable(glow::CULL_FACE);
             gl.depth_mask(false);
@@ -450,7 +489,7 @@ impl super::Scene for SinglePlayer {
             self.renderer
                 .cloud_renderer
                 .shader
-                .set_uniform("u_view", self.client.player.view(&self.client.world));
+                .set_uniform("u_view", view);
             self.renderer.cloud_renderer.shader.set_uniform(
                 "u_projection",
                 self.client
@@ -472,11 +511,13 @@ impl super::Scene for SinglePlayer {
             self.renderer.cloud_renderer.texture.bind(0);
             self.renderer.cloud_renderer.mesh.draw();
 
+            // DEBUG - CHUNK BORDERS
+
             if self.ui.debug_opened {
                 self.renderer.chunk_border_shader.use_program();
                 self.renderer
                     .chunk_border_shader
-                    .set_uniform("u_view", self.client.player.view(&self.client.world));
+                    .set_uniform("u_view", view);
                 self.renderer.chunk_border_shader.set_uniform(
                     "u_projection",
                     self.client
@@ -500,6 +541,8 @@ impl super::Scene for SinglePlayer {
 
             Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
 
+            // POSTPROCESS
+
             gl.disable(glow::CULL_FACE);
             gl.depth_mask(false);
 
@@ -511,8 +554,12 @@ impl super::Scene for SinglePlayer {
             self.renderer.framebuffer.textures()[0].bind(0);
             self.renderer.fullscreen_quad.draw();
 
+            // UI
+
             gl.clear(glow::DEPTH_BUFFER_BIT);
             gl.disable(glow::DEPTH_TEST);
+
+            // CROSSHAIR
 
             let crosshair_size = 20.0;
             let crosshair_thickness = 2.0;
@@ -550,6 +597,8 @@ impl super::Scene for SinglePlayer {
                 )),
                 layer: 0,
             });
+
+            // CHAT MESSAGES
 
             let messages = self
                 .client
@@ -603,6 +652,8 @@ impl super::Scene for SinglePlayer {
             ) {
                 ui.add_command(cmd);
             }
+
+            // DEBUG - TEXT & GRAPHS
 
             if self.ui.debug_opened {
                 let block_pos = self.client.player.position.as_ivec3();
@@ -700,6 +751,8 @@ Chunk local: X: {} Y: {} Z: {}"#,
                 }
             }
 
+            // PAUSE MENU
+
             if self.client.gui.pause_menu() {
                 ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                     rect: [
@@ -715,6 +768,8 @@ Chunk local: X: {} Y: {} Z: {}"#,
 
                 self.ui.pause_screen.draw(ui, assets);
             }
+
+            // INVENTORY
 
             if self.client.gui.inventory() {
                 self.ui.inventory.draw(ui, assets);
