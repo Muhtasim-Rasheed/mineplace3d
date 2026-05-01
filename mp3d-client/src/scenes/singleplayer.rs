@@ -48,7 +48,7 @@ struct WorldRenderer {
     fullscreen_quad: Mesh,
     cube_wireframe: Mesh,
 
-    white: Texture,
+    pink_black: Texture,
 }
 
 /// The [`SinglePlayer`] struct represents the single player scene.
@@ -159,8 +159,13 @@ impl SinglePlayer {
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
 
-        let image_bytes = [255u8; 4];
-        let white = Texture::new_bytes(gl, 1, 1, image_bytes.to_vec());
+        let image_bytes = [
+            255, 0, 255, 255, // Pink
+            0, 0, 0, 255, // Black
+            0, 0, 0, 255, // Black
+            255, 0, 255, 255, // Pink
+        ];
+        let pink_black = Texture::new_bytes(gl, 2, 2, image_bytes.to_vec());
 
         Self {
             client,
@@ -188,7 +193,7 @@ impl SinglePlayer {
                 entity_model: crate::render::entities::player_model(gl),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
-                white,
+                pink_black,
             },
             screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
@@ -466,7 +471,7 @@ impl super::Scene for SinglePlayer {
             );
             self.renderer.entity_shader.set_uniform("u_texture", 0);
             // TODO: use a proper texture atlas for entities.
-            self.renderer.white.bind(0);
+            self.renderer.pink_black.bind(0);
 
             self.renderer.entity_model.draw();
 
