@@ -351,7 +351,6 @@ pub fn mesh_world(
     chunk_mesh_pool: &mut Vec<Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
     block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
-    player_pos_chunk: IVec3,
 ) {
     use rayon::prelude::*;
 
@@ -363,12 +362,7 @@ pub fn mesh_world(
 
     let batch_size = world.remesh_queue.len().min(MAX_MESHES_PER_FRAME);
 
-    let mut batch: Vec<IVec3> = world.remesh_queue.drain(batch_size);
-    batch.sort_unstable_by(|a, b| {
-        let da = (*a - player_pos_chunk).length_squared();
-        let db = (*b - player_pos_chunk).length_squared();
-        da.cmp(&db)
-    });
+    let batch: Vec<IVec3> = world.remesh_queue.drain(batch_size);
 
     let world_ref = &*world;
 

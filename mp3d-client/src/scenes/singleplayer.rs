@@ -360,10 +360,7 @@ impl super::Scene for SinglePlayer {
                     assets,
                 });
         }
-        let unloaded = self
-            .client
-            .world
-            .unload_chunks(self.client.player.position.as_ivec3());
+        let unloaded = self.client.world.unload_chunks(self.client.player.position);
         for pos in unloaded {
             if let Some(mesh) = self.renderer.chunk_meshes.remove(&pos) {
                 self.renderer.chunk_mesh_pool.push(mesh);
@@ -378,11 +375,6 @@ impl super::Scene for SinglePlayer {
                 &mut self.renderer.chunk_mesh_pool,
                 &assets.block_textures,
                 &assets.block_models,
-                self.client
-                    .player
-                    .position
-                    .as_ivec3()
-                    .div_euclid(IVec3::splat(CHUNK_SIZE as i32)),
             );
         }
         self.mouse_pos = ctx.mouse.position;
@@ -657,6 +649,7 @@ impl super::Scene for SinglePlayer {
             ) {
                 ui.add_command(cmd);
             }
+            ui.finish();
 
             // DEBUG - TEXT & GRAPHS
 

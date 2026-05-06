@@ -242,10 +242,11 @@ impl Server {
                     && let Some(pos) = self
                         .world
                         .get_entity::<PlayerEntity>(session.entity_id)
-                        .map(|e| (e.position / CHUNK_SIZE as f32).floor().as_ivec3())
+                        .map(|e| e.position / CHUNK_SIZE as f32)
                 {
                     for chunk_position in chunk_positions {
-                        if chunk_position.distance_squared(pos) > MAX_RENDER_DIST_SQ {
+                        let cp_float = chunk_position.as_vec3() + Vec3::splat(0.5);
+                        if cp_float.distance_squared(pos) > MAX_RENDER_DIST_SQ as f32 {
                             continue;
                         }
                         let chunk = self.world.get_chunk_or_new(chunk_position);
@@ -382,10 +383,14 @@ impl Server {
                     // change the velocity to force the client to update the position
                     // immediately
                     player_entity.velocity += Vec3::new(0.0, 1.0, 0.0);
-                    Ok(Some(format!(
-                        "%b7FTeleported you to {}, {}, {}%r",
-                        coords.x, coords.y, coords.z
-                    ).parse().unwrap()))
+                    Ok(Some(
+                        format!(
+                            "%b7FTeleported you to {}, {}, {}%r",
+                            coords.x, coords.y, coords.z
+                        )
+                        .parse()
+                        .unwrap(),
+                    ))
                 } else {
                     Err("You must be connected to use this command".to_string())
                 }
@@ -427,13 +432,14 @@ impl Server {
             .filter_map(|session| {
                 self.world
                     .get_entity::<PlayerEntity>(session.entity_id)
-                    .map(|entity| (entity.position / CHUNK_SIZE as f32).floor().as_ivec3())
+                    .map(|entity| entity.position / CHUNK_SIZE as f32)
             })
             .collect();
         self.world.chunks.retain(|&pos, _| {
+            let pos = pos.as_vec3() + Vec3::splat(0.5);
             player_positions
                 .iter()
-                .any(|player_pos| pos.distance_squared(*player_pos) <= MAX_RENDER_DIST_SQ)
+                .any(|player_pos| pos.distance_squared(*player_pos) as i32 <= MAX_RENDER_DIST_SQ)
         });
 
         self.tps = tps;
@@ -468,11 +474,12 @@ impl Server {
                         &self.entity_to_user,
                         &mut self.sessions,
                         entity.id(),
-                    ) {
-                        session.pending_messages.push(S2CMessage::InventoryUpdated {
-                            inventory: entity.inventory.clone(),
-                        });
-                    }
+                    )
+                {
+                    session.pending_messages.push(S2CMessage::InventoryUpdated {
+                        inventory: entity.inventory.clone(),
+                    });
+                }
             }
         }
     }

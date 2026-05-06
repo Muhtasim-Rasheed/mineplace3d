@@ -138,13 +138,14 @@ impl ClientWorld {
     }
 
     /// Unloads chunks that are outside the render distance.
-    pub fn unload_chunks(&mut self, player_pos: IVec3) -> Vec<IVec3> {
-        let chunk_pos = player_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+    pub fn unload_chunks(&mut self, player_pos: Vec3) -> Vec<IVec3> {
+        let chunk_pos = player_pos.div_euclid(Vec3::splat(CHUNK_SIZE as f32));
         let mut to_remove = Vec::new();
 
         for pos in self.chunks.keys() {
-            let distance = pos.distance_squared(chunk_pos);
-            if distance > RENDER_DISTANCE * RENDER_DISTANCE {
+            let pos_float = pos.as_vec3() + Vec3::splat(0.5);
+            let distance = pos_float.distance_squared(chunk_pos);
+            if distance > (RENDER_DISTANCE * RENDER_DISTANCE) as f32 {
                 to_remove.push(*pos);
             }
         }
