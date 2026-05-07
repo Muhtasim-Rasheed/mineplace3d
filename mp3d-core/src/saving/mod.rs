@@ -6,7 +6,7 @@ pub const SAVE_VERSION: u8 = 0x03;
 
 /// The current generator version. 0x00 is used for alpha generators and 0x01 and onwards are used
 /// for beta generators.
-pub const GENERATOR_VERSION: u8 = 0x01;
+pub const GENERATOR_VERSION: u8 = 0x02;
 
 /// A trait for types that can be saved and loaded in a versioned format.
 pub trait Saveable {

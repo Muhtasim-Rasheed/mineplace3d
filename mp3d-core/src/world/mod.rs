@@ -5,7 +5,7 @@
 //! and accessing chunks, as well as handling world generation and updates.
 
 pub mod chunk;
-pub mod generator;
+pub mod generation;
 
 use std::collections::HashMap;
 
@@ -20,7 +20,7 @@ use crate::{
     saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
     world::{
         chunk::{CHUNK_SIZE, Chunk},
-        generator::Generator,
+        generation::Generator,
     },
 };
 

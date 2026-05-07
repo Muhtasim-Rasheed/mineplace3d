@@ -12,6 +12,7 @@
 		}
 	],
 	"textures": {
+		"$particle": "$a",
 		"$a": "leaves"
 	}
 }
