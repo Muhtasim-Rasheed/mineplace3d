@@ -59,18 +59,39 @@ impl Chunk {
         chunk_pos: IVec3,
     ) -> Vec<(IVec3, Block, BlockState)> {
         let neighbors = [
+            IVec3::new(-1, -1, -1), // Y -1 Z -1
+            IVec3::new(0, -1, -1),
+            IVec3::new(1, -1, -1),
+            IVec3::new(-1, 0, -1), // Y 0 Z -1
             IVec3::new(0, 0, -1),
-            IVec3::new(0, 0, 1),
-            IVec3::new(1, 0, 0),
-            IVec3::new(-1, 0, 0),
-            IVec3::new(0, 1, 0),
+            IVec3::new(1, 0, -1),
+            IVec3::new(-1, 1, -1), // Y 1 Z -1
+            IVec3::new(0, 1, -1),
+            IVec3::new(1, 1, -1),
+            IVec3::new(-1, -1, 0), // Y -1 Z 0
             IVec3::new(0, -1, 0),
+            IVec3::new(1, -1, 0),
+            IVec3::new(-1, 0, 0), // Y 0 Z 0
+            // IVec3::new(0, 0, 0), // This is us, which is accessed separately
+            IVec3::new(1, 0, 0),
+            IVec3::new(-1, 1, 0), // Y 1 Z 0
+            IVec3::new(0, 1, 0),
+            IVec3::new(1, 1, 0),
+            IVec3::new(-1, -1, 1), // Y -1 Z 1
+            IVec3::new(0, -1, 1),
+            IVec3::new(1, -1, 1),
+            IVec3::new(-1, 0, 1), // Y 0 Z 1
+            IVec3::new(0, 0, 1),
+            IVec3::new(1, 0, 1),
+            IVec3::new(-1, 1, 1), // Y 1 Z 1
+            IVec3::new(0, 1, 1),
+            IVec3::new(1, 1, 1),
         ]
         .map(|dir| chunks.get(&(chunk_pos + dir)));
 
         fn get_block_global<'a>(
             me: &'a Chunk,
-            neighbors: [Option<&'a Chunk>; 6],
+            neighbors: [Option<&'a Chunk>; 26],
             global_pos: IVec3,
             chunk_pos: IVec3,
         ) -> Option<(&'a Block, &'a BlockState)> {
@@ -84,14 +105,42 @@ impl Chunk {
                 global_pos.y.rem_euclid(CHUNK_SIZE as i32),
                 global_pos.z.rem_euclid(CHUNK_SIZE as i32),
             );
-            match get_chunk_pos {
-                IVec3 { z: -1, .. } => neighbors[0]?.get_block(local_pos),
-                IVec3 { z: 1, .. } => neighbors[1]?.get_block(local_pos),
-                IVec3 { x: 1, .. } => neighbors[2]?.get_block(local_pos),
-                IVec3 { x: -1, .. } => neighbors[3]?.get_block(local_pos),
-                IVec3 { y: 1, .. } => neighbors[4]?.get_block(local_pos),
-                IVec3 { y: -1, .. } => neighbors[5]?.get_block(local_pos),
-                IVec3 { x: 0, y: 0, z: 0 } => me.get_block(local_pos),
+            match <(i32, i32, i32)>::from(get_chunk_pos) {
+                (-1, -1, -1) => neighbors[0]?.get_block(local_pos),
+                (0, -1, -1) => neighbors[1]?.get_block(local_pos),
+                (1, -1, -1) => neighbors[2]?.get_block(local_pos),
+
+                (-1, 0, -1) => neighbors[3]?.get_block(local_pos),
+                (0, 0, -1) => neighbors[4]?.get_block(local_pos),
+                (1, 0, -1) => neighbors[5]?.get_block(local_pos),
+
+                (-1, 1, -1) => neighbors[6]?.get_block(local_pos),
+                (0, 1, -1) => neighbors[7]?.get_block(local_pos),
+                (1, 1, -1) => neighbors[8]?.get_block(local_pos),
+
+                (-1, -1, 0) => neighbors[9]?.get_block(local_pos),
+                (0, -1, 0) => neighbors[10]?.get_block(local_pos),
+                (1, -1, 0) => neighbors[11]?.get_block(local_pos),
+
+                (-1, 0, 0) => neighbors[12]?.get_block(local_pos),
+                (0, 0, 0) => me.get_block(local_pos),
+                (1, 0, 0) => neighbors[13]?.get_block(local_pos),
+
+                (-1, 1, 0) => neighbors[14]?.get_block(local_pos),
+                (0, 1, 0) => neighbors[15]?.get_block(local_pos),
+                (1, 1, 0) => neighbors[16]?.get_block(local_pos),
+
+                (-1, -1, 1) => neighbors[17]?.get_block(local_pos),
+                (0, -1, 1) => neighbors[18]?.get_block(local_pos),
+                (1, -1, 1) => neighbors[19]?.get_block(local_pos),
+
+                (-1, 0, 1) => neighbors[20]?.get_block(local_pos),
+                (0, 0, 1) => neighbors[21]?.get_block(local_pos),
+                (1, 0, 1) => neighbors[22]?.get_block(local_pos),
+
+                (-1, 1, 1) => neighbors[23]?.get_block(local_pos),
+                (0, 1, 1) => neighbors[24]?.get_block(local_pos),
+                (1, 1, 1) => neighbors[25]?.get_block(local_pos),
                 _ => None,
             }
         }
@@ -115,13 +164,39 @@ impl Chunk {
                 && let Some((above_block, _)) = above_block
                 && !above_block.visible
             {
+                // DIRT -> GRASS if above is invisible
                 updates.push((global_pos, Block::GRASS, BlockState::none()));
             }
             if block == &Block::GRASS
                 && let Some((above_block, _)) = above_block
                 && above_block.visible
             {
+                // GRASS -> DIRT if above is visible
                 updates.push((global_pos, Block::DIRT, BlockState::none()));
+            }
+            if block == &Block::LEAVES {
+                // LEAVES -> AIR if no wood in radius of 6 blocks
+                let mut should_become_air = true;
+                for dx in -6..=6 {
+                    for dy in -6..=6 {
+                        for dz in -6..=6 {
+                            let delta = IVec3::new(dx, dy, dz);
+                            if delta.length_squared() > 36 {
+                                continue;
+                            }
+                            let pos = global_pos + delta;
+                            let block = get_block_global(self, neighbors, pos, chunk_pos);
+                            if let Some((block, _)) = block
+                                && block == &Block::LOG
+                            {
+                                should_become_air = false;
+                            }
+                        }
+                    }
+                }
+                if should_become_air {
+                    updates.push((global_pos, Block::AIR, BlockState::none()));
+                }
             }
         }
         updates

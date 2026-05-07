@@ -118,12 +118,6 @@ impl Generator {
             }
         };
 
-        // Trunk
-        for i in 0..trunk_height {
-            let p = origin + IVec3::new(0, i as i32, 0);
-            try_place(p, Block::LOG);
-        }
-
         // Leaves
         let top = origin + IVec3::new(0, trunk_height as i32, 0);
 
@@ -142,6 +136,12 @@ impl Generator {
                     try_place(p, Block::LEAVES);
                 }
             }
+        }
+
+        // Trunk
+        for i in 0..trunk_height {
+            let p = origin + IVec3::new(0, i as i32, 0);
+            try_place(p, Block::LOG);
         }
     }
 }
