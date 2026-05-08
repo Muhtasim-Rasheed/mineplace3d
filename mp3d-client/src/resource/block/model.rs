@@ -185,7 +185,7 @@ impl BlockModel {
                         Some(parent_transform)
                     }
                 } else {
-                    transform.clone()
+                    transform
                 };
                 let element = BlockElement::from_raw(
                     raw_element,

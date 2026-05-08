@@ -226,8 +226,7 @@ impl<C: Connection> Client<C> {
                     .mouse
                     .pressed
                     .contains(&sdl2::mouse::MouseButton::Left)
-                {
-                    if let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0) {
+                    && let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0) {
                         self.connection.send(C2SMessage::BlockClick {
                             position,
                             face: match face {
@@ -242,14 +241,12 @@ impl<C: Connection> Client<C> {
                             right: false,
                         });
                     }
-                }
 
                 if update_context
                     .mouse
                     .pressed
                     .contains(&sdl2::mouse::MouseButton::Right)
-                {
-                    if let Some((block_pos, normal)) = cast_ray(&self.world, &self.player, 5.0) {
+                    && let Some((block_pos, normal)) = cast_ray(&self.world, &self.player, 5.0) {
                         let face_idx = match normal {
                             IVec3 { z: -1, .. } => 0,
                             IVec3 { z: 1, .. } => 1,
@@ -266,7 +263,6 @@ impl<C: Connection> Client<C> {
                             right: true,
                         });
                     }
-                }
 
                 if kb.pressed.contains(&Keycode::T) {
                     self.gui = CurrentGUI::Chat(String::new());

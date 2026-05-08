@@ -165,10 +165,10 @@ impl Saveable for Generator {
             let generator_version = read_u8(data, "Generator version")?;
             let seed = read_i32(data, "Generator seed")?;
             Self::new(generator_version, seed)
-                .map_err(|e| crate::saving::WorldLoadError::InvalidSaveFormat(e))
+                .map_err(crate::saving::WorldLoadError::InvalidSaveFormat)
         } else {
             let seed = read_i32(data, "Generator seed")?;
-            Self::new(0x01, seed).map_err(|e| crate::saving::WorldLoadError::InvalidSaveFormat(e))
+            Self::new(0x01, seed).map_err(crate::saving::WorldLoadError::InvalidSaveFormat)
         }
     }
 }

@@ -203,6 +203,12 @@ impl Chunk {
     }
 }
 
+impl Default for Chunk {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Saveable for Chunk {
     /// Serializes the chunk.
     ///
