@@ -349,8 +349,8 @@ impl<C: Connection> Client<C> {
         }
     }
 
-    /// Updates any state on the client side from all recieved messages from the server.
-    pub fn recieve_state(&mut self, particle_system: &mut ParticleSystem) -> Result<(), String> {
+    /// Updates any state on the client side from all received messages from the server.
+    pub fn receive_state(&mut self, particle_system: &mut ParticleSystem) -> Result<(), String> {
         let messages = self.connection.receive();
         for message in messages {
             match message {

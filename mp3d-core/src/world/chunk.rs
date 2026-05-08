@@ -204,7 +204,7 @@ impl Chunk {
 }
 
 impl Saveable for Chunk {
-    /// Serialises the chunk.
+    /// Serializes the chunk.
     ///
     /// The chunk format is as follows:
     /// - 1 byte: number of blocks in the palette (N)

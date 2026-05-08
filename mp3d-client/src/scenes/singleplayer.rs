@@ -278,7 +278,7 @@ impl super::Scene for SinglePlayer {
 
             if let Err(_reason) = self
                 .client
-                .recieve_state(&mut self.renderer.particle_system)
+                .receive_state(&mut self.renderer.particle_system)
             {
                 todo!("Save world and exit.")
             }
