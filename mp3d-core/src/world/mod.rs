@@ -378,10 +378,10 @@ impl World {
     }
 
     fn interact_glungus(&mut self, block_pos: IVec3) {
-        let radius_sq = 4;
-        for x in -2..=2 {
-            for y in -2..=2 {
-                for z in -2..=2 {
+        let radius_sq = 8 * 8;
+        for x in -8..=8 {
+            for y in -8..=8 {
+                for z in -8..=8 {
                     if x * x + y * y + z * z <= radius_sq {
                         let pos = block_pos + IVec3::new(x, y, z);
                         self.normal_set_block_at(
