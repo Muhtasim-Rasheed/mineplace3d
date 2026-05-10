@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use image::GenericImageView;
 use mp3d_core::block::BlockState;
 
 use crate::{
@@ -43,7 +44,11 @@ impl Assets {
     /// A blank `TextureAtlas` is created and passed to each `BlockModel` as it is loaded, allowing
     /// them to add their textures to the atlas as they are loaded. This ensures that only the
     /// needed textures are loaded into the atlas.
-    pub fn load(gl: &Arc<glow::Context>, config: &ClientConfig) -> Result<Self, String> {
+    pub fn load(
+        gl: &Arc<glow::Context>,
+        window: &mut sdl2::video::Window,
+        config: &ClientConfig,
+    ) -> Result<Self, String> {
         let resource_manager = ResourceManager::new(config.resource_packs());
         let mut block_textures = TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
@@ -114,6 +119,24 @@ impl Assets {
             )
             .unwrap(),
         );
+        let window_icon = image::load_from_memory_with_format(
+            &resource_manager
+                .read(std::path::Path::new("window_icon.png"))
+                .ok_or_else(|| "Failed to load window icon".to_string())?,
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+        let (icon_width, icon_height) = window_icon.dimensions();
+        let mut icon_rgba = window_icon.into_rgba8().into_raw();
+        let icon = sdl2::surface::Surface::from_data(
+            &mut icon_rgba,
+            icon_width,
+            icon_height,
+            icon_width * 4,
+            sdl2::pixels::PixelFormatEnum::RGBA32,
+        )
+        .map_err(|e| format!("Failed to create window icon surface: {}", e))?;
+        window.set_icon(icon);
         Ok(Self {
             block_textures,
             block_models,
@@ -205,7 +228,7 @@ impl SceneManager {
                 SceneAction::Quit => return false,
                 SceneAction::ReloadAssets => {
                     log::info!("Reloading assets...");
-                    match Assets::load(gl, &self.config.read().unwrap()) {
+                    match Assets::load(gl, window, &self.config.read().unwrap()) {
                         Ok(new_assets) => {
                             self.assets = Arc::new(new_assets);
                             log::info!("Assets reloaded successfully");
@@ -215,7 +238,7 @@ impl SceneManager {
                 }
                 SceneAction::ReloadAssetsAndPop => {
                     log::info!("Reloading assets...");
-                    match Assets::load(gl, &self.config.read().unwrap()) {
+                    match Assets::load(gl, window, &self.config.read().unwrap()) {
                         Ok(new_assets) => {
                             self.assets = Arc::new(new_assets);
                             log::info!("Assets reloaded successfully");

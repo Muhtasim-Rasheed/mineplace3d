@@ -190,9 +190,11 @@ fn main() {
     let config = scenes::options::ClientConfig::load();
 
     log::info!("Loading assets...");
-    let assets = Arc::new(scenes::Assets::load(&app.gl, &config).unwrap_or_else(|e| {
-        panic!("Failed to load assets: {}", e);
-    }));
+    let assets = Arc::new(
+        scenes::Assets::load(&app.gl, &mut app.window, &config).unwrap_or_else(|e| {
+            panic!("Failed to load assets: {}", e);
+        }),
+    );
 
     if config.fullscreen() {
         app.window
