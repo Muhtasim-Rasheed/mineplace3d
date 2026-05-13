@@ -7,4 +7,5 @@ pub mod clouds;
 pub mod entities;
 pub mod meshing;
 pub mod particles;
+pub mod profiler;
 pub mod ui;

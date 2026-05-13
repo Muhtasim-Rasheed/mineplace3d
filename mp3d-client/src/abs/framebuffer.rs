@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use glow::HasContext;
 
-use crate::abs::Texture;
+use crate::abs::{Texture, TextureHandle};
 
 /// How to use which color channels in the framebuffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -226,11 +226,17 @@ impl Framebuffer {
     }
 
     /// Unbinds the framebuffer, reverting to the default framebuffer.
+    #[allow(unused)]
     pub fn unbind(gl: &glow::Context, width: i32, height: i32) {
         unsafe {
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             gl.viewport(0, 0, width, height);
         }
+    }
+
+    /// Returns a guard that binds the framebuffer on creation and unbinds it when dropped.
+    pub fn guard(&self) -> FramebufferGuard {
+        FramebufferGuard::new(self)
     }
 
     /// Resizes the framebuffer to the specified width and height.
@@ -295,6 +301,37 @@ impl Drop for Framebuffer {
         unsafe {
             self.gl.delete_framebuffer(self.fbo);
             // The textures are dropped in their respective Drop implementations
+        }
+    }
+}
+
+pub struct FramebufferGuard {
+    gl: Arc<glow::Context>,
+    previous: Option<glow::NativeFramebuffer>,
+}
+
+impl FramebufferGuard {
+    fn new(framebuffer: &Framebuffer) -> Self {
+        unsafe {
+            let previous = std::num::NonZero::new(
+                framebuffer.gl.get_parameter_i32(glow::FRAMEBUFFER_BINDING) as u32,
+            )
+            .map(glow::NativeFramebuffer);
+
+            framebuffer.bind();
+
+            Self {
+                gl: framebuffer.gl.clone(),
+                previous,
+            }
+        }
+    }
+}
+
+impl Drop for FramebufferGuard {
+    fn drop(&mut self) {
+        unsafe {
+            self.gl.bind_framebuffer(glow::FRAMEBUFFER, self.previous);
         }
     }
 }

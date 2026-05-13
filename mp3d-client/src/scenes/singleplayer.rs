@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use glam::{IVec3, UVec2, UVec4, Vec2, Vec3, Vec4};
+use glam::{IVec3, Mat4, UVec2, UVec4, Vec2, Vec3, Vec4};
 use glow::HasContext;
 use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
 
@@ -14,13 +14,31 @@ use crate::{
     abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},
     client::{Client, Connection, CurrentGUI, LocalConnection},
     render::{
-        clouds::CloudRenderer, meshing::mesh_world, particles::ParticleSystem, ui::widgets::*,
+        clouds::CloudRenderer,
+        meshing::mesh_world,
+        particles::ParticleSystem,
+        profiler::Profiler,
+        ui::{
+            uirenderer::{DrawCommand, UIRenderMode, UIRenderer},
+            widgets::*,
+        },
     },
     scenes::Assets,
     shader_program,
 };
 
+const DEFAULT_UV_RECT: [Vec2; 2] = [Vec2::ZERO, Vec2::ONE];
+
 const FPS_HISTORY_LEN: usize = 120;
+const FPS_GRAPH_WIDTH: f32 = 500.0;
+const FPS_GRAPH_HEIGHT: f32 = 200.0;
+const FPS_GRAPH_Y: f32 = 10.0;
+
+const PROFILER_GRAPH_WIDTH: f32 = 400.0;
+
+const CROSSHAIR_SIZE: f32 = 20.0;
+const CROSSHAIR_THICKNESS: f32 = 2.0;
+const CROSSHAIR_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
 
 struct SinglePlayerUI {
     chat_input_label: Label,
@@ -49,6 +67,8 @@ struct WorldRenderer {
     cube_wireframe: Mesh,
 
     pink_black: Texture,
+
+    profiler: Profiler,
 }
 
 /// The [`SinglePlayer`] struct represents the single player scene.
@@ -194,6 +214,7 @@ impl SinglePlayer {
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
                 pink_black,
+                profiler: Profiler::new(),
             },
             screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
@@ -216,6 +237,142 @@ impl SinglePlayer {
     fn fps_entry(&mut self, fps: f32) {
         self.ui.fps_history.rotate_left(1);
         self.ui.fps_history[FPS_HISTORY_LEN - 1] = fps;
+    }
+
+    fn get_recent_messages(&self) -> Vec<TextComponent> {
+        self.client
+            .messages
+            .iter() // All messages
+            .rev() // Reversed
+            .take(10) // Take the first (last) 10 messages
+            .rev() // Reverse back
+            .cloned() // Clone the messages so we can own them
+            .collect()
+    }
+
+    fn draw_chunks(
+        &mut self,
+        gl: &Arc<glow::Context>,
+        assets: &Arc<Assets>,
+        view: Mat4,
+        projection: Mat4,
+    ) {
+        let _p = self.renderer.profiler.start_scope("draw_chunks");
+        self.renderer.chunk_shader.use_program();
+        self.renderer.chunk_shader.set_uniform("u_view", view);
+        self.renderer
+            .chunk_shader
+            .set_uniform("u_projection", projection);
+        self.renderer.chunk_shader.set_uniform("u_texture", 0);
+        assets.block_textures.upload(gl).bind(0);
+        for (pos, mesh) in &self.renderer.chunk_meshes {
+            let [aabb_min, aabb_max] = [
+                pos.as_vec3() * CHUNK_SIZE as f32,
+                (pos.as_vec3() + Vec3::ONE) * CHUNK_SIZE as f32,
+            ];
+            if !is_aabb_in_frustum(
+                aabb_min,
+                aabb_max,
+                &self.client.player.frustum_planes(
+                    self.screen_size.x as f32 / self.screen_size.y as f32,
+                    &self.client.world,
+                ),
+            ) {
+                continue;
+            }
+
+            mesh.draw();
+        }
+    }
+
+    fn draw_entities(&mut self, view: Mat4, projection: Mat4, player_model_mat: Mat4) {
+        let _p = self.renderer.profiler.start_scope("draw_entities");
+        self.renderer.entity_shader.use_program();
+        self.renderer
+            .entity_shader
+            .set_uniform("u_model", player_model_mat);
+        self.renderer.entity_shader.set_uniform("u_view", view);
+        self.renderer
+            .entity_shader
+            .set_uniform("u_projection", projection);
+        self.renderer.entity_shader.set_uniform("u_texture", 0);
+        // TODO: use a proper texture atlas for entities.
+        self.renderer.pink_black.bind(0);
+
+        self.renderer.entity_model.draw();
+    }
+
+    fn draw_crosshair(ui: &mut UIRenderer, screen_size: Vec2) {
+        let center = screen_size / 2.0;
+
+        let hs = CROSSHAIR_SIZE / 2.0;
+        let ht = CROSSHAIR_THICKNESS / 2.0;
+
+        let h_rect = [center - Vec2::new(hs, ht), center + Vec2::new(hs, ht)];
+        let v_rect = [center - Vec2::new(ht, hs), center + Vec2::new(ht, hs)];
+
+        ui.add_command(DrawCommand::Quad {
+            rect: h_rect,
+            uv_rect: DEFAULT_UV_RECT,
+            mode: UIRenderMode::Color(CROSSHAIR_COLOR),
+            layer: 0,
+        });
+
+        ui.add_command(DrawCommand::Quad {
+            rect: v_rect,
+            uv_rect: DEFAULT_UV_RECT,
+            mode: UIRenderMode::Color(CROSSHAIR_COLOR),
+            layer: 0,
+        });
+    }
+
+    fn draw_chat(
+        &self,
+        ui: &mut UIRenderer,
+        layout_ctx: &crate::render::ui::widgets::LayoutContext,
+        assets: &Assets,
+    ) {
+        let messages = self.get_recent_messages();
+        let message_size = measure_messages(&assets.font, &messages, 24.0);
+
+        let mut messages_start_y = self.screen_size.y as f32 - message_size.y - 10.0;
+
+        if self.client.gui.chat().is_some() {
+            messages_start_y -= 24.0 + 10.0 + 15.0;
+            let label_size = self.ui.chat_input_label.size_hint(&layout_ctx);
+            ui.add_command(DrawCommand::Quad {
+                rect: [
+                    Vec2::new(5.0, self.screen_size.y as f32 - label_size.y - 15.0),
+                    Vec2::new(5.0 + label_size.x + 10.0, self.screen_size.y as f32 - 5.0),
+                ],
+                uv_rect: DEFAULT_UV_RECT,
+                mode: UIRenderMode::Color(Vec4::new(0.0, 0.0, 0.0, 0.5)),
+                layer: 0,
+            });
+            self.ui.chat_input_label.draw(ui, assets);
+        }
+
+        ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
+            rect: [
+                Vec2::new(5.0, messages_start_y - 5.0),
+                Vec2::new(
+                    5.0 + message_size.x + 10.0,
+                    messages_start_y + message_size.y + 5.0,
+                ),
+            ],
+            uv_rect: DEFAULT_UV_RECT,
+            mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(0.0, 0.0, 0.0, 0.5)),
+            layer: 0,
+        });
+        for cmd in text_messages(
+            &assets.font,
+            &messages,
+            24.0,
+            Vec2::new(10.0, messages_start_y),
+        ) {
+            ui.add_command(cmd);
+        }
+        ui.finish();
     }
 }
 
@@ -244,6 +401,8 @@ impl super::Scene for SinglePlayer {
         assets: &Arc<Assets>,
         config: &Arc<RwLock<super::options::ClientConfig>>,
     ) -> super::SceneAction {
+        self.renderer.profiler.begin_frame();
+
         let layout_ctx = crate::render::ui::widgets::LayoutContext {
             max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
             cursor: Vec2::ZERO,
@@ -268,69 +427,78 @@ impl super::Scene for SinglePlayer {
             return super::SceneAction::ReloadAssets;
         }
 
-        self.client
-            .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
+        {
+            let _p = self.renderer.profiler.start_scope("client_update");
 
-        if !self.client.gui.pause_menu() {
-            if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F3) {
-                self.ui.debug_opened = !self.ui.debug_opened;
-            }
+            self.client
+                .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
 
-            if let Err(_reason) = self
-                .client
-                .receive_state(&mut self.renderer.particle_system)
-            {
-                todo!("Save world and exit.")
-            }
-        } else {
-            self.ui.pause_screen.update(ctx);
-            self.ui
-                .pause_screen
-                .layout(&crate::render::ui::widgets::LayoutContext {
-                    max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
-                    cursor: Vec2::ZERO,
-                    assets,
-                });
-            if self
-                .ui
-                .pause_screen
-                .get_widget::<Button>(0)
-                .is_some_and(|btn| btn.is_released())
-            {
-                self.client.gui = CurrentGUI::None;
-            }
-            if self
-                .ui
-                .pause_screen
-                .get_widget::<Button>(1)
-                .is_some_and(|btn| btn.is_released())
-            {
-                log::info!("Saving world...");
-                std::fs::create_dir_all(&self.world_path)
-                    .expect("Failed to create world directory");
-                self.client
-                    .connection
-                    .server
-                    .save()
-                    .expect("Failed to save world");
+            if !self.client.gui.pause_menu() {
+                if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F3) {
+                    self.ui.debug_opened = !self.ui.debug_opened;
+                }
 
-                return super::SceneAction::Pop;
-            }
-            if self
-                .ui
-                .pause_screen
-                .get_widget::<Button>(2)
-                .is_some_and(|btn| btn.is_released())
-            {
-                return super::SceneAction::Pop;
+                if let Err(_reason) = self
+                    .client
+                    .receive_state(&mut self.renderer.particle_system)
+                {
+                    todo!("Save world and exit.")
+                }
+            } else {
+                self.ui.pause_screen.update(ctx);
+                self.ui
+                    .pause_screen
+                    .layout(&crate::render::ui::widgets::LayoutContext {
+                        max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
+                        cursor: Vec2::ZERO,
+                        assets,
+                    });
+                if self
+                    .ui
+                    .pause_screen
+                    .get_widget::<Button>(0)
+                    .is_some_and(|btn| btn.is_released())
+                {
+                    self.client.gui = CurrentGUI::None;
+                }
+                if self
+                    .ui
+                    .pause_screen
+                    .get_widget::<Button>(1)
+                    .is_some_and(|btn| btn.is_released())
+                {
+                    log::info!("Saving world...");
+                    std::fs::create_dir_all(&self.world_path)
+                        .expect("Failed to create world directory");
+                    self.client
+                        .connection
+                        .server
+                        .save()
+                        .expect("Failed to save world");
+
+                    return super::SceneAction::Pop;
+                }
+                if self
+                    .ui
+                    .pause_screen
+                    .get_widget::<Button>(2)
+                    .is_some_and(|btn| btn.is_released())
+                {
+                    return super::SceneAction::Pop;
+                }
             }
         }
-        let tick_time = 1.0f32 / self.tick_rate;
-        self.tick_acc = (self.tick_acc + ctx.delta_time).min(tick_time * 5.0);
 
-        while self.tick_acc >= tick_time {
-            self.client.connection.tick(self.tick_rate as u8);
-            self.tick_acc -= tick_time;
+        {
+            let tick_time = 1.0f32 / self.tick_rate;
+            self.tick_acc = (self.tick_acc + ctx.delta_time).min(tick_time * 5.0);
+
+            let _p = self.renderer.profiler.start_scope("server_update");
+
+            while self.tick_acc >= tick_time {
+                self.client.connection.tick(self.tick_rate as u8);
+                self.tick_acc -= tick_time;
+            }
         }
 
         if let Some(chat) = self.client.gui.chat() {
@@ -353,10 +521,7 @@ impl super::Scene for SinglePlayer {
                 .inventory
                 .layout(&crate::render::ui::widgets::LayoutContext {
                     max_size: inventory_size,
-                    cursor: Vec2::new(
-                        self.screen_size.x as f32 / 2.0 - inventory_size.x / 2.0,
-                        self.screen_size.y as f32 / 2.0 - inventory_size.y / 2.0,
-                    ),
+                    cursor: self.screen_size.as_vec2() / 2.0 - inventory_size / 2.0,
                     assets,
                 });
         }
@@ -366,25 +531,32 @@ impl super::Scene for SinglePlayer {
                 self.renderer.chunk_mesh_pool.push(mesh);
             }
         }
-        self.renderer.particle_system.update(ctx.delta_time, assets);
-        if !self.client.world.remesh_queue.is_empty() {
-            mesh_world(
-                gl,
-                &mut self.client.world,
-                &mut self.renderer.chunk_meshes,
-                &mut self.renderer.chunk_mesh_pool,
-                &assets.block_textures,
-                &assets.block_models,
-            );
+        {
+            let _p = self.renderer.profiler.start_scope("particles");
+            self.renderer.particle_system.update(ctx.delta_time, assets);
+        }
+        {
+            let _p = self.renderer.profiler.start_scope("world_meshing");
+            if !self.client.world.remesh_queue.is_empty() {
+                mesh_world(
+                    gl,
+                    &mut self.client.world,
+                    &mut self.renderer.chunk_meshes,
+                    &mut self.renderer.chunk_mesh_pool,
+                    &assets.block_textures,
+                    &assets.block_models,
+                );
+            }
         }
         self.mouse_pos = ctx.mouse.position;
+
         super::SceneAction::None
     }
 
     fn render(
         &mut self,
         gl: &Arc<glow::Context>,
-        ui: &mut crate::render::ui::uirenderer::UIRenderer,
+        ui: &mut UIRenderer,
         assets: &Arc<Assets>,
         _config: &Arc<RwLock<super::options::ClientConfig>>,
     ) {
@@ -396,6 +568,10 @@ impl super::Scene for SinglePlayer {
 
         let player_model_mat = self.client.player.model();
         let view = self.client.player.view(&self.client.world);
+        let projection = self
+            .client
+            .player
+            .projection(self.screen_size.x as f32 / self.screen_size.y as f32);
 
         unsafe {
             // SETUP
@@ -412,131 +588,64 @@ impl super::Scene for SinglePlayer {
 
             // WORLD
 
-            self.renderer.framebuffer.bind();
+            {
+                let _fb = self.renderer.framebuffer.guard();
 
-            gl.clear_color(0.7, 0.7, 0.9, 1.0);
-            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+                gl.clear_color(0.7, 0.7, 0.9, 1.0);
+                gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
-            // CHUNKS
+                // CHUNKS
 
-            self.renderer.chunk_shader.use_program();
-            self.renderer.chunk_shader.set_uniform("u_view", view);
-            self.renderer.chunk_shader.set_uniform(
-                "u_projection",
-                self.client
-                    .player
-                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
-            );
-            self.renderer.chunk_shader.set_uniform("u_texture", 0);
-            assets.block_textures.upload(gl).bind(0);
-            for (pos, mesh) in &self.renderer.chunk_meshes {
-                let [aabb_min, aabb_max] = [
-                    pos.as_vec3() * CHUNK_SIZE as f32,
-                    (pos.as_vec3() + Vec3::splat(1.0)) * CHUNK_SIZE as f32,
-                ];
-                if !is_aabb_in_frustum(
-                    aabb_min,
-                    aabb_max,
-                    &self.client.player.frustum_planes(
-                        self.screen_size.x as f32 / self.screen_size.y as f32,
-                        &self.client.world,
-                    ),
-                ) {
-                    continue;
+                self.draw_chunks(gl, assets, view, projection);
+
+                // PLAYER
+
+                self.draw_entities(view, projection, player_model_mat);
+
+                // PARTICLES
+
+                {
+                    let _p = self.renderer.profiler.start_scope("particles");
+                    self.renderer
+                        .particle_system
+                        .render(gl, assets, view, projection);
                 }
 
-                mesh.draw();
-            }
+                // CLOUDS
 
-            // PLAYER
-
-            self.renderer.entity_shader.use_program();
-            self.renderer
-                .entity_shader
-                .set_uniform("u_model", player_model_mat);
-            self.renderer.entity_shader.set_uniform("u_view", view);
-            self.renderer.entity_shader.set_uniform(
-                "u_projection",
-                self.client
-                    .player
-                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
-            );
-            self.renderer.entity_shader.set_uniform("u_texture", 0);
-            // TODO: use a proper texture atlas for entities.
-            self.renderer.pink_black.bind(0);
-
-            self.renderer.entity_model.draw();
-
-            // PARTICLES
-
-            self.renderer.particle_system.render(
-                gl,
-                assets,
-                view,
-                self.client
-                    .player
-                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
-            );
-
-            // CLOUDS
-
-            gl.disable(glow::CULL_FACE);
-            gl.depth_mask(false);
-            self.renderer.cloud_renderer.shader.use_program();
-            self.renderer
-                .cloud_renderer
-                .shader
-                .set_uniform("u_view", view);
-            self.renderer.cloud_renderer.shader.set_uniform(
-                "u_projection",
-                self.client
-                    .player
-                    .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
-            );
-            self.renderer
-                .cloud_renderer
-                .shader
-                .set_uniform("u_camera_pos", self.client.player.position);
-            self.renderer
-                .cloud_renderer
-                .shader
-                .set_uniform("u_time", self.timer);
-            self.renderer
-                .cloud_renderer
-                .shader
-                .set_uniform("u_texture", 0);
-            self.renderer.cloud_renderer.texture.bind(0);
-            self.renderer.cloud_renderer.mesh.draw();
-
-            // DEBUG - CHUNK BORDERS
-
-            if self.ui.debug_opened {
-                self.renderer.chunk_border_shader.use_program();
-                self.renderer
-                    .chunk_border_shader
-                    .set_uniform("u_view", view);
-                self.renderer.chunk_border_shader.set_uniform(
-                    "u_projection",
-                    self.client
-                        .player
-                        .projection(self.screen_size.x as f32 / self.screen_size.y as f32),
+                self.renderer.cloud_renderer.draw(
+                    gl,
+                    projection,
+                    view,
+                    self.client.player.position,
+                    self.timer,
                 );
 
-                for pos in self.renderer.chunk_meshes.keys() {
-                    let world_pos = pos.as_vec3() * CHUNK_SIZE as f32;
+                // DEBUG - CHUNK BORDERS
 
+                if self.ui.debug_opened {
+                    self.renderer.chunk_border_shader.use_program();
                     self.renderer
                         .chunk_border_shader
-                        .set_uniform("u_offset", world_pos);
+                        .set_uniform("u_view", view);
                     self.renderer
                         .chunk_border_shader
-                        .set_uniform("u_scale", CHUNK_SIZE as f32);
+                        .set_uniform("u_projection", projection);
 
-                    self.renderer.cube_wireframe.draw();
+                    for pos in self.renderer.chunk_meshes.keys() {
+                        let world_pos = pos.as_vec3() * CHUNK_SIZE as f32;
+
+                        self.renderer
+                            .chunk_border_shader
+                            .set_uniform("u_offset", world_pos);
+                        self.renderer
+                            .chunk_border_shader
+                            .set_uniform("u_scale", CHUNK_SIZE as f32);
+
+                        self.renderer.cube_wireframe.draw();
+                    }
                 }
             }
-
-            Framebuffer::unbind(gl, self.screen_size.x as i32, self.screen_size.y as i32);
 
             // POSTPROCESS
 
@@ -558,98 +667,11 @@ impl super::Scene for SinglePlayer {
 
             // CROSSHAIR
 
-            let crosshair_size = 20.0;
-            let crosshair_thickness = 2.0;
-            ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
-                rect: [
-                    Vec2::new(
-                        self.screen_size.x as f32 / 2.0 - crosshair_size / 2.0,
-                        self.screen_size.y as f32 / 2.0 - crosshair_thickness / 2.0,
-                    ),
-                    Vec2::new(
-                        self.screen_size.x as f32 / 2.0 + crosshair_size / 2.0,
-                        self.screen_size.y as f32 / 2.0 + crosshair_thickness / 2.0,
-                    ),
-                ],
-                uv_rect: [Vec2::ZERO, Vec2::ONE],
-                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
-                    1.0, 1.0, 1.0, 1.0,
-                )),
-                layer: 0,
-            });
-            ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
-                rect: [
-                    Vec2::new(
-                        self.screen_size.x as f32 / 2.0 - crosshair_thickness / 2.0,
-                        self.screen_size.y as f32 / 2.0 - crosshair_size / 2.0,
-                    ),
-                    Vec2::new(
-                        self.screen_size.x as f32 / 2.0 + crosshair_thickness / 2.0,
-                        self.screen_size.y as f32 / 2.0 + crosshair_size / 2.0,
-                    ),
-                ],
-                uv_rect: [Vec2::ZERO, Vec2::ONE],
-                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
-                    1.0, 1.0, 1.0, 1.0,
-                )),
-                layer: 0,
-            });
+            Self::draw_crosshair(ui, self.screen_size.as_vec2());
 
             // CHAT MESSAGES
 
-            let messages = self
-                .client
-                .messages
-                .iter()
-                .rev()
-                .take(10)
-                .rev()
-                .cloned()
-                .collect::<Vec<_>>();
-            let message_size = measure_messages(&assets.font, &messages, 24.0);
-
-            let mut messages_start_y = self.screen_size.y as f32 - message_size.y - 10.0;
-
-            if self.client.gui.chat().is_some() {
-                messages_start_y -= 34.0 + 15.0;
-                let label_size = self.ui.chat_input_label.size_hint(&layout_ctx);
-                ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
-                    rect: [
-                        Vec2::new(5.0, self.screen_size.y as f32 - label_size.y - 15.0),
-                        Vec2::new(5.0 + label_size.x + 10.0, self.screen_size.y as f32 - 5.0),
-                    ],
-                    uv_rect: [Vec2::ZERO, Vec2::ONE],
-                    mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
-                        0.0, 0.0, 0.0, 0.5,
-                    )),
-                    layer: 0,
-                });
-                self.ui.chat_input_label.draw(ui, assets);
-            }
-
-            ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
-                rect: [
-                    Vec2::new(5.0, messages_start_y - 5.0),
-                    Vec2::new(
-                        5.0 + message_size.x + 10.0,
-                        messages_start_y + message_size.y + 5.0,
-                    ),
-                ],
-                uv_rect: [Vec2::ZERO, Vec2::ONE],
-                mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
-                    0.0, 0.0, 0.0, 0.5,
-                )),
-                layer: 0,
-            });
-            for cmd in text_messages(
-                &assets.font,
-                &messages,
-                24.0,
-                Vec2::new(10.0, messages_start_y),
-            ) {
-                ui.add_command(cmd);
-            }
-            ui.finish();
+            self.draw_chat(ui, &layout_ctx, assets);
 
             // DEBUG - TEXT & GRAPHS
 
@@ -689,11 +711,11 @@ Chunk local: X: {} Y: {} Z: {}"#,
 
                 for mut cmd in assets.font.text(&text, 24.0, Vec4::ONE) {
                     match &mut cmd {
-                        crate::render::ui::uirenderer::DrawCommand::Quad { rect, .. } => {
+                        DrawCommand::Quad { rect, .. } => {
                             rect[0] += Vec2::new(10.0, 10.0);
                             rect[1] += Vec2::new(10.0, 10.0);
                         }
-                        crate::render::ui::uirenderer::DrawCommand::Mesh { vertices, .. } => {
+                        DrawCommand::Mesh { vertices, .. } => {
                             for v in vertices {
                                 v.position += Vec3::new(10.0, 10.0, 0.0);
                             }
@@ -704,24 +726,19 @@ Chunk local: X: {} Y: {} Z: {}"#,
 
                 // draw the fps graph on the top right side and also show the current, average, min
                 // and max fps
-                let graph_width = 500.0;
-                let graph_height = 200.0;
-                let graph_x = self.screen_size.x as f32 - graph_width - 10.0;
-                let graph_y = 10.0;
-                let bar_width = graph_width / FPS_HISTORY_LEN as f32;
+                let graph_x = self.screen_size.x as f32 - FPS_GRAPH_WIDTH - 10.0;
+                let bar_width = FPS_GRAPH_WIDTH / FPS_HISTORY_LEN as f32;
                 let max_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::max);
                 let min_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::min);
                 let average_fps = self.ui.fps_history.iter().sum::<f32>() / FPS_HISTORY_LEN as f32;
                 for (i, fps) in self.ui.fps_history.iter().enumerate() {
-                    let x = graph_x + i as f32 / FPS_HISTORY_LEN as f32 * graph_width;
-                    let y = graph_y + graph_height - (fps / max_fps * graph_height);
-                    let bar_height = graph_y + graph_height - y;
-                    ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
+                    let x = graph_x + i as f32 / FPS_HISTORY_LEN as f32 * FPS_GRAPH_WIDTH;
+                    let y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT - (fps / max_fps * FPS_GRAPH_HEIGHT);
+                    let bar_height = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT - y;
+                    ui.add_command(DrawCommand::Quad {
                         rect: [Vec2::new(x, y), Vec2::new(x + bar_width, y + bar_height)],
-                        uv_rect: [Vec2::ZERO, Vec2::ONE],
-                        mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
-                            0.0, 1.0, 0.0, 0.6,
-                        )),
+                        uv_rect: DEFAULT_UV_RECT,
+                        mode: UIRenderMode::Color(Vec4::new(0.0, 1.0, 0.0, 0.6)),
                         layer: 0,
                     });
                 }
@@ -732,14 +749,14 @@ Chunk local: X: {} Y: {} Z: {}"#,
                 );
                 let measurement = assets.font.measure_text(&stats_text, 24.0);
                 let text_x = self.screen_size.x as f32 - measurement.x - 10.0;
-                let text_y = graph_y + graph_height + 10.0;
+                let text_y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT + 10.0;
                 for mut cmd in assets.font.text(&stats_text, 24.0, Vec4::ONE) {
                     match &mut cmd {
-                        crate::render::ui::uirenderer::DrawCommand::Quad { rect, .. } => {
+                        DrawCommand::Quad { rect, .. } => {
                             rect[0] += Vec2::new(text_x, text_y);
                             rect[1] += Vec2::new(text_x, text_y);
                         }
-                        crate::render::ui::uirenderer::DrawCommand::Mesh { vertices, .. } => {
+                        DrawCommand::Mesh { vertices, .. } => {
                             for v in vertices {
                                 v.position += Vec3::new(text_x, text_y, 0.0);
                             }
@@ -747,20 +764,58 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     }
                     ui.add_command(cmd);
                 }
+
+                // profiler horizontal bar graph
+                let total_time: f32 = self
+                    .renderer
+                    .profiler
+                    .smoothed_entries
+                    .iter()
+                    .map(|entry| entry.duration.as_secs_f32() * 1000.0)
+                    .sum();
+                let graph_height = 35.0 * self.renderer.profiler.entries.len() as f32;
+                let graph_x = self.screen_size.x as f32 - PROFILER_GRAPH_WIDTH - 10.0;
+                let mut current_y = self.screen_size.y as f32 - graph_height - 10.0;
+                for entry in self.renderer.profiler.smoothed_entries.iter() {
+                    let entry_time = entry.duration.as_secs_f32() * 1000.0;
+                    let bar_width = entry_time / total_time * PROFILER_GRAPH_WIDTH;
+                    ui.add_command(DrawCommand::Quad {
+                        rect: [
+                            Vec2::new(graph_x, current_y),
+                            Vec2::new(graph_x + bar_width, current_y + 30.0),
+                        ],
+                        uv_rect: DEFAULT_UV_RECT,
+                        mode: UIRenderMode::Color(Vec4::new(0.0, 0.0, 1.0, 0.6)),
+                        layer: 0,
+                    });
+                    let entry_text = format!("{}: {:.2} ms", entry.name, entry_time);
+                    let text_x = graph_x + 5.0;
+                    let text_y = current_y + 1.0;
+                    for mut cmd in assets.font.text(&entry_text, 24.0, Vec4::ONE) {
+                        match &mut cmd {
+                            DrawCommand::Quad { rect, .. } => {
+                                rect[0] += Vec2::new(text_x, text_y);
+                                rect[1] += Vec2::new(text_x, text_y);
+                            }
+                            DrawCommand::Mesh { vertices, .. } => {
+                                for v in vertices {
+                                    v.position += Vec3::new(text_x, text_y, 0.0);
+                                }
+                            }
+                        }
+                        ui.add_command(cmd);
+                    }
+                    current_y += 35.0;
+                }
             }
 
             // PAUSE MENU
 
             if self.client.gui.pause_menu() {
-                ui.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
-                    rect: [
-                        Vec2::new(0.0, 0.0),
-                        Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
-                    ],
-                    uv_rect: [Vec2::ZERO, Vec2::ONE],
-                    mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::new(
-                        0.0, 0.0, 0.0, 0.5,
-                    )),
+                ui.add_command(DrawCommand::Quad {
+                    rect: [Vec2::ZERO, self.screen_size.as_vec2()],
+                    uv_rect: DEFAULT_UV_RECT,
+                    mode: UIRenderMode::Color(Vec4::new(0.0, 0.0, 0.0, 0.5)),
                     layer: -1,
                 });
 
@@ -788,6 +843,8 @@ Chunk local: X: {} Y: {} Z: {}"#,
                 }
             }
         }
+
+        self.renderer.profiler.end_frame();
     }
 }
 
@@ -806,18 +863,16 @@ fn text_messages(
     messages: &[TextComponent],
     font_size: f32,
     pos: Vec2,
-) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
+) -> Vec<DrawCommand> {
     let mut commands = Vec::new();
     let mut cursor = pos;
     for message in messages {
         let message_commands = font.text_component(message, font_size);
         for mut cmd in message_commands {
-            if let crate::render::ui::uirenderer::DrawCommand::Quad { rect, .. } = &mut cmd {
+            if let DrawCommand::Quad { rect, .. } = &mut cmd {
                 rect[0] += cursor;
                 rect[1] += cursor;
-            } else if let crate::render::ui::uirenderer::DrawCommand::Mesh { vertices, .. } =
-                &mut cmd
-            {
+            } else if let DrawCommand::Mesh { vertices, .. } = &mut cmd {
                 for vertex in vertices {
                     vertex.position += cursor.extend(0.0);
                 }

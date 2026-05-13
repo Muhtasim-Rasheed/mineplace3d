@@ -75,4 +75,26 @@ impl CloudRenderer {
             shader,
         }
     }
+
+    pub fn draw(
+        &self,
+        gl: &std::sync::Arc<glow::Context>,
+        projection: glam::Mat4,
+        view: glam::Mat4,
+        position: glam::Vec3,
+        timer: f32,
+    ) {
+        unsafe {
+            gl.disable(glow::CULL_FACE);
+            gl.depth_mask(false);
+            self.shader.use_program();
+            self.shader.set_uniform("u_view", view);
+            self.shader.set_uniform("u_projection", projection);
+            self.shader.set_uniform("u_camera_pos", position);
+            self.shader.set_uniform("u_time", timer);
+            self.shader.set_uniform("u_texture", 0);
+            self.texture.bind(0);
+            self.mesh.draw();
+        }
+    }
 }
