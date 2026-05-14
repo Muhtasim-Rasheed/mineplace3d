@@ -4,6 +4,7 @@ use glam::IVec3;
 
 use crate::{
     block::{Block, BlockState},
+    direction::Direction,
     saving::{Saveable, WorldLoadError, io::*},
 };
 
@@ -158,7 +159,7 @@ impl Chunk {
             let index = x + CHUNK_SIZE * (y + CHUNK_SIZE * z);
             let palette_index = self.blocks[index] as usize;
             let block = &self.block_palette[palette_index];
-            let above_global_pos = global_pos + IVec3::new(0, 1, 0);
+            let above_global_pos = global_pos + Direction::Up;
             let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos);
             if block == &Block::DIRT
                 && let Some((above_block, _)) = above_block

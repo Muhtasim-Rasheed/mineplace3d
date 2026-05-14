@@ -16,9 +16,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
-    TextComponent,
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
+    textcomponent::TextComponent,
 };
 use sdl2::keyboard::Keycode;
 
@@ -226,28 +226,11 @@ impl<C: Connection> Client<C> {
                     .mouse
                     .pressed
                     .contains(&sdl2::mouse::MouseButton::Left)
-                    && let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0) {
-                        self.connection.send(C2SMessage::BlockClick {
-                            position,
-                            face: match face {
-                                IVec3 { z: -1, .. } => 0,
-                                IVec3 { z: 1, .. } => 1,
-                                IVec3 { x: 1, .. } => 2,
-                                IVec3 { x: -1, .. } => 3,
-                                IVec3 { y: 1, .. } => 4,
-                                IVec3 { y: -1, .. } => 5,
-                                _ => unreachable!(),
-                            },
-                            right: false,
-                        });
-                    }
-
-                if update_context
-                    .mouse
-                    .pressed
-                    .contains(&sdl2::mouse::MouseButton::Right)
-                    && let Some((block_pos, normal)) = cast_ray(&self.world, &self.player, 5.0) {
-                        let face_idx = match normal {
+                    && let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0)
+                {
+                    self.connection.send(C2SMessage::BlockClick {
+                        position,
+                        face: match face {
                             IVec3 { z: -1, .. } => 0,
                             IVec3 { z: 1, .. } => 1,
                             IVec3 { x: 1, .. } => 2,
@@ -255,14 +238,33 @@ impl<C: Connection> Client<C> {
                             IVec3 { y: 1, .. } => 4,
                             IVec3 { y: -1, .. } => 5,
                             _ => unreachable!(),
-                        };
+                        },
+                        right: false,
+                    });
+                }
 
-                        self.connection.send(C2SMessage::BlockClick {
-                            position: block_pos,
-                            face: face_idx,
-                            right: true,
-                        });
-                    }
+                if update_context
+                    .mouse
+                    .pressed
+                    .contains(&sdl2::mouse::MouseButton::Right)
+                    && let Some((block_pos, normal)) = cast_ray(&self.world, &self.player, 5.0)
+                {
+                    let face_idx = match normal {
+                        IVec3 { z: -1, .. } => 0,
+                        IVec3 { z: 1, .. } => 1,
+                        IVec3 { x: 1, .. } => 2,
+                        IVec3 { x: -1, .. } => 3,
+                        IVec3 { y: 1, .. } => 4,
+                        IVec3 { y: -1, .. } => 5,
+                        _ => unreachable!(),
+                    };
+
+                    self.connection.send(C2SMessage::BlockClick {
+                        position: block_pos,
+                        face: face_idx,
+                        right: true,
+                    });
+                }
 
                 if kb.pressed.contains(&Keycode::T) {
                     self.gui = CurrentGUI::Chat(String::new());

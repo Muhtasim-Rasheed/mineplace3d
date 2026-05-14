@@ -8,9 +8,9 @@ use std::{collections::HashMap, path::PathBuf};
 use glam::Vec3;
 
 use crate::{
-    TextComponent,
     entity::{Entity, PlayerEntity},
     protocol::*,
+    textcomponent::TextComponent,
     world::{World, chunk::CHUNK_SIZE},
 };
 

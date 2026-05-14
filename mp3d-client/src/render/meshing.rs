@@ -6,6 +6,7 @@ use glam::{IVec3, Vec2, Vec3, Vec3Swizzles};
 use glow::HasContext;
 use mp3d_core::{
     block::{Block, BlockState},
+    direction::Direction,
     world::chunk::CHUNK_SIZE,
 };
 
@@ -53,12 +54,11 @@ impl Vertex for ChunkVertex {
 
 /// Gets a rect of a face of a block
 #[inline]
-fn get_face_rect(face_idx: usize, element: &crate::resource::block::BlockElement) -> [Vec2; 2] {
-    match face_idx {
-        0 | 1 => [element.from.xy(), element.to.xy()],
-        2 | 3 => [element.from.zy(), element.to.zy()],
-        4 | 5 => [element.from.xz(), element.to.xz()],
-        _ => unreachable!(),
+fn get_face_rect(face: Direction, element: &crate::resource::block::BlockElement) -> [Vec2; 2] {
+    match face {
+        Direction::North | Direction::South => [element.from.xy(), element.to.xy()],
+        Direction::East | Direction::West => [element.from.zy(), element.to.zy()],
+        Direction::Up | Direction::Down => [element.from.xz(), element.to.xz()],
     }
 }
 
@@ -73,7 +73,7 @@ fn covers(a_min: Vec2, a_max: Vec2, b_min: Vec2, b_max: Vec2) -> bool {
 fn should_occlude(
     a: &Block,
     b: &Block,
-    face_idx: usize,
+    face: Direction,
     a_model: &crate::resource::block::BlockModel,
     b_model: &crate::resource::block::BlockModel,
 ) -> bool {
@@ -85,20 +85,20 @@ fn should_occlude(
     }
 
     for a_el in &a_model.elements {
-        let a_face = &a_el.faces[face_idx];
+        let a_face = &a_el.faces[face as usize];
         if !a_face.cullable {
             continue;
         }
 
-        let a_rect = get_face_rect(face_idx, a_el);
+        let a_rect = get_face_rect(face, a_el);
 
         for b_el in &b_model.elements {
-            let b_face = &b_el.faces[face_idx ^ 1];
+            let b_face = &b_el.faces[face.opposite() as usize];
             if !b_face.occludes {
                 continue;
             }
 
-            let b_rect = get_face_rect(face_idx ^ 1, b_el);
+            let b_rect = get_face_rect(face.opposite(), b_el);
             if covers(a_rect[0], a_rect[1], b_rect[0], b_rect[1]) {
                 return true;
             }
@@ -474,6 +474,9 @@ fn mesh_chunk(
                     continue;
                 }
 
+                let world_z = chunk_pos.z * (CHUNK_SIZE as i32) + z;
+                let world_pos = glam::IVec3::new(world_x, world_y, world_z);
+
                 let model = block_models.get(&ident(block, state)).unwrap_or_else(|| {
                     panic!(
                         "No model found for block {} with state {}",
@@ -482,11 +485,11 @@ fn mesh_chunk(
                     )
                 });
 
-                let world_z = chunk_pos.z * (CHUNK_SIZE as i32) + z;
-
                 // Create faces for each non-occluded side
-                for (i, (dx, dy, dz)) in NORMALS.iter().map(|n| (n.x, n.y, n.z)).enumerate() {
-                    let neighbor_pos = glam::IVec3::new(world_x + dx, world_y + dy, world_z + dz);
+                for dir_ivec in NORMALS.iter().copied() {
+                    let dir = Direction::try_from(dir_ivec).unwrap();
+
+                    let neighbor_pos = world_pos + dir;
 
                     // Create face the neighboring block is air or doesn't occlude this face.
                     let neighbor_block = get_block(chunk_origin, neighbor_pos, neighbors);
@@ -499,7 +502,7 @@ fn mesh_chunk(
                         || !should_occlude(
                             block,
                             neighbor_block.unwrap(),
-                            i,
+                            dir,
                             model,
                             neighbor_model.unwrap(),
                         )
@@ -508,15 +511,7 @@ fn mesh_chunk(
                             // The elements' faces are ordered as NSEWUD and we are using a
                             // right handed coordinate system with +X = east, +Y = up, +Z =
                             // south.
-                            let face = match (dx, dy, dz) {
-                                (0, 0, -1) => &el.faces[0], // North
-                                (0, 0, 1) => &el.faces[1],  // South
-                                (1, 0, 0) => &el.faces[2],  // East
-                                (-1, 0, 0) => &el.faces[3], // West
-                                (0, 1, 0) => &el.faces[4],  // Up
-                                (0, -1, 0) => &el.faces[5], // Down
-                                _ => unreachable!(),
-                            };
+                            let face = &el.faces[dir as usize];
 
                             let block_world_pos = IVec3::new(world_x, world_y, world_z);
 
@@ -526,7 +521,7 @@ fn mesh_chunk(
                             if model.is_full_cube() {
                                 for vert_idx in 0..4 {
                                     let [side1_off, side2_off, corner_off] =
-                                        AO_NEIGHBORS[i][vert_idx];
+                                        AO_NEIGHBORS[dir as usize][vert_idx];
 
                                     let side1 = get_block(
                                         chunk_origin,
@@ -564,13 +559,14 @@ fn mesh_chunk(
                                 Vec2::new(uv_min.x, uv_max.y),
                                 Vec2::new(uv_max.x, uv_max.y),
                             ];
-                            for (i, (vert, uv)) in FACE_VERTS[i].iter().zip(uvs.iter()).enumerate()
+                            for (i, (vert, uv)) in
+                                FACE_VERTS[dir as usize].iter().zip(uvs.iter()).enumerate()
                             {
                                 vertices.push(ChunkVertex {
                                     position: *vert * (el.to - el.from)
                                         + el.from
-                                        + Vec3::new(world_x as f32, world_y as f32, world_z as f32),
-                                    normal: IVec3::new(dx, dy, dz),
+                                        + world_pos.as_vec3(),
+                                    normal: dir_ivec,
                                     uv: *uv,
                                     ao: aos[i],
                                 });

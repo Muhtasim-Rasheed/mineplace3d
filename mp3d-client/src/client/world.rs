@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
-    UniqueQueue,
     block::{Block, BlockState},
+    uniquequeue::UniqueQueue,
     world::chunk::CHUNK_SIZE,
 };
 

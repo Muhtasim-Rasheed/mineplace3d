@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use glam::{Mat4, Vec2, Vec3, Vec4};
-use mp3d_core::block::Block;
+use mp3d_core::{block::Block, direction::Direction};
 
 use crate::resource::{ResourceManager, block::raw_model::RawBlockModelTransform};
 
@@ -10,45 +10,44 @@ use super::{
     raw_model::{RawBlockElement, RawBlockFace, RawBlockModel},
 };
 
-fn face_corners(from: Vec3, to: Vec3, face: u8) -> [Vec3; 4] {
+fn face_corners(from: Vec3, to: Vec3, face: Direction) -> [Vec3; 4] {
     match face {
-        0 => [
+        Direction::North => [
             glam::vec3(from.x, from.y, from.z),
             glam::vec3(to.x, from.y, from.z),
             glam::vec3(to.x, to.y, from.z),
             glam::vec3(from.x, to.y, from.z),
         ],
-        1 => [
+        Direction::South => [
             glam::vec3(to.x, from.y, to.z),
             glam::vec3(from.x, from.y, to.z),
             glam::vec3(from.x, to.y, to.z),
             glam::vec3(to.x, to.y, to.z),
         ],
-        2 => [
+        Direction::East => [
             glam::vec3(to.x, from.y, from.z),
             glam::vec3(to.x, from.y, to.z),
             glam::vec3(to.x, to.y, to.z),
             glam::vec3(to.x, to.y, from.z),
         ],
-        3 => [
+        Direction::West => [
             glam::vec3(from.x, from.y, to.z),
             glam::vec3(from.x, from.y, from.z),
             glam::vec3(from.x, to.y, from.z),
             glam::vec3(from.x, to.y, to.z),
         ],
-        4 => [
+        Direction::Up => [
             glam::vec3(from.x, to.y, from.z),
             glam::vec3(to.x, to.y, from.z),
             glam::vec3(to.x, to.y, to.z),
             glam::vec3(from.x, to.y, to.z),
         ],
-        5 => [
+        Direction::Down => [
             glam::vec3(from.x, from.y, to.z),
             glam::vec3(to.x, from.y, to.z),
             glam::vec3(to.x, from.y, from.z),
             glam::vec3(from.x, from.y, from.z),
         ],
-        _ => unreachable!(),
     }
 }
 
@@ -228,6 +227,8 @@ impl BlockModel {
         let mut commands = Vec::new();
         for element in &self.elements {
             for (i, face) in element.faces.iter().enumerate() {
+                let dir = (i as u8).try_into().unwrap();
+
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
@@ -240,7 +241,7 @@ impl BlockModel {
                 let mut vertices = Vec::new();
 
                 // idk why but we need to swap to and from
-                let corners = face_corners(element.to, element.from, i as u8);
+                let corners = face_corners(element.to, element.from, dir);
                 for (vert, uv) in corners.iter().zip(uvs.iter()) {
                     let from = element.from + 0.5;
                     let to = element.to + 0.5;

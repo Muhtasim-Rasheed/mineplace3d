@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use glow::HasContext;
 
-use crate::abs::{Texture, TextureHandle};
+use crate::abs::Texture;
 
 /// How to use which color channels in the framebuffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

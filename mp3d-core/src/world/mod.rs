@@ -12,12 +12,13 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
-    UniqueQueue,
     block::{Block, BlockState},
     datapack::GameData,
+    direction::Direction,
     entity::{Entity, EntityType, PlayerEntity},
     protocol::{BlockUpdate, BlockUpdateKind},
     saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    uniquequeue::UniqueQueue,
     world::{
         chunk::{CHUNK_SIZE, Chunk},
         generation::Generator,
@@ -307,15 +308,15 @@ impl World {
 
     /// Handles a block interaction at the given world position and face index. If the block is not
     /// interactive, this will attempt to place a block on the face that was clicked.
-    pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: u8) {
+    pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: Direction) {
         match self.get_block_at(block_pos).map(|(b, s)| (b.ident, *s)) {
             Some(("glungus", _)) => {
                 self.interact_glungus(block_pos);
                 return;
             }
             Some((ident, state))
-                if state == BlockState::slab(false) && face == 4
-                    || state == BlockState::slab(true) && face == 5 =>
+                if state == BlockState::slab(false) && face == Direction::Up
+                    || state == BlockState::slab(true) && face == Direction::Down =>
             {
                 let (item_count, place_block) =
                     match self.get_entity::<PlayerEntity>(player_entity_id) {
@@ -347,16 +348,7 @@ impl World {
         }
 
         // Normal block placement logic
-        let place_pos = block_pos
-            + match face {
-                0 => IVec3::new(0, 0, -1),
-                1 => IVec3::new(0, 0, 1),
-                2 => IVec3::new(1, 0, 0),
-                3 => IVec3::new(-1, 0, 0),
-                4 => IVec3::new(0, 1, 0),
-                5 => IVec3::new(0, -1, 0),
-                _ => return,
-            };
+        let place_pos = block_pos + face;
 
         let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
             Some(p) => (

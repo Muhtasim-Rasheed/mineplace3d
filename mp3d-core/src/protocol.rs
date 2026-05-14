@@ -7,6 +7,8 @@ use glam::{IVec3, Vec3};
 
 use crate::{
     block::{Block, BlockState},
+    direction::Direction,
+    textcomponent::TextComponent,
     world::chunk::Chunk,
 };
 
@@ -71,7 +73,7 @@ pub enum C2SMessage {
     /// will determine the block being placed (if the targetted block is not interactable)
     BlockClick {
         position: IVec3,
-        face: u8,
+        face: Direction,
         right: bool,
     },
     /// Request to click on an inventory slot.
@@ -116,7 +118,7 @@ pub enum S2CMessage {
         chunk: Box<Chunk>,
     },
     /// Delivery of a chat message or command output.
-    ChatMessage { message: crate::TextComponent },
+    ChatMessage { message: TextComponent },
     /// Notification of change of selected hotbar slot.
     HotbarChanged { idx: usize },
 }

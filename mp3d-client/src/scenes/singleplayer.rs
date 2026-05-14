@@ -8,7 +8,7 @@ use std::{
 
 use glam::{IVec3, Mat4, UVec2, UVec4, Vec2, Vec3, Vec4};
 use glow::HasContext;
-use mp3d_core::{TextComponent, world::chunk::CHUNK_SIZE};
+use mp3d_core::{textcomponent::TextComponent, world::chunk::CHUNK_SIZE};
 
 use crate::{
     abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},

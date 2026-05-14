@@ -25,7 +25,9 @@ fn get_random_splash() -> (&'static str, Vec4) {
                     let text = parts.next().unwrap().trim();
                     let color_code = parts.next().and_then(|s| s.trim().parse().ok());
                     let color = match color_code {
-                        Some(code) => mp3d_core::TextComponentColor::Basic(code).into(),
+                        Some(code) => {
+                            mp3d_core::textcomponent::TextComponentColor::Basic(code).into()
+                        }
                         None => Vec4::new(rand::random(), rand::random(), rand::random(), 1.0),
                     };
                     Some((text, color))

@@ -1,5 +1,5 @@
 use glam::{Vec2, Vec4};
-use mp3d_core::TextComponent;
+use mp3d_core::textcomponent::TextComponent;
 
 use crate::{
     abs::Texture,
