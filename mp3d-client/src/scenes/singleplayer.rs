@@ -258,6 +258,17 @@ impl SinglePlayer {
         projection: Mat4,
     ) {
         let _p = self.renderer.profiler.start_scope("draw_chunks");
+
+        let mut visible: Vec<_> = self.renderer.chunk_meshes.iter().collect();
+
+        visible.sort_by(|(a, _), (b, _)| {
+            let da = a.as_vec3() * CHUNK_SIZE as f32 - self.client.player.position;
+            let db = b.as_vec3() * CHUNK_SIZE as f32 - self.client.player.position;
+            da.length_squared()
+                .partial_cmp(&db.length_squared())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         self.renderer.chunk_shader.use_program();
         self.renderer.chunk_shader.set_uniform("u_view", view);
         self.renderer
@@ -265,7 +276,7 @@ impl SinglePlayer {
             .set_uniform("u_projection", projection);
         self.renderer.chunk_shader.set_uniform("u_texture", 0);
         assets.block_textures.upload(gl).bind(0);
-        for (pos, mesh) in &self.renderer.chunk_meshes {
+        for (pos, mesh) in visible {
             let [aabb_min, aabb_max] = [
                 pos.as_vec3() * CHUNK_SIZE as f32,
                 (pos.as_vec3() + Vec3::ONE) * CHUNK_SIZE as f32,
