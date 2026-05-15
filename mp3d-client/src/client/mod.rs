@@ -230,15 +230,7 @@ impl<C: Connection> Client<C> {
                 {
                     self.connection.send(C2SMessage::BlockClick {
                         position,
-                        face: match face {
-                            IVec3 { z: -1, .. } => 0,
-                            IVec3 { z: 1, .. } => 1,
-                            IVec3 { x: 1, .. } => 2,
-                            IVec3 { x: -1, .. } => 3,
-                            IVec3 { y: 1, .. } => 4,
-                            IVec3 { y: -1, .. } => 5,
-                            _ => unreachable!(),
-                        },
+                        face: face.try_into().unwrap(),
                         right: false,
                     });
                 }
@@ -247,21 +239,11 @@ impl<C: Connection> Client<C> {
                     .mouse
                     .pressed
                     .contains(&sdl2::mouse::MouseButton::Right)
-                    && let Some((block_pos, normal)) = cast_ray(&self.world, &self.player, 5.0)
+                    && let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0)
                 {
-                    let face_idx = match normal {
-                        IVec3 { z: -1, .. } => 0,
-                        IVec3 { z: 1, .. } => 1,
-                        IVec3 { x: 1, .. } => 2,
-                        IVec3 { x: -1, .. } => 3,
-                        IVec3 { y: 1, .. } => 4,
-                        IVec3 { y: -1, .. } => 5,
-                        _ => unreachable!(),
-                    };
-
                     self.connection.send(C2SMessage::BlockClick {
-                        position: block_pos,
-                        face: face_idx,
+                        position,
+                        face: face.try_into().unwrap(),
                         right: true,
                     });
                 }

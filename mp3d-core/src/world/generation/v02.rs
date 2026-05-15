@@ -27,7 +27,8 @@ impl Generator {
     /// Generates a chunk (with only terrain) for V02 at the given position.
     pub(super) fn generate_chunk_v02(
         chunk: &mut Chunk,
-        noise: &fastnoise_lite::FastNoiseLite,
+        noise1: &fastnoise_lite::FastNoiseLite,
+        noise2: &fastnoise_lite::FastNoiseLite,
         chunk_pos: IVec3,
     ) {
         for x in 0..CHUNK_SIZE {
@@ -35,11 +36,16 @@ impl Generator {
                 let global_x = chunk_pos.x * CHUNK_SIZE as i32 + x as i32;
                 let global_z = chunk_pos.z * CHUNK_SIZE as i32 + z as i32;
 
-                let height = noise
+                let height = noise1
                     .get_noise_2d(global_x as f32 * 5.0, global_z as f32 * 5.0)
                     .powi(2)
                     * 60.0
                     + 15.0;
+
+                let should_spawn_short_grass = noise2.get_noise_2d(
+                    global_x as f32 * 45.0 + 100.0,
+                    global_z as f32 * 45.0 + 100.0,
+                ) > 0.4;
 
                 for y in 0..CHUNK_SIZE {
                     let global_y = chunk_pos.y * CHUNK_SIZE as i32 + y as i32;
@@ -48,7 +54,7 @@ impl Generator {
                     if global_y < -48 {
                         continue;
                     }
-                    let is_cave = noise.get_noise_3d(
+                    let is_cave = noise1.get_noise_3d(
                         global_x as f32 * 10.0,
                         global_y as f32 * 10.0,
                         global_z as f32 * 10.0,
@@ -63,6 +69,8 @@ impl Generator {
                         chunk.set_block(local, Block::DIRT, BlockState::none());
                     } else if global_y < height {
                         chunk.set_block(local, Block::GRASS, BlockState::none());
+                    } else if global_y == height && should_spawn_short_grass {
+                        chunk.set_block(local, Block::SHORT_GRASS, BlockState::none());
                     }
                 }
             }

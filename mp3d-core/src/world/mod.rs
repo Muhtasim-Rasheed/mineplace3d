@@ -656,7 +656,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 3 => load_v0_to_3(path, &mut save_iter, version),
+            Some(version) if version <= 4 => load_v0_to_4(path, &mut save_iter, version),
             Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
                 "Unsupported save version: {}",
                 version
@@ -668,7 +668,7 @@ impl World {
     }
 }
 
-fn load_v0_to_3(
+fn load_v0_to_4(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,

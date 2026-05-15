@@ -10,6 +10,7 @@ mod save_impls;
 pub struct Block {
     pub visible: bool,
     pub collision_shape: CollisionShape,
+    pub interact_shape: Option<CollisionShape>,
     pub ident: &'static str,
     pub state_type: u16,
 }
@@ -21,6 +22,7 @@ macro_rules! blocks {
                 ident: $ident:expr
                 $(, visible: $visible:expr)?
                 $(, collision_shape: $collision_shape:expr)?
+                $(, interact_shape: $interact_shape:expr)?
                 $(, state_type: $state_type:expr)?
                 $(,)?
             }
@@ -31,6 +33,7 @@ macro_rules! blocks {
                 pub const $name: Block = Block {
                     visible: blocks!(@visible $( $visible )?),
                     collision_shape: blocks!(@collision_shape $( $collision_shape )?),
+                    interact_shape: blocks!(@interact_shape $( $interact_shape )?),
                     ident: $ident,
                     state_type: blocks!(@state_type $( $state_type )?),
                 };
@@ -48,6 +51,9 @@ macro_rules! blocks {
     (@collision_shape $collision_shape:expr) => { $collision_shape };
     (@collision_shape) => { CollisionShape::FullBlock };
 
+    (@interact_shape $interact_shape:expr) => { Some($interact_shape) };
+    (@interact_shape) => { None };
+
     (@state_type $state_type:expr) => { $state_type.state_type() };
     (@state_type) => { BlockState::none().state_type() };
 }
@@ -57,6 +63,7 @@ blocks! {
         ident: "air",
         visible: false,
         collision_shape: CollisionShape::None,
+        interact_shape: CollisionShape::None,
     },
     GRASS => { ident: "grass" },
     DIRT => { ident: "dirt" },
@@ -69,6 +76,11 @@ blocks! {
         ident: "stone_slab",
         collision_shape: CollisionShape::Slab,
         state_type: BlockState::slab(false),
+    },
+    SHORT_GRASS => {
+        ident: "short_grass",
+        collision_shape: CollisionShape::None,
+        interact_shape: CollisionShape::FullBlock,
     },
 }
 
@@ -128,7 +140,7 @@ impl Block {
         ray_direction_local: Vec3,
         block_state: BlockState,
     ) -> Option<IVec3> {
-        match self.collision_shape {
+        match self.interact_shape.unwrap_or(self.collision_shape) {
             CollisionShape::None => None,
             CollisionShape::FullBlock => {
                 let block_min = Vec3::new(0.0, 0.0, 0.0);

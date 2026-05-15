@@ -66,7 +66,7 @@ impl Generator {
                 chunk
             }
             Generator::V02 { noise1, noise2, .. } => {
-                Self::generate_chunk_v02(&mut chunk, noise1, chunk_pos);
+                Self::generate_chunk_v02(&mut chunk, noise1, noise2, chunk_pos);
                 let structures = Self::generate_structures_around_v02(noise1, noise2, chunk_pos);
                 Self::apply_structures_to_chunk(&mut chunk, chunk_pos, structures);
                 chunk

@@ -3,7 +3,7 @@
 use glam::IVec3;
 
 use crate::{
-    block::{Block, BlockState},
+    block::{Block, BlockState, CollisionShape},
     direction::Direction,
     saving::{Saveable, WorldLoadError, io::*},
 };
@@ -161,22 +161,24 @@ impl Chunk {
             let block = &self.block_palette[palette_index];
             let above_global_pos = global_pos + Direction::Up;
             let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos);
+            let below_global_pos = global_pos + Direction::Down;
+            let below_block = get_block_global(self, neighbors, below_global_pos, chunk_pos);
             if block == &Block::DIRT
                 && let Some((above_block, _)) = above_block
-                && !above_block.visible
+                && above_block.collision_shape == CollisionShape::None
             {
-                // DIRT -> GRASS if above is invisible
+                // DIRT -> GRASS if above cannot be collided with (e.g. AIR)
                 updates.push((global_pos, Block::GRASS, BlockState::none()));
             }
             if block == &Block::GRASS
                 && let Some((above_block, _)) = above_block
-                && above_block.visible
+                && above_block.collision_shape != CollisionShape::None
             {
-                // GRASS -> DIRT if above is visible
+                // GRASS -> DIRT if above can be collided with (e.g. GRASS or LOG)
                 updates.push((global_pos, Block::DIRT, BlockState::none()));
             }
             if block == &Block::LEAVES {
-                // LEAVES -> AIR if no wood in radius of 6 blocks
+                // LEAVES -> AIR if no LOG in radius of 6 blocks
                 let mut should_become_air = true;
                 for dx in -6..=6 {
                     for dy in -6..=6 {
@@ -198,6 +200,13 @@ impl Chunk {
                 if should_become_air {
                     updates.push((global_pos, Block::AIR, BlockState::none()));
                 }
+            }
+            if block == &Block::SHORT_GRASS
+                && let Some((below_block, _)) = below_block
+                && below_block != &Block::GRASS
+            {
+                // SHORT_GRASS -> AIR if below is not GRASS
+                updates.push((global_pos, Block::AIR, BlockState::none()));
             }
         }
         updates

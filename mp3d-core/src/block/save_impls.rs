@@ -13,6 +13,7 @@ impl Saveable for Block {
         data.extend(ident_bytes);
 
         data.push(self.collision_shape as u8);
+        data.push(self.interact_shape.unwrap_or(self.collision_shape) as u8);
         data.extend(&self.state_type.to_le_bytes());
 
         data
@@ -37,6 +38,26 @@ impl Saveable for Block {
                 )));
             }
         };
+        let interact_shape = if version >= 4 {
+            let interact_shape_byte = read_u8(data, "Block::interact_shape")?;
+            if interact_shape_byte == collision_shape_byte {
+                None
+            } else {
+                Some(match interact_shape_byte {
+                    0 => CollisionShape::None,
+                    1 => CollisionShape::FullBlock,
+                    2 => CollisionShape::Slab,
+                    _ => {
+                        return Err(WorldLoadError::InvalidSaveFormat(format!(
+                            "Invalid interact shape: {}",
+                            interact_shape_byte
+                        )));
+                    }
+                })
+            }
+        } else {
+            None
+        };
         let state_type = if version < 1 {
             0
         } else {
@@ -45,6 +66,7 @@ impl Saveable for Block {
         Ok(Block {
             visible,
             collision_shape,
+            interact_shape,
             ident,
             state_type,
         })

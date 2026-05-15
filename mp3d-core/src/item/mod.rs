@@ -91,6 +91,7 @@ items!(
     LEAVES => { "leaves", block: Some(&Block::LEAVES) },
     GLUNGUS_BLOCK => { "glungus_block", block: Some(&Block::GLUNGUS) },
     STONE_SLAB => { "stone_slab", block: Some(&Block::STONE_SLAB) },
+    SHORT_GRASS => { "short_grass", block: Some(&Block::SHORT_GRASS) },
 );
 
 /// A struct representing a stack of items, containing a the item and the count of how many of
