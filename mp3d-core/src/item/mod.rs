@@ -87,6 +87,7 @@ items!(
     DIRT => { "dirt", block: Some(&Block::DIRT) },
     STONE => { "stone", block: Some(&Block::STONE) },
     COBBLESTONE => { "cobblestone", block: Some(&Block::COBBLESTONE) },
+    GRANITE => { "granite", block: Some(&Block::GRANITE) },
     LOG => { "log", block: Some(&Block::LOG) },
     LEAVES => { "leaves", block: Some(&Block::LEAVES) },
     GLUNGUS_BLOCK => { "glungus_block", block: Some(&Block::GLUNGUS) },

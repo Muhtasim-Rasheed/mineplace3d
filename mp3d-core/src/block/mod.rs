@@ -69,6 +69,7 @@ blocks! {
     DIRT => { ident: "dirt" },
     STONE => { ident: "stone" },
     COBBLESTONE => { ident: "cobblestone" },
+    GRANITE => { ident: "granite" },
     LOG => { ident: "log" },
     LEAVES => { ident: "leaves" },
     GLUNGUS => { ident: "glungus" },

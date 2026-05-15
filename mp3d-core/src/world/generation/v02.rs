@@ -31,6 +31,10 @@ impl Generator {
         noise2: &fastnoise_lite::FastNoiseLite,
         chunk_pos: IVec3,
     ) {
+        if (chunk_pos.z + chunk_pos.x) % 2 == 1 {
+            return;
+        }
+
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 let global_x = chunk_pos.x * CHUNK_SIZE as i32 + x as i32;
@@ -64,7 +68,16 @@ impl Generator {
                         continue;
                     }
                     if global_y < height - 3 {
-                        chunk.set_block(local, Block::STONE, BlockState::none());
+                        let granite = noise1.get_noise_3d(
+                            global_x as f32 * 12.0 + 100.0,
+                            global_y as f32 * 12.0 + 100.0,
+                            global_z as f32 * 12.0 + 100.0,
+                        ) > 0.5;
+                        if granite {
+                            chunk.set_block(local, Block::GRANITE, BlockState::none());
+                        } else {
+                            chunk.set_block(local, Block::STONE, BlockState::none());
+                        }
                     } else if global_y < height - 1 {
                         chunk.set_block(local, Block::DIRT, BlockState::none());
                     } else if global_y < height {
