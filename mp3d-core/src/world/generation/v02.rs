@@ -31,10 +31,6 @@ impl Generator {
         noise2: &fastnoise_lite::FastNoiseLite,
         chunk_pos: IVec3,
     ) {
-        if (chunk_pos.z + chunk_pos.x) % 2 == 1 {
-            return;
-        }
-
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 let global_x = chunk_pos.x * CHUNK_SIZE as i32 + x as i32;

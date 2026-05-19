@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use glam::{Mat4, Vec3, Vec4};
 use mp3d_core::{
-    entity::{Entity, PlayerEntity},
+    entity::{Entity, GROUND_EPSILON, PlayerEntity},
     item::Inventory,
     protocol::MoveInstructions,
 };
@@ -192,7 +192,7 @@ impl ClientPlayer {
         self.flying = read_u8(&mut snapshot, "ClientPlayer reading flying").unwrap() != 0;
     }
 
-    pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
+    fn collision_check(&mut self, dt: f32, world: &ClientWorld) {
         let new_pos_x = self.position.with_x(self.position.x + self.velocity.x * dt);
         if !world.collides(new_pos_x, PlayerEntity::width(), PlayerEntity::height()) {
             self.position.x = new_pos_x.x;
@@ -203,17 +203,19 @@ impl ClientPlayer {
         let new_pos_y = self.position.with_y(self.position.y + self.velocity.y * dt);
         if !world.collides(new_pos_y, PlayerEntity::width(), PlayerEntity::height()) {
             self.position.y = new_pos_y.y;
-            self.on_ground = world.collides(
-                Vec3::new(
-                    self.position.x,
-                    self.position.y - mp3d_core::entity::player::GROUND_EPSILON,
-                    self.position.z,
-                ),
-                PlayerEntity::width(),
-                PlayerEntity::height(),
-            ) && self.velocity.y <= 0.0;
-        } else {
             if self.velocity.y <= 0.0 {
+                self.on_ground = world.collides(
+                    Vec3::new(
+                        self.position.x,
+                        self.position.y - GROUND_EPSILON,
+                        self.position.z,
+                    ),
+                    PlayerEntity::width(),
+                    PlayerEntity::height(),
+                );
+            }
+        } else {
+            if self.velocity.y < 0.0 {
                 self.on_ground = true;
             }
             self.velocity.y = 0.0;
@@ -225,13 +227,15 @@ impl ClientPlayer {
         } else {
             self.velocity.z = 0.0;
         }
+    }
 
+    pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
         let mut movement = Vec3::ZERO;
         match self.input.forward {
-            2 => movement += forward_vec * 2.0,
+            2 => movement += forward_vec * 1.5,
             1 => movement += forward_vec,
             -1 => movement -= forward_vec,
             _ => {}
@@ -255,12 +259,10 @@ impl ClientPlayer {
         self.velocity += movement * dt * 50.0;
 
         if !self.flying {
-            if self.on_ground && self.velocity.y < 0.0 {
-                self.velocity.y = 0.0;
-            } else {
-                self.velocity.y -= mp3d_core::entity::player::GRAVITY * dt;
-            }
+            self.velocity.y -= mp3d_core::entity::player::GRAVITY * dt;
         }
+
+        self.collision_check(dt, world);
 
         if self.velocity.length_squared() > 10000.0 {
             log::warn!("High velocity: {}", self.velocity);

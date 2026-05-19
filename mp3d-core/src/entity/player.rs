@@ -11,7 +11,7 @@ use crate::{
 
 pub const GRAVITY: f32 = 45.0;
 pub const JUMP: f32 = 11.0;
-pub const GROUND_EPSILON: f32 = 0.0005;
+pub const GROUND_EPSILON: f32 = 0.0002;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct MoveInput {
@@ -28,7 +28,7 @@ impl From<crate::protocol::MoveInstructions> for MoveInput {
                 -1 => -1.0,
                 0 => 0.0,
                 1 => 1.0,
-                2 => 2.0,
+                2 => 1.5,
                 _ => 0.0,
             },
             strafe: match instr.strafe {
@@ -187,45 +187,6 @@ impl Entity for PlayerEntity {
     fn tick(&mut self, world: &mut World, tps: u8) {
         let delta_time = 1.0 / tps as f32;
 
-        let new_pos_x = self
-            .position
-            .with_x(self.position.x + self.velocity.x * delta_time);
-        if !world.collides(new_pos_x, Self::width(), Self::height()) {
-            self.position.x = new_pos_x.x;
-        } else {
-            self.velocity.x = 0.0;
-        }
-
-        let new_pos_y = self
-            .position
-            .with_y(self.position.y + self.velocity.y * delta_time);
-        if !world.collides(new_pos_y, Self::width(), Self::height()) {
-            self.position.y = new_pos_y.y;
-            self.on_ground = world.collides(
-                Vec3::new(
-                    self.position.x,
-                    self.position.y - GROUND_EPSILON,
-                    self.position.z,
-                ),
-                Self::width(),
-                Self::height(),
-            ) && self.velocity.y <= 0.0;
-        } else {
-            if self.velocity.y <= 0.0 {
-                self.on_ground = true;
-            }
-            self.velocity.y = 0.0;
-        }
-
-        let new_pos_z = self
-            .position
-            .with_z(self.position.z + self.velocity.z * delta_time);
-        if !world.collides(new_pos_z, Self::width(), Self::height()) {
-            self.position.z = new_pos_z.z;
-        } else {
-            self.velocity.z = 0.0;
-        }
-
         let forward_vec = Vec3::new(
             self.yaw.to_radians().sin(),
             0.0,
@@ -256,11 +217,48 @@ impl Entity for PlayerEntity {
         self.yaw = self.yaw.rem_euclid(360.0);
 
         if !self.flying {
-            if self.on_ground {
-                self.velocity.y = 0.0;
-            } else {
-                self.velocity.y -= GRAVITY * delta_time;
+            self.velocity.y -= GRAVITY * delta_time;
+        }
+
+        let new_pos_x = self
+            .position
+            .with_x(self.position.x + self.velocity.x * delta_time);
+        if !world.collides(new_pos_x, Self::width(), Self::height()) {
+            self.position.x = new_pos_x.x;
+        } else {
+            self.velocity.x = 0.0;
+        }
+
+        let new_pos_y = self
+            .position
+            .with_y(self.position.y + self.velocity.y * delta_time);
+        if !world.collides(new_pos_y, Self::width(), Self::height()) {
+            self.position.y = new_pos_y.y;
+            if self.velocity.y <= 0.0 {
+                self.on_ground = world.collides(
+                    Vec3::new(
+                        self.position.x,
+                        self.position.y - GROUND_EPSILON,
+                        self.position.z,
+                    ),
+                    Self::width(),
+                    Self::height(),
+                );
             }
+        } else {
+            if self.velocity.y < 0.0 {
+                self.on_ground = true;
+            }
+            self.velocity.y = 0.0;
+        }
+
+        let new_pos_z = self
+            .position
+            .with_z(self.position.z + self.velocity.z * delta_time);
+        if !world.collides(new_pos_z, Self::width(), Self::height()) {
+            self.position.z = new_pos_z.z;
+        } else {
+            self.velocity.z = 0.0;
         }
 
         if self.velocity.length_squared() > 10000.0 {
