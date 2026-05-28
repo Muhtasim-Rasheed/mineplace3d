@@ -4,6 +4,7 @@
 
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::{Arc, RwLock},
 };
 
@@ -14,7 +15,7 @@ use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::Font},
     resource::{
         ResourceManager,
-        block::{BlockModel, TextureAtlas},
+        block::{BlockModel, States, TextureAtlas},
     },
     scenes::options::ClientConfig,
 };
@@ -33,7 +34,7 @@ pub enum SceneAction {
 /// as block textures and models.
 pub struct Assets {
     pub block_textures: TextureAtlas,
-    pub block_models: HashMap<(&'static str, &'static str), BlockModel>,
+    pub block_models: HashMap<(&'static str, u16), BlockModel>,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
 }
@@ -53,33 +54,67 @@ impl Assets {
         let mut block_textures = TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
         for block in mp3d_core::block::Block::ALL_BLOCKS {
-            let possible_state_data_values = BlockState::possible_data_values(block.state_type);
-            if let Some(possible_state_data_values) = possible_state_data_values {
-                for &state_data in possible_state_data_values {
-                    let extra_ident = BlockState::new(block.state_type, state_data)
-                        .to_ident()
-                        .ok_or_else(|| {
-                            format!(
-                                "Block '{}' has an unrecognized block state type: {}",
-                                block.ident, block.state_type
-                            )
-                        })?;
-                    let model = BlockModel::from_block(
-                        block,
-                        extra_ident,
-                        &resource_manager,
-                        &mut block_textures,
+            let mut possible_state_data_values = BlockState::possible_data_values(block.state_type)
+                .unwrap()
+                .iter()
+                .collect::<std::collections::HashSet<_>>();
+            let blockstate_path = PathBuf::from(format!("blocks/states/{}.json", block.ident));
+            let blockstate_data = resource_manager
+                .read(&blockstate_path)
+                .ok_or_else(|| format!("Failed to load blockstate for block '{}'", block.ident))?;
+            let blockstate_str = std::str::from_utf8(&blockstate_data).map_err(|e| {
+                format!(
+                    "Failed to parse blockstate for block '{}': {}",
+                    block.ident, e
+                )
+            })?;
+            let states = States::load(blockstate_str).map_err(|e| {
+                format!(
+                    "Failed to parse blockstate for block '{}': {}",
+                    block.ident, e
+                )
+            })?;
+            for (state_data, state) in states.states {
+                let model_path = state.model;
+                let model_file = resource_manager.read(&model_path).ok_or_else(|| {
+                    format!(
+                        "Failed to load model file '{}' for block '{}'",
+                        model_path.display(),
+                        block.ident
                     )
-                    .map_err(|e| {
-                        format!("Failed to load model for block '{}': {}", block.ident, e)
-                    })?;
-                    block_models.insert((block.ident, extra_ident), model);
+                })?;
+                let model_file = std::str::from_utf8(&model_file).map_err(|e| {
+                    format!(
+                        "Failed to parse model file '{}' for block '{}': {}",
+                        model_path.display(),
+                        block.ident,
+                        e
+                    )
+                })?;
+                let model = BlockModel::from_block(
+                    model_path,
+                    model_file,
+                    &resource_manager,
+                    &mut block_textures,
+                )?;
+                if !possible_state_data_values.contains(&state_data) {
+                    log::warn!(
+                        "State data value {:#06x} for block '{}' is not valid for its state type",
+                        state_data,
+                        block.ident
+                    );
                 }
-            } else {
-                return Err(format!(
-                    "Block '{}' has an unrecognized block state type: {}",
-                    block.ident, block.state_type
-                ));
+                possible_state_data_values.remove(&state_data);
+                block_models.insert((block.ident, state_data), model);
+            }
+
+            if !possible_state_data_values.is_empty() {
+                log::error!(
+                    "Not all possible state data values for block '{}' were used in the blockstate file. Unused values: {:?}",
+                    block.ident,
+                    possible_state_data_values
+                );
+                panic!("Invalid blockstate file for block '{}'", block.ident);
             }
         }
         block_textures.upload(gl);

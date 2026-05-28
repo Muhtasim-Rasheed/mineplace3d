@@ -111,7 +111,7 @@ fn should_occlude(
 #[inline]
 fn block_is_full_cube(
     block: Option<(&Block, &BlockState)>,
-    block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
+    block_models: &HashMap<(&'static str, u16), crate::resource::block::BlockModel>,
 ) -> bool {
     let Some((block, state)) = block else {
         return false;
@@ -121,15 +121,7 @@ fn block_is_full_cube(
         return false;
     }
 
-    let ident = (
-        block.ident,
-        state.to_ident().unwrap_or_else(|| {
-            panic!(
-                "Block '{}' has an unrecognized block state type: {}",
-                block.ident, block.state_type
-            )
-        }),
-    );
+    let ident = (block.ident, state.data());
 
     block_models
         .get(&ident)
@@ -350,7 +342,7 @@ pub fn mesh_world(
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
     chunk_mesh_pool: &mut Vec<Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
+    block_models: &HashMap<(&'static str, u16), crate::resource::block::BlockModel>,
 ) {
     use rayon::prelude::*;
 
@@ -399,7 +391,7 @@ fn mesh_chunk(
     chunk_pos: glam::IVec3,
     world: &ClientWorld,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<(&'static str, &'static str), crate::resource::block::BlockModel>,
+    block_models: &HashMap<(&'static str, u16), crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let chunk_origin = chunk_pos * (CHUNK_SIZE as i32);
 
@@ -450,16 +442,8 @@ fn mesh_chunk(
     }
 
     #[inline(always)]
-    fn ident(block: &Block, state: &BlockState) -> (&'static str, &'static str) {
-        (
-            block.ident,
-            state.to_ident().unwrap_or_else(|| {
-                panic!(
-                    "Block '{}' has an unrecognized block state type: {}",
-                    block.ident, block.state_type
-                )
-            }),
-        )
+    fn ident(block: &Block, state: &BlockState) -> (&'static str, u16) {
+        (block.ident, state.data())
     }
 
     for x in 0..(CHUNK_SIZE as i32) {
@@ -481,7 +465,7 @@ fn mesh_chunk(
                     panic!(
                         "No model found for block {} with state {}",
                         block.ident,
-                        state.to_ident().unwrap()
+                        state.data()
                     )
                 });
 

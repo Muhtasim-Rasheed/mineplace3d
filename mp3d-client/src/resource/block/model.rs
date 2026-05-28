@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use glam::{Mat4, Vec2, Vec3, Vec4};
-use mp3d_core::{block::Block, direction::Direction};
+use mp3d_core::direction::Direction;
 
 use crate::resource::{ResourceManager, block::raw_model::RawBlockModelTransform};
 
@@ -62,23 +62,16 @@ impl BlockModel {
     /// corresponding model file and then parsing it. This is a convenience method that combines
     /// loading the raw model from the file and then resolving it to a `BlockModel`.
     pub fn from_block(
-        block: &Block,
-        extra_ident: &'static str,
+        model_path: PathBuf,
+        model_file: &str,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
-        let path =
-            PathBuf::from("blocks/models").join(format!("{}{}.json", block.ident, extra_ident));
-        let raw_content = resource_manager.read_utf8(&path).ok_or_else(|| {
-            format!(
-                "Model file not found for block '{}': {:?}",
-                block.ident, path
-            )
-        })?;
-        let raw_model: RawBlockModel = serde_json::from_str(&raw_content).map_err(|e| {
+        let raw_model: RawBlockModel = serde_json::from_str(model_file).map_err(|e| {
             format!(
                 "Failed to parse model JSON for block '{}': {}",
-                block.ident, e
+                model_path.display(),
+                e
             )
         })?;
         Self::from_raw(raw_model, resource_manager, atlas)

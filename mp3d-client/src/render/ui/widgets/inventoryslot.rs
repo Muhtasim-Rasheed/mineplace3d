@@ -53,7 +53,7 @@ impl InventorySlot {
                     mp3d_core::block::BlockState::default_state(block.state_type).unwrap();
                 let item_block_model = assets
                     .block_models
-                    .get(&(block.ident, item_block_state.to_ident().unwrap()))
+                    .get(&(block.ident, item_block_state.data()))
                     .unwrap();
                 commands.extend(item_block_model.draw_commands(
                     &ui.gl,

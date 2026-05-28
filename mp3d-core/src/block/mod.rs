@@ -263,21 +263,6 @@ impl BlockState {
         }
     }
 
-    /// Creates a string representation of the block state, that can be added to [`Block::ident`]
-    /// to get a unique identifier for a block with the given state.
-    ///
-    /// For example, a block with identifier "stone_slab" and a block state of
-    /// [`BlockState::SLAB_TOP`] would have a unique identifier of "stone_slab_top".
-    #[inline]
-    pub const fn to_ident(&self) -> Option<&'static str> {
-        match (self.state_type(), self.data()) {
-            (0x0000, 0x0000) => Some(""),
-            (0x0001, 0x0000) => Some("_bot"),
-            (0x0001, 0x0001) => Some("_top"),
-            _ => None,
-        }
-    }
-
     /// Returns all possible data values for the given block state type. If the slice is empty,
     /// then the block state of that type can have any data value (i.e. the data value is not used
     /// for that block state type). If the block state type is not recognized, then `None` is

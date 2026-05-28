@@ -14,10 +14,12 @@ use crate::{
 pub enum ParticleSprite {
     Block {
         block: &'static str,
-        state: &'static str,
+        state: u16,
     },
     #[allow(dead_code)]
-    Texture { texture: String },
+    Texture {
+        texture: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -72,34 +74,33 @@ impl ParticleSystem {
         if !block.visible {
             return;
         }
-        if let Some(state_ident) = block_state.to_ident() {
-            for _ in 0..64 {
-                let position = position.as_vec3()
-                    + Vec3::new(
-                        rand::random::<f32>(),
-                        rand::random::<f32>(),
-                        rand::random::<f32>(),
-                    );
-                let velocity = Vec3::new(
-                    rand::random::<f32>() * 2.0 - 1.0,
-                    rand::random::<f32>() * 2.0,
-                    rand::random::<f32>() * 2.0 - 1.0,
+        let state_data = block_state.data();
+        for _ in 0..64 {
+            let position = position.as_vec3()
+                + Vec3::new(
+                    rand::random::<f32>(),
+                    rand::random::<f32>(),
+                    rand::random::<f32>(),
                 );
-                let lifetime = rand::random::<f32>() + 0.5;
-                let size = 0.1;
-                self.emit(Particle {
-                    position,
-                    velocity,
-                    lifetime,
-                    age: 0.0,
-                    size,
-                    has_gravity: true,
-                    sprite: ParticleSprite::Block {
-                        block: block.ident,
-                        state: state_ident,
-                    },
-                });
-            }
+            let velocity = Vec3::new(
+                rand::random::<f32>() * 2.0 - 1.0,
+                rand::random::<f32>() * 2.0,
+                rand::random::<f32>() * 2.0 - 1.0,
+            );
+            let lifetime = rand::random::<f32>() + 0.5;
+            let size = 0.1;
+            self.emit(Particle {
+                position,
+                velocity,
+                lifetime,
+                age: 0.0,
+                size,
+                has_gravity: true,
+                sprite: ParticleSprite::Block {
+                    block: block.ident,
+                    state: state_data,
+                },
+            });
         }
     }
 
