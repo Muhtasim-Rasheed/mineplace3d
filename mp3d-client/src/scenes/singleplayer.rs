@@ -269,6 +269,11 @@ impl SinglePlayer {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
+        let frustum_planes = self.client.player.frustum_planes(
+            self.screen_size.x as f32 / self.screen_size.y as f32,
+            &self.client.world,
+        );
+
         self.renderer.chunk_shader.use_program();
         self.renderer.chunk_shader.set_uniform("u_view", view);
         self.renderer
@@ -281,14 +286,7 @@ impl SinglePlayer {
                 pos.as_vec3() * CHUNK_SIZE as f32,
                 (pos.as_vec3() + Vec3::ONE) * CHUNK_SIZE as f32,
             ];
-            if !is_aabb_in_frustum(
-                aabb_min,
-                aabb_max,
-                &self.client.player.frustum_planes(
-                    self.screen_size.x as f32 / self.screen_size.y as f32,
-                    &self.client.world,
-                ),
-            ) {
+            if !is_aabb_in_frustum(aabb_min, aabb_max, &frustum_planes) {
                 continue;
             }
 
