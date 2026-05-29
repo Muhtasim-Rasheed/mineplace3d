@@ -44,6 +44,7 @@ struct SinglePlayerUI {
     chat_input_label: Label,
     pause_screen: Column,
     inventory: Stack,
+    hotbar: Row,
     debug_opened: bool,
     fps_timer: f32,
     fps: f32,
@@ -165,6 +166,17 @@ impl SinglePlayer {
         ));
         inventory_stack.add_widget(inventory_col);
 
+        let mut hotbar_row = Row::new(
+            4.0,
+            crate::render::ui::widgets::Alignment::Center,
+            Vec4::ZERO,
+            crate::render::ui::widgets::Justification::Center,
+        );
+
+        for i in 0..9 {
+            hotbar_row.add_widget(HotbarSlot::new(&client.player.inventory, i + 3 * 9));
+        }
+
         let mut pause_screen = Column::new(
             20.0,
             crate::render::ui::widgets::Alignment::Center,
@@ -223,6 +235,7 @@ impl SinglePlayer {
                 chat_input_label: Label::new("", 24.0, Vec4::ONE),
                 pause_screen,
                 inventory: inventory_stack,
+                hotbar: hotbar_row,
                 debug_opened: false,
                 fps_timer: 0.0,
                 fps: 0.0,
@@ -344,15 +357,24 @@ impl SinglePlayer {
         let messages = self.get_recent_messages();
         let message_size = measure_messages(&assets.font, &messages, 24.0);
 
-        let mut messages_start_y = self.screen_size.y as f32 - message_size.y - 10.0;
+        let hotbar_size = self.ui.hotbar.size_hint(&layout_ctx);
+
+        let mut messages_start_y =
+            self.screen_size.y as f32 - message_size.y - 10.0 - hotbar_size.y - 15.0;
 
         if self.client.gui.chat().is_some() {
-            messages_start_y -= 24.0 + 10.0 + 15.0;
+            messages_start_y -= 24.0 + 10.0;
             let label_size = self.ui.chat_input_label.size_hint(&layout_ctx);
             ui.add_command(DrawCommand::Quad {
                 rect: [
-                    Vec2::new(5.0, self.screen_size.y as f32 - label_size.y - 15.0),
-                    Vec2::new(5.0 + label_size.x + 10.0, self.screen_size.y as f32 - 5.0),
+                    Vec2::new(
+                        5.0,
+                        self.screen_size.y as f32 - label_size.y - 15.0 - hotbar_size.y - 10.0,
+                    ),
+                    Vec2::new(
+                        5.0 + label_size.x + 10.0,
+                        self.screen_size.y as f32 - 5.0 - hotbar_size.y - 15.0,
+                    ),
                 ],
                 uv_rect: DEFAULT_UV_RECT,
                 mode: UIRenderMode::Color(Vec4::new(0.0, 0.0, 0.0, 0.5)),
@@ -510,6 +532,8 @@ impl super::Scene for SinglePlayer {
             }
         }
 
+        let hotbar_size = self.ui.hotbar.size_hint(&layout_ctx);
+
         if let Some(chat) = self.client.gui.chat() {
             self.ui.chat_input_label.text = chat.clone();
         } else {
@@ -520,7 +544,10 @@ impl super::Scene for SinglePlayer {
             .chat_input_label
             .layout(&crate::render::ui::widgets::LayoutContext {
                 max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
-                cursor: Vec2::new(10.0, self.screen_size.y as f32 - 34.0),
+                cursor: Vec2::new(
+                    10.0,
+                    self.screen_size.y as f32 - 24.0 - 10.0 - hotbar_size.y - 15.0,
+                ),
                 assets,
             });
         if self.client.gui.inventory() {
@@ -534,6 +561,18 @@ impl super::Scene for SinglePlayer {
                     assets,
                 });
         }
+        self.ui.hotbar.update(ctx);
+        let hotbar_size = self.ui.hotbar.size_hint(&layout_ctx);
+        self.ui
+            .hotbar
+            .layout(&crate::render::ui::widgets::LayoutContext {
+                max_size: hotbar_size,
+                cursor: Vec2::new(
+                    self.screen_size.x as f32 / 2.0 - hotbar_size.x / 2.0,
+                    self.screen_size.y as f32 - hotbar_size.y - 10.0,
+                ),
+                assets,
+            });
         let unloaded = self.client.world.unload_chunks(self.client.player.position);
         for pos in unloaded {
             if let Some(mesh) = self.renderer.chunk_meshes.remove(&pos) {
@@ -831,7 +870,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                 self.ui.pause_screen.draw(ui, assets);
             }
 
-            // INVENTORY
+            // INVENTORY & HOTBAR
 
             if self.client.gui.inventory() {
                 self.ui.inventory.draw(ui, assets);
@@ -851,6 +890,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     }
                 }
             }
+            self.ui.hotbar.draw(ui, assets);
         }
 
         self.renderer.profiler.end_frame();

@@ -33,6 +33,7 @@ pub trait Widget {
 
 pub mod button;
 pub mod containers;
+pub mod hotbarslot;
 pub mod inputfield;
 pub mod inventoryslot;
 pub mod label;
@@ -41,6 +42,7 @@ pub mod slider;
 
 pub use button::*;
 pub use containers::*;
+pub use hotbarslot::*;
 pub use inputfield::*;
 pub use inventoryslot::*;
 pub use label::*;

@@ -18,6 +18,7 @@ pub enum UIRenderMode {
 }
 
 /// A draw command for rendering a UI element.
+#[derive(Clone, Debug)]
 pub enum DrawCommand {
     Quad {
         rect: [Vec2; 2],
