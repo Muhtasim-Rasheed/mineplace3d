@@ -20,7 +20,7 @@ pub struct StateData {
 
 impl States {
     pub fn load(states_data: &str) -> Result<Self, serde_json::Error> {
-        let states_raw: StatesRaw = serde_json::from_str(&states_data)?;
+        let states_raw: StatesRaw = serde_json::from_str(states_data)?;
 
         let states = states_raw
             .states

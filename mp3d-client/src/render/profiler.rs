@@ -47,7 +47,7 @@ pub struct ProfilerEntry {
 
 impl PartialOrd for ProfilerEntry {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.duration.cmp(&other.duration))
+        Some(self.cmp(other))
     }
 }
 

@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::Assets,
+    scenes::{Assets, SceneUpdateContext},
 };
 
 use serde::{Deserialize, Serialize};
@@ -147,15 +147,14 @@ impl Options {
 }
 
 impl super::Scene for Options {
-    fn update(
-        &mut self,
-        _gl: &Arc<glow::Context>,
-        ctx: &crate::other::UpdateContext,
-        window: &mut sdl2::video::Window,
-        _sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<Assets>,
-        config: &Arc<RwLock<ClientConfig>>,
-    ) -> crate::scenes::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> crate::scenes::SceneAction {
+        let SceneUpdateContext {
+            ctx,
+            window,
+            assets,
+            config,
+            ..
+        } = ctx;
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),

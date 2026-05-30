@@ -23,7 +23,7 @@ use crate::{
             widgets::*,
         },
     },
-    scenes::Assets,
+    scenes::{Assets, SceneUpdateContext},
     shader_program,
 };
 
@@ -357,14 +357,14 @@ impl SinglePlayer {
         let messages = self.get_recent_messages();
         let message_size = measure_messages(&assets.font, &messages, 24.0);
 
-        let hotbar_size = self.ui.hotbar.size_hint(&layout_ctx);
+        let hotbar_size = self.ui.hotbar.size_hint(layout_ctx);
 
         let mut messages_start_y =
             self.screen_size.y as f32 - message_size.y - 10.0 - hotbar_size.y - 15.0;
 
         if self.client.gui.chat().is_some() {
             messages_start_y -= 24.0 + 10.0;
-            let label_size = self.ui.chat_input_label.size_hint(&layout_ctx);
+            let label_size = self.ui.chat_input_label.size_hint(layout_ctx);
             ui.add_command(DrawCommand::Quad {
                 rect: [
                     Vec2::new(
@@ -423,15 +423,17 @@ impl super::Scene for SinglePlayer {
         }
     }
 
-    fn update(
-        &mut self,
-        gl: &Arc<glow::Context>,
-        ctx: &crate::other::UpdateContext,
-        window: &mut sdl2::video::Window,
-        sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<Assets>,
-        config: &Arc<RwLock<super::options::ClientConfig>>,
-    ) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+        let SceneUpdateContext {
+            gl,
+            ctx,
+            window,
+            sdl_ctx,
+            assets,
+            config,
+            ..
+        } = ctx;
+
         self.renderer.profiler.begin_frame();
 
         let layout_ctx = crate::render::ui::widgets::LayoutContext {
@@ -757,7 +759,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     chunk_local.z,
                 );
 
-                for mut cmd in assets.font.text(&text, 24.0, Vec4::ONE) {
+                for mut cmd in assets.font.text(&text, TextParams::default()) {
                     match &mut cmd {
                         DrawCommand::Quad { rect, .. } => {
                             rect[0] += Vec2::new(10.0, 10.0);
@@ -795,10 +797,12 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     "FPS: {:.2}\nAvg: {:.2}\nMin: {:.2}\nMax: {:.2}",
                     self.ui.fps, average_fps, min_fps, max_fps
                 );
-                let measurement = assets.font.measure_text(&stats_text, 24.0);
+                let measurement = assets
+                    .font
+                    .measure_text(&stats_text, ColorlessTextParams::default());
                 let text_x = self.screen_size.x as f32 - measurement.x - 10.0;
                 let text_y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT + 10.0;
-                for mut cmd in assets.font.text(&stats_text, 24.0, Vec4::ONE) {
+                for mut cmd in assets.font.text(&stats_text, TextParams::default()) {
                     match &mut cmd {
                         DrawCommand::Quad { rect, .. } => {
                             rect[0] += Vec2::new(text_x, text_y);
@@ -839,7 +843,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     let entry_text = format!("{}: {:.2} ms", entry.name, entry_time);
                     let text_x = graph_x + 5.0;
                     let text_y = current_y + 1.0;
-                    for mut cmd in assets.font.text(&entry_text, 24.0, Vec4::ONE) {
+                    for mut cmd in assets.font.text(&entry_text, TextParams::default()) {
                         match &mut cmd {
                             DrawCommand::Quad { rect, .. } => {
                                 rect[0] += Vec2::new(text_x, text_y);
@@ -900,7 +904,13 @@ Chunk local: X: {} Y: {} Z: {}"#,
 fn measure_messages(font: &Font, messages: &[TextComponent], font_size: f32) -> Vec2 {
     let mut size = Vec2::ZERO;
     for message in messages {
-        let message_size = font.measure_component(message, font_size);
+        let message_size = font.measure_component(
+            message,
+            ColorlessTextParams {
+                font_size,
+                word_wrap_width: Some(400.0),
+            },
+        );
         size.x = size.x.max(message_size.x);
         size.y += message_size.y;
     }
@@ -916,7 +926,13 @@ fn text_messages(
     let mut commands = Vec::new();
     let mut cursor = pos;
     for message in messages {
-        let message_commands = font.text_component(message, font_size);
+        let message_commands = font.text_component(
+            message,
+            ColorlessTextParams {
+                font_size,
+                word_wrap_width: Some(400.0),
+            },
+        );
         for mut cmd in message_commands {
             if let DrawCommand::Quad { rect, .. } = &mut cmd {
                 rect[0] += cursor;
@@ -928,7 +944,13 @@ fn text_messages(
             }
             commands.push(cmd);
         }
-        let message_size = font.measure_component(message, font_size);
+        let message_size = font.measure_component(
+            message,
+            ColorlessTextParams {
+                font_size,
+                word_wrap_width: Some(400.0),
+            },
+        );
         cursor.y += message_size.y;
     }
     commands

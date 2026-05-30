@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::Assets,
+    scenes::{Assets, SceneUpdateContext},
 };
 
 pub struct WorldSelection {
@@ -115,15 +115,16 @@ impl WorldSelection {
 }
 
 impl super::Scene for WorldSelection {
-    fn update(
-        &mut self,
-        gl: &Arc<glow::Context>,
-        ctx: &crate::other::UpdateContext,
-        window: &mut sdl2::video::Window,
-        _sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<Assets>,
-        config: &Arc<RwLock<super::ClientConfig>>,
-    ) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+        let SceneUpdateContext {
+            gl,
+            ctx,
+            window,
+            assets,
+            config,
+            ..
+        } = ctx;
+
         self.container
             .get_widget_mut::<Column>(1)
             .unwrap()

@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::Assets,
+    scenes::{Assets, SceneUpdateContext},
 };
 
 pub struct WorldCreation {
@@ -87,15 +87,16 @@ impl WorldCreation {
 }
 
 impl super::Scene for WorldCreation {
-    fn update(
-        &mut self,
-        gl: &Arc<glow::Context>,
-        ctx: &crate::other::UpdateContext,
-        window: &mut sdl2::video::Window,
-        _sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<Assets>,
-        config: &Arc<RwLock<super::options::ClientConfig>>,
-    ) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+        let SceneUpdateContext {
+            gl,
+            ctx,
+            window,
+            assets,
+            config,
+            ..
+        } = ctx;
+
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),

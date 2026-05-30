@@ -7,7 +7,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::Assets,
+    scenes::{Assets, SceneUpdateContext},
 };
 
 static SPLASHES: std::sync::OnceLock<Vec<(&str, Vec4)>> = std::sync::OnceLock::new();
@@ -184,15 +184,16 @@ impl super::Scene for TitleScreen {
         }
     }
 
-    fn update(
-        &mut self,
-        _gl: &Arc<glow::Context>,
-        ctx: &crate::other::UpdateContext,
-        window: &mut sdl2::video::Window,
-        sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<super::Assets>,
-        config: &Arc<RwLock<super::options::ClientConfig>>,
-    ) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+        let SceneUpdateContext {
+            ctx,
+            window,
+            sdl_ctx,
+            assets,
+            config,
+            ..
+        } = ctx;
+
         window.set_title("Mineplace3D").unwrap();
         sdl_ctx.mouse().set_relative_mouse_mode(false);
         self.container.update(ctx);

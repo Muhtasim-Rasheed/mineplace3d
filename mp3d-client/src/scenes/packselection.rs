@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::Assets,
+    scenes::{Assets, SceneUpdateContext},
 };
 
 pub struct PackSelection {
@@ -114,15 +114,14 @@ impl PackSelection {
 }
 
 impl super::Scene for PackSelection {
-    fn update(
-        &mut self,
-        _gl: &Arc<glow::Context>,
-        ctx: &crate::other::UpdateContext,
-        _window: &mut sdl2::video::Window,
-        _sdl_ctx: &sdl2::Sdl,
-        assets: &Arc<Assets>,
-        config: &Arc<RwLock<super::ClientConfig>>,
-    ) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+        let SceneUpdateContext {
+            ctx,
+            window,
+            assets,
+            config,
+            ..
+        } = ctx;
         let new_available_packs = Self::get_packs();
         if self.available_packs != new_available_packs {
             self.available_packs = new_available_packs;
@@ -136,7 +135,7 @@ impl super::Scene for PackSelection {
 
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
-            max_size: Vec2::new(_window.size().0 as f32, _window.size().1 as f32),
+            max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
             cursor: Vec2::ZERO,
             assets,
         });
@@ -212,50 +211,52 @@ impl super::Scene for PackSelection {
             .find_widget::<Button>(&[1, 1, 0])
             .unwrap()
             .is_released()
-            && let Some(selected) = self.available_selected {
-                let button = self
-                    .container
-                    .find_widget_mut::<Button>(&[1, 0, selected])
-                    .unwrap();
-                let pack_name = button.label.clone();
-                let mut guard = config.write().unwrap();
-                let resource_packs = guard.resource_packs.get_or_insert_default();
-                if !resource_packs.contains(&pack_name) {
-                    resource_packs.push(pack_name.clone());
-                    self.container
-                        .find_widget_mut::<Column>(&[1, 2])
-                        .unwrap()
-                        .add_widget(Button::new(
-                            &pack_name,
-                            Vec4::ONE,
-                            24.0,
-                            Vec2::new(500.0, 80.0),
-                        ));
-                    self.available_selected = None;
-                }
+            && let Some(selected) = self.available_selected
+        {
+            let button = self
+                .container
+                .find_widget_mut::<Button>(&[1, 0, selected])
+                .unwrap();
+            let pack_name = button.label.clone();
+            let mut guard = config.write().unwrap();
+            let resource_packs = guard.resource_packs.get_or_insert_default();
+            if !resource_packs.contains(&pack_name) {
+                resource_packs.push(pack_name.clone());
+                self.container
+                    .find_widget_mut::<Column>(&[1, 2])
+                    .unwrap()
+                    .add_widget(Button::new(
+                        &pack_name,
+                        Vec4::ONE,
+                        24.0,
+                        Vec2::new(500.0, 80.0),
+                    ));
+                self.available_selected = None;
             }
+        }
 
         if self
             .container
             .find_widget::<Button>(&[1, 1, 1])
             .unwrap()
             .is_released()
-            && let Some(selected) = self.using_selected {
-                let button = self
-                    .container
-                    .find_widget_mut::<Button>(&[1, 2, selected])
-                    .unwrap();
-                let pack_name = button.label.clone();
-                let mut guard = config.write().unwrap();
-                if let Some(resource_packs) = guard.resource_packs.as_mut()
-                    && let Some(pos) = resource_packs.iter().position(|x| x == &pack_name) {
-                        resource_packs.remove(pos);
-                        let using_column =
-                            self.container.find_widget_mut::<Column>(&[1, 2]).unwrap();
-                        using_column.widgets.remove(selected);
-                        self.using_selected = None;
-                    }
+            && let Some(selected) = self.using_selected
+        {
+            let button = self
+                .container
+                .find_widget_mut::<Button>(&[1, 2, selected])
+                .unwrap();
+            let pack_name = button.label.clone();
+            let mut guard = config.write().unwrap();
+            if let Some(resource_packs) = guard.resource_packs.as_mut()
+                && let Some(pos) = resource_packs.iter().position(|x| x == &pack_name)
+            {
+                resource_packs.remove(pos);
+                let using_column = self.container.find_widget_mut::<Column>(&[1, 2]).unwrap();
+                using_column.widgets.remove(selected);
+                self.using_selected = None;
             }
+        }
 
         if self
             .container
@@ -263,44 +264,46 @@ impl super::Scene for PackSelection {
             .unwrap()
             .is_released()
             && let Some(selected) = self.using_selected
-                && selected > 1 {
-                    self.container
-                        .find_widget_mut::<Column>(&[1, 2])
-                        .unwrap()
-                        .widgets
-                        .swap(selected, selected - 1);
-                    let mut guard = config.write().unwrap();
-                    if let Some(resource_packs) = guard.resource_packs.as_mut() {
-                        resource_packs.swap(selected - 2, selected - 1);
-                    }
-                    self.using_selected = Some(selected - 1);
-                }
+            && selected > 1
+        {
+            self.container
+                .find_widget_mut::<Column>(&[1, 2])
+                .unwrap()
+                .widgets
+                .swap(selected, selected - 1);
+            let mut guard = config.write().unwrap();
+            if let Some(resource_packs) = guard.resource_packs.as_mut() {
+                resource_packs.swap(selected - 2, selected - 1);
+            }
+            self.using_selected = Some(selected - 1);
+        }
 
         if self
             .container
             .find_widget::<Button>(&[1, 1, 3])
             .unwrap()
             .is_released()
-            && let Some(selected) = self.using_selected {
-                let using_len = self
-                    .container
-                    .find_widget::<Column>(&[1, 2])
+            && let Some(selected) = self.using_selected
+        {
+            let using_len = self
+                .container
+                .find_widget::<Column>(&[1, 2])
+                .unwrap()
+                .widgets
+                .len();
+            if selected < using_len - 1 {
+                self.container
+                    .find_widget_mut::<Column>(&[1, 2])
                     .unwrap()
                     .widgets
-                    .len();
-                if selected < using_len - 1 {
-                    self.container
-                        .find_widget_mut::<Column>(&[1, 2])
-                        .unwrap()
-                        .widgets
-                        .swap(selected, selected + 1);
-                    let mut guard = config.write().unwrap();
-                    if let Some(resource_packs) = guard.resource_packs.as_mut() {
-                        resource_packs.swap(selected - 1, selected);
-                    }
-                    self.using_selected = Some(selected + 1);
+                    .swap(selected, selected + 1);
+                let mut guard = config.write().unwrap();
+                if let Some(resource_packs) = guard.resource_packs.as_mut() {
+                    resource_packs.swap(selected - 1, selected);
                 }
+                self.using_selected = Some(selected + 1);
             }
+        }
 
         if self
             .container

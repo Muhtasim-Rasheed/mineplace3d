@@ -2,7 +2,7 @@
 
 use glam::{Vec2, Vec4};
 
-use crate::render::ui::widgets::{Label, NineSlice, Stack, Widget};
+use crate::render::ui::widgets::{ColorlessTextParams, Label, NineSlice, Stack, Widget};
 
 pub struct InputField {
     pub position: Vec2,
@@ -200,7 +200,10 @@ impl Widget for InputField {
                     .font
                     .measure_text(
                         &format!("  {}", &self.text[..self.cursor_pos]),
-                        self.label_font_size,
+                        ColorlessTextParams {
+                            font_size: self.label_font_size,
+                            ..Default::default()
+                        },
                     )
                     .x;
             let cursor_y = self.position.y + (self.size.y - self.label_font_size) / 2.0;

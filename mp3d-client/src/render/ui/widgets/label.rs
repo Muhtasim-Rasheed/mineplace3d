@@ -7,6 +7,57 @@ use crate::{
     resource::fontsettings::FontSettings,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextParams {
+    pub font_size: f32,
+    pub color: Vec4,
+    pub word_wrap_width: Option<f32>,
+}
+
+impl TextParams {
+    pub fn without_color(self) -> ColorlessTextParams {
+        ColorlessTextParams {
+            font_size: self.font_size,
+            word_wrap_width: self.word_wrap_width,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ColorlessTextParams {
+    pub font_size: f32,
+    pub word_wrap_width: Option<f32>,
+}
+
+impl ColorlessTextParams {
+    pub fn with_color(self, color: Vec4) -> TextParams {
+        TextParams {
+            font_size: self.font_size,
+            color,
+            word_wrap_width: self.word_wrap_width,
+        }
+    }
+}
+
+impl Default for TextParams {
+    fn default() -> Self {
+        Self {
+            font_size: 24.0,
+            color: Vec4::ONE,
+            word_wrap_width: None,
+        }
+    }
+}
+
+impl Default for ColorlessTextParams {
+    fn default() -> Self {
+        Self {
+            font_size: 24.0,
+            word_wrap_width: None,
+        }
+    }
+}
+
 pub struct Font {
     atlas: Texture,
     char_size: Vec2,
@@ -56,7 +107,13 @@ impl Font {
                 let base = self.strikethrough?;
                 Some(vec![base + 1, base + 2])
             }
-            _ => Some(vec![c as u32 - self.first_char as u32]),
+            _ => {
+                if let Some(i) = (c as u32).checked_sub(self.first_char as u32) {
+                    Some(vec![i])
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -65,26 +122,57 @@ impl Font {
             .and_then(|indices| indices.into_iter().map(|i| self.index_to_uvs(i)).collect())
     }
 
-    pub fn measure_text(&self, text: &str, font_size: f32) -> Vec2 {
-        let mut max_width = 0.0_f32;
-        let mut line_width = 0.0;
-        let mut line_count = 1;
-        for c in text.chars() {
-            if c == '\n' {
-                max_width = max_width.max(line_width);
-                line_width = 0.0;
-                line_count += 1;
-            } else if c != '\u{0336}' {
-                let glyph_indices_len = self
-                    .glyph_indices(c)
-                    .map(|indices| indices.len())
-                    .unwrap_or(0);
-                line_width +=
-                    font_size * (self.char_size.x / self.char_size.y) * glyph_indices_len as f32;
+    pub fn layout_text(&self, text: &str, params: ColorlessTextParams) -> Vec<(Vec2, char)> {
+        let mut result = Vec::new();
+
+        let mut cursor = Vec2::ZERO;
+        let line_height = params.font_size;
+
+        let wrap_width = params.word_wrap_width;
+
+        for word in text.split_inclusive(|c: char| c.is_whitespace()) {
+            let word_width: f32 = word
+                .chars()
+                .map(|c| self.char_width(params.font_size, c))
+                .sum();
+
+            if let Some(max_width) = wrap_width
+                && cursor.x > 0.0
+                && cursor.x + word_width > max_width
+            {
+                cursor.x = 0.0;
+                cursor.y += line_height;
+            }
+
+            for c in word.chars() {
+                if c == '\n' {
+                    cursor.x = 0.0;
+                    cursor.y += line_height;
+                    continue;
+                }
+
+                result.push((cursor, c));
+                cursor.x += self.char_width(params.font_size, c);
             }
         }
-        max_width = max_width.max(line_width);
-        Vec2::new(max_width, line_count as f32 * font_size)
+
+        result
+    }
+
+    pub fn measure_text(&self, text: &str, params: ColorlessTextParams) -> Vec2 {
+        let layout = self.layout_text(text, params);
+
+        let char_size = self.char_size(params.font_size);
+
+        let mut max_x = 0.0_f32;
+        let mut max_y = char_size.y;
+
+        for (pos, c) in layout {
+            max_x = max_x.max(pos.x + self.char_width(params.font_size, c));
+            max_y = max_y.max(pos.y + char_size.y);
+        }
+
+        Vec2::new(max_x, max_y)
     }
 
     fn char_back(&self, font_size: f32, c: char) -> f32 {
@@ -98,55 +186,65 @@ impl Font {
         Vec2::new(font_size * (self.char_size.x / self.char_size.y), font_size)
     }
 
-    pub fn text(&self, text: &str, font_size: f32, color: Vec4) -> Vec<DrawCommand> {
+    fn char_width(&self, font_size: f32, c: char) -> f32 {
+        let glyph_indices_len = self
+            .glyph_indices(c)
+            .map(|indices| indices.len())
+            .unwrap_or(0);
+        font_size * (self.char_size.x / self.char_size.y) * glyph_indices_len as f32
+    }
+
+    pub fn text(&self, text: &str, params: TextParams) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
-        let mut cursor = Vec2::ZERO;
-        let char_size = self.char_size(font_size);
 
-        for line in text.lines() {
-            for c in line.chars() {
-                if let Some(uvs) = self.glyph_uvs(c) {
-                    cursor.x -= self.char_back(font_size, c);
+        for (pos, c) in self.layout_text(text, params.without_color()) {
+            if let Some(uvs) = self.glyph_uvs(c) {
+                let char_size = self.char_size(params.font_size);
+                let pos = pos - Vec2::new(self.char_back(params.font_size, c), 0.0);
 
-                    for uv_rect in uvs {
-                        let pos_min = cursor;
-                        let pos_max = cursor + char_size;
+                for uv_rect in uvs {
+                    let pos_min = pos;
+                    let pos_max = pos + char_size;
 
-                        commands.push(DrawCommand::Quad {
-                            rect: [pos_min, pos_max],
-                            uv_rect,
-                            mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
-                                self.atlas().handle(),
-                                color,
-                            ),
-                            layer: 2000,
-                        });
-                        cursor.x += char_size.x;
-                    }
+                    commands.push(DrawCommand::Quad {
+                        rect: [pos_min, pos_max],
+                        uv_rect,
+                        mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
+                            self.atlas().handle(),
+                            params.color,
+                        ),
+                        layer: 2000,
+                    });
                 }
             }
-            cursor.x = 0.0;
-            cursor.y += char_size.y;
         }
 
         commands
     }
 
-    pub fn measure_component(&self, component: &TextComponent, font_size: f32) -> Vec2 {
+    pub fn measure_component(
+        &self,
+        component: &TextComponent,
+        params: ColorlessTextParams,
+    ) -> Vec2 {
         let mut size = Vec2::ZERO;
         for part in &component.parts {
-            let part_size = self.measure_text(&part.text, font_size);
+            let part_size = self.measure_text(&part.text, params);
             size.x += part_size.x;
             size.y = size.y.max(part_size.y);
         }
         size
     }
 
-    pub fn text_component(&self, component: &TextComponent, font_size: f32) -> Vec<DrawCommand> {
+    pub fn text_component(
+        &self,
+        component: &TextComponent,
+        params: ColorlessTextParams,
+    ) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
         let mut cursor = Vec2::ZERO;
         for part in &component.parts {
-            let part_commands = self.text(&part.text, font_size, part.color.into());
+            let part_commands = self.text(&part.text, params.with_color(part.color.into()));
             for mut cmd in part_commands {
                 if let DrawCommand::Quad { rect, .. } = &mut cmd {
                     rect[0] += cursor;
@@ -158,7 +256,7 @@ impl Font {
                 }
                 commands.push(cmd);
             }
-            let part_size = self.measure_text(&part.text, font_size);
+            let part_size = self.measure_text(&part.text, params);
             cursor.x += part_size.x;
         }
         commands
@@ -193,7 +291,13 @@ impl Widget for Label {
     }
 
     fn size_hint(&self, ctx: &super::LayoutContext) -> Vec2 {
-        ctx.assets.font.measure_text(&self.text, self.font_size)
+        ctx.assets.font.measure_text(
+            &self.text,
+            ColorlessTextParams {
+                font_size: self.font_size,
+                ..Default::default()
+            },
+        )
     }
 
     fn update(&mut self, _ctx: &crate::other::UpdateContext) {
@@ -216,7 +320,14 @@ impl Widget for Label {
     ) {
         let commands = assets
             .font
-            .text(&self.text, self.font_size, self.color)
+            .text(
+                &self.text,
+                TextParams {
+                    font_size: self.font_size,
+                    color: self.color,
+                    ..Default::default()
+                },
+            )
             .into_iter()
             .map(|mut cmd| {
                 if let DrawCommand::Quad { rect, .. } = &mut cmd {
