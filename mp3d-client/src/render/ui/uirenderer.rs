@@ -129,10 +129,12 @@ impl UIRenderer {
                 DrawCommand::Quad { .. } => unsafe {
                     self.gl.disable(glow::DEPTH_TEST);
                     self.gl.disable(glow::CULL_FACE);
+                    self.shader_program.set_uniform("u_shade", false);
                 },
                 DrawCommand::Mesh { .. } => unsafe {
                     self.gl.enable(glow::DEPTH_TEST);
                     self.gl.enable(glow::CULL_FACE);
+                    self.shader_program.set_uniform("u_shade", true);
                 },
             };
 
@@ -179,18 +181,22 @@ impl UIRenderer {
                 self.vertices.push(UIVertex {
                     position: Vec3::new(max.x, min.y, *layer as f32 * 0.01),
                     uv: Vec2::new(uv_max.x, uv_min.y),
+                    normal: Vec3::ZERO,
                 });
                 self.vertices.push(UIVertex {
                     position: Vec3::new(min.x, min.y, *layer as f32 * 0.01),
                     uv: Vec2::new(uv_min.x, uv_min.y),
+                    normal: Vec3::ZERO,
                 });
                 self.vertices.push(UIVertex {
                     position: Vec3::new(min.x, max.y, *layer as f32 * 0.01),
                     uv: Vec2::new(uv_min.x, uv_max.y),
+                    normal: Vec3::ZERO,
                 });
                 self.vertices.push(UIVertex {
                     position: Vec3::new(max.x, max.y, *layer as f32 * 0.01),
                     uv: Vec2::new(uv_max.x, uv_max.y),
+                    normal: Vec3::ZERO,
                 });
                 self.indices.push(base_index);
                 self.indices.push(base_index + 1);

@@ -14,6 +14,7 @@ use crate::abs::Vertex;
 pub struct UIVertex {
     pub position: Vec3,
     pub uv: Vec2,
+    pub normal: Vec3,
 }
 
 impl Vertex for UIVertex {
@@ -32,6 +33,16 @@ impl Vertex for UIVertex {
                 false,
                 stride,
                 size_of::<Vec3>() as i32,
+            );
+            // Normal attribute
+            gl.enable_vertex_attrib_array(2);
+            gl.vertex_attrib_pointer_f32(
+                2,
+                3,
+                glow::FLOAT,
+                false,
+                stride,
+                (size_of::<Vec3>() + size_of::<Vec2>()) as i32,
             );
         }
     }

@@ -239,9 +239,12 @@ impl BlockModel {
                     let from = element.from + 0.5;
                     let to = element.to + 0.5;
                     let rotated = rotation.transform_point3(*vert - (to - from) + from);
+                    let normal = rotation.transform_vector3(dir.into());
                     vertices.push(crate::render::ui::UIVertex {
                         position: (position + rotated.truncate() * size).extend(rotated.z + 2.0),
                         uv: *uv,
+                        // for shading this block we need to specify the normal.
+                        normal,
                     });
                 }
 
