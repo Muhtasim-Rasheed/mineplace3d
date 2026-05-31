@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::{Assets, SceneUpdateContext},
+    scenes::{Assets, SceneAction, SceneUpdateContext},
 };
 
 use serde::{Deserialize, Serialize};
@@ -147,14 +147,19 @@ impl Options {
 }
 
 impl super::Scene for Options {
-    fn update(&mut self, ctx: &mut SceneUpdateContext) -> crate::scenes::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
         let SceneUpdateContext {
             ctx,
             window,
+            sdl_ctx,
             assets,
             config,
             ..
         } = ctx;
+
+        window.set_title("Mineplace3D - Options").unwrap();
+        sdl_ctx.mouse().set_relative_mouse_mode(false);
+
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
@@ -247,7 +252,7 @@ impl super::Scene for Options {
 
             log::info!("Saved config: {:?}", *config_guard);
 
-            return crate::scenes::SceneAction::Pop;
+            return vec![SceneAction::Pop];
         }
 
         if self
@@ -256,16 +261,16 @@ impl super::Scene for Options {
             .unwrap()
             .is_released()
         {
-            return crate::scenes::SceneAction::Push(Box::new(
+            return vec![SceneAction::Push(Box::new(
                 super::packselection::PackSelection::new(
                     config.read().unwrap().resource_packs(),
                     assets,
                     window.size(),
                 ),
-            ));
+            ))];
         }
 
-        crate::scenes::SceneAction::None
+        Vec::new()
     }
 
     fn render(

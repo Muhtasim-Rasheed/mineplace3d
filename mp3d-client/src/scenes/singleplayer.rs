@@ -23,7 +23,7 @@ use crate::{
             widgets::*,
         },
     },
-    scenes::{Assets, SceneUpdateContext},
+    scenes::{Assets, SceneAction, SceneUpdateContext},
     shader_program,
 };
 
@@ -106,10 +106,16 @@ impl SinglePlayer {
         window_size: (u32, u32),
         world_path: PathBuf,
         username: String,
-    ) -> Self {
-        let server = mp3d_core::server::Server::load(true, world_path.clone())
-            .expect("Failed to load world");
-        Self::setup(server, gl, assets, window_size, world_path, username)
+    ) -> Result<Self, std::io::Error> {
+        let server = mp3d_core::server::Server::load(true, world_path.clone())?;
+        Ok(Self::setup(
+            server,
+            gl,
+            assets,
+            window_size,
+            world_path,
+            username,
+        ))
     }
 
     fn setup(
@@ -422,7 +428,7 @@ impl super::Scene for SinglePlayer {
         }
     }
 
-    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
         let SceneUpdateContext {
             gl,
             ctx,
@@ -456,7 +462,7 @@ impl super::Scene for SinglePlayer {
         }
 
         if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F6) {
-            return super::SceneAction::ReloadAssets;
+            return vec![SceneAction::ReloadAssets];
         }
 
         {
@@ -470,11 +476,25 @@ impl super::Scene for SinglePlayer {
                     self.ui.debug_opened = !self.ui.debug_opened;
                 }
 
-                if let Err(_reason) = self
+                if let Err(reason) = self
                     .client
                     .receive_state(&mut self.renderer.particle_system)
                 {
-                    todo!("Save world and exit.")
+                    log::error!("Connection lost: {}", reason);
+                    log::info!("Saving world...");
+                    std::fs::create_dir_all(&self.world_path)
+                        .expect("Failed to create world directory");
+                    self.client
+                        .connection
+                        .server
+                        .save()
+                        .expect("Failed to save world");
+                    return vec![
+                        SceneAction::ShowError(crate::scenes::SceneActionError::Unexpected(
+                            format!("Connection lost: {}", reason),
+                        )),
+                        SceneAction::Pop,
+                    ];
                 }
             } else {
                 self.ui.pause_screen.update(ctx);
@@ -508,7 +528,7 @@ impl super::Scene for SinglePlayer {
                         .save()
                         .expect("Failed to save world");
 
-                    return super::SceneAction::Pop;
+                    return vec![SceneAction::Pop];
                 }
                 if self
                     .ui
@@ -516,7 +536,7 @@ impl super::Scene for SinglePlayer {
                     .get_widget::<Button>(2)
                     .is_some_and(|btn| btn.is_released())
                 {
-                    return super::SceneAction::Pop;
+                    return vec![SceneAction::Pop];
                 }
             }
         }
@@ -599,7 +619,7 @@ impl super::Scene for SinglePlayer {
         }
         self.mouse_pos = ctx.mouse.position;
 
-        super::SceneAction::None
+        Vec::new()
     }
 
     fn render(

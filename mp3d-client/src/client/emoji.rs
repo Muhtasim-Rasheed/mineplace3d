@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::LazyLock};
 static EMOJI_MAP: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     m.insert(":glungus:", "🐱");
+    m.insert(":st:", "\u{0336}");
     m.insert(":-:", "\u{0336}");
     m
 });

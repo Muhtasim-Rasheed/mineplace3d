@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::{Assets, SceneUpdateContext},
+    scenes::{Assets, SceneAction, SceneUpdateContext},
 };
 
 pub struct WorldSelection {
@@ -115,15 +115,19 @@ impl WorldSelection {
 }
 
 impl super::Scene for WorldSelection {
-    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
         let SceneUpdateContext {
             gl,
             ctx,
             window,
+            sdl_ctx,
             assets,
             config,
             ..
         } = ctx;
+
+        window.set_title("Mineplace3D - Select world").unwrap();
+        sdl_ctx.mouse().set_relative_mouse_mode(false);
 
         self.container
             .get_widget_mut::<Column>(1)
@@ -141,7 +145,7 @@ impl super::Scene for WorldSelection {
             .pressed
             .contains(&sdl2::keyboard::Keycode::Escape)
         {
-            return super::SceneAction::Pop;
+            return vec![SceneAction::Pop];
         }
 
         if self.previous_worlds != Self::get_worlds() {
@@ -199,10 +203,9 @@ impl super::Scene for WorldSelection {
             .is_released()
         {
             log::info!("Creating new world");
-            return super::SceneAction::Push(Box::new(super::worldcreation::WorldCreation::new(
-                assets,
-                window.size(),
-            )));
+            return vec![SceneAction::Push(Box::new(
+                super::worldcreation::WorldCreation::new(assets, window.size()),
+            ))];
         }
 
         if self
@@ -212,14 +215,25 @@ impl super::Scene for WorldSelection {
             .is_released()
         {
             let world_name = self.previous_worlds[self.selected.unwrap()].clone();
-            log::info!("Joining world {}", world_name);
-            return super::SceneAction::Push(Box::new(super::singleplayer::SinglePlayer::load(
+            let singleplayer_instance = super::singleplayer::SinglePlayer::load(
                 gl,
                 assets,
                 window.size(),
-                crate::get_saves_dir().join(world_name),
+                crate::get_saves_dir().join(world_name.clone()),
                 config.read().unwrap().username.clone(),
-            )));
+            );
+            if let Ok(singleplayer_instance) = singleplayer_instance {
+                log::info!("Joining world {}", world_name);
+                return vec![SceneAction::Push(Box::new(singleplayer_instance))];
+            } else {
+                log::error!(
+                    "Failed to load world: {}",
+                    singleplayer_instance.err().unwrap()
+                );
+                return vec![SceneAction::ShowError(
+                    crate::scenes::SceneActionError::FailedLoadingWorld(world_name),
+                )];
+            }
         }
 
         if self
@@ -246,10 +260,10 @@ impl super::Scene for WorldSelection {
             .unwrap()
             .is_released()
         {
-            return super::SceneAction::Pop;
+            return vec![SceneAction::Pop];
         }
 
-        super::SceneAction::None
+        Vec::new()
     }
 
     fn render(

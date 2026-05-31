@@ -25,25 +25,41 @@ use crate::{
 };
 
 pub enum SceneAction {
-    None,
     Push(Box<dyn Scene>),
     Pop,
     Replace(Box<dyn Scene>),
     Quit,
     ReloadAssets,
-    ReloadAssetsAndPop,
+    ShowError(SceneActionError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SceneActionError {
+    Debug,
     FailedReloadingAssets(String),
+    FailedLoadingWorld(String),
+    Unexpected(String),
 }
 
 impl std::fmt::Display for SceneActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            SceneActionError::Debug => write!(
+                f,
+                "Error triggered via F12\n\nLorem molestias ad repellendus iste ut. Laborum sit magni quaerat maxime eum animi Voluptatem animi illum quibusdam nihil consequatur nisi accusamus rem? Vitae repudiandae deserunt molestiae doloremque qui. Voluptates laudantium."
+            ),
             SceneActionError::FailedReloadingAssets(e) => {
-                write!(f, "Failed reloading assets: {}", e)
+                write!(f, "Failed reloading assets\n\n{}", e)
+            }
+            SceneActionError::FailedLoadingWorld(e) => {
+                write!(
+                    f,
+                    "Failed loading '{}'\n\nMore details are likely available in the log file.",
+                    e
+                )
+            }
+            SceneActionError::Unexpected(e) => {
+                write!(f, "An unexpected error occurred, but is not fatal\n\n{}", e)
             }
         }
     }
@@ -221,8 +237,8 @@ pub trait Scene {
     fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, _event: &sdl2::event::Event) {}
 
     /// Updates the scene state.
-    fn update(&mut self, _ctx: &mut SceneUpdateContext) -> SceneAction {
-        SceneAction::None
+    fn update(&mut self, _ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
+        Vec::new()
     }
 
     /// Renders the scene.
@@ -282,8 +298,14 @@ impl SceneManager {
             self.just_switched = false;
             return true;
         }
+        if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F12) {
+            self.result = Err(SceneActionError::Debug);
+            self.last_err_time = self.timer;
+            self.last_err = Some(SceneActionError::Debug);
+            return true;
+        }
         if let Some(current_scene) = self.scenes.last_mut() {
-            let switch = current_scene.update(&mut SceneUpdateContext {
+            let actions = current_scene.update(&mut SceneUpdateContext {
                 gl,
                 ctx,
                 window,
@@ -292,58 +314,56 @@ impl SceneManager {
                 config: &self.config,
                 result: &self.result,
             });
-            let is_switching = !matches!(switch, SceneAction::None | SceneAction::ReloadAssets);
-            match switch {
-                SceneAction::None => self.result = Ok(()),
-                SceneAction::Push(new_scene) => {
-                    self.scenes.push(new_scene);
-                    self.result = Ok(());
-                }
-                SceneAction::Pop => {
-                    self.scenes.pop();
-                    self.result = Ok(());
-                }
-                SceneAction::Replace(new_scene) => {
-                    self.scenes.pop();
-                    self.scenes.push(new_scene);
-                    self.result = Ok(());
-                }
-                SceneAction::Quit => {
-                    self.result = Ok(());
-                    return false;
-                }
-                SceneAction::ReloadAssets => {
-                    log::info!("Reloading assets...");
-                    match Assets::load(gl, window, &self.config.read().unwrap()) {
-                        Ok(new_assets) => {
-                            self.assets = Arc::new(new_assets);
-                            log::info!("Assets reloaded successfully");
-                            self.result = Ok(());
-                        }
-                        Err(e) => {
-                            log::error!("Failed to reload assets: {}", e);
-                            self.result = Err(SceneActionError::FailedReloadingAssets(e));
+            self.result = Ok(());
+            let mut result_override = None;
+            for action in actions {
+                let does_switch = !matches!(
+                    action,
+                    SceneAction::ReloadAssets | SceneAction::ShowError(_)
+                );
+                match action {
+                    SceneAction::Push(new_scene) => {
+                        self.scenes.push(new_scene);
+                        self.result = Ok(());
+                    }
+                    SceneAction::Pop => {
+                        self.scenes.pop();
+                        self.result = Ok(());
+                    }
+                    SceneAction::Replace(new_scene) => {
+                        self.scenes.pop();
+                        self.scenes.push(new_scene);
+                        self.result = Ok(());
+                    }
+                    SceneAction::Quit => {
+                        self.result = Ok(());
+                        return false;
+                    }
+                    SceneAction::ReloadAssets => {
+                        log::info!("Reloading assets...");
+                        match Assets::load(gl, window, &self.config.read().unwrap()) {
+                            Ok(new_assets) => {
+                                self.assets = Arc::new(new_assets);
+                                log::info!("Assets reloaded successfully");
+                                self.result = Ok(());
+                            }
+                            Err(e) => {
+                                log::error!("Failed to reload assets: {}", e);
+                                self.result = Err(SceneActionError::FailedReloadingAssets(e));
+                            }
                         }
                     }
-                }
-                SceneAction::ReloadAssetsAndPop => {
-                    log::info!("Reloading assets...");
-                    match Assets::load(gl, window, &self.config.read().unwrap()) {
-                        Ok(new_assets) => {
-                            self.assets = Arc::new(new_assets);
-                            log::info!("Assets reloaded successfully");
-                            self.result = Ok(());
-                        }
-                        Err(e) => {
-                            log::error!("Failed to reload assets: {}", e);
-                            self.result = Err(SceneActionError::FailedReloadingAssets(e));
-                        }
+                    SceneAction::ShowError(e) => {
+                        result_override = Some(Err(e));
                     }
-                    self.scenes.pop();
+                }
+                if does_switch {
+                    self.just_switched = true;
                 }
             }
-            if is_switching {
-                self.just_switched = true;
+
+            if let Some(result) = result_override {
+                self.result = result;
             }
         }
         if let Err(e) = &self.result {
@@ -366,7 +386,7 @@ impl SceneManager {
 
         if let Some(err) = &self.last_err {
             draw_dialog(
-                &format!("Error: {}", err),
+                &format!("{}", err),
                 &self.assets,
                 ui,
                 self.timer,

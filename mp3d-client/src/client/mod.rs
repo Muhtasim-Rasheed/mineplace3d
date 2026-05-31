@@ -64,7 +64,9 @@ impl LocalConnection {
 
 impl Connection for LocalConnection {
     fn send(&mut self, message: C2SMessage) {
-        self.message = self.server.handle_message(0, message);
+        if let Some(message) = self.server.handle_message(0, message) {
+            self.message = Some(message);
+        }
     }
 
     fn tick(&mut self, tps: u8) {
@@ -72,12 +74,12 @@ impl Connection for LocalConnection {
     }
 
     fn receive(&mut self) -> Vec<S2CMessage> {
-        if let Some(user_id) = self.server.connections.get(&0)
+        if let Some(message) = self.message.take() {
+            vec![message]
+        } else if let Some(user_id) = self.server.connections.get(&0)
             && let Some(session) = self.server.sessions.get_mut(user_id)
         {
             std::mem::take(&mut session.pending_messages)
-        } else if let Some(message) = self.message.take() {
-            vec![message]
         } else {
             vec![]
         }

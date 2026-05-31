@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::{Assets, SceneUpdateContext},
+    scenes::{Assets, SceneAction, SceneUpdateContext},
 };
 
 pub struct WorldCreation {
@@ -55,7 +55,6 @@ impl WorldCreation {
         world_options.add_widget(seed_input);
 
         let cancel_button = Button::new("Cancel", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
         let create_button = Button::new("Create", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         let mut buttons = Row::new(60.0, Alignment::Center, Vec4::ZERO, Justification::Start);
@@ -87,15 +86,19 @@ impl WorldCreation {
 }
 
 impl super::Scene for WorldCreation {
-    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
         let SceneUpdateContext {
             gl,
             ctx,
             window,
+            sdl_ctx,
             assets,
             config,
             ..
         } = ctx;
+
+        window.set_title("Mineplace3D - Create world").unwrap();
+        sdl_ctx.mouse().set_relative_mouse_mode(false);
 
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
@@ -109,7 +112,7 @@ impl super::Scene for WorldCreation {
             .pressed
             .contains(&sdl2::keyboard::Keycode::Escape)
         {
-            return super::SceneAction::Pop;
+            return vec![SceneAction::Pop];
         }
 
         self.world_path = crate::get_saves_dir().join(
@@ -137,7 +140,7 @@ impl super::Scene for WorldCreation {
         if let Some(cancel_button) = self.container.find_widget::<Button>(&[2, 0])
             && cancel_button.is_pressed()
         {
-            return super::SceneAction::Pop;
+            return vec![SceneAction::Pop];
         }
 
         let seed =
@@ -162,17 +165,19 @@ impl super::Scene for WorldCreation {
                 self.world_path.display(),
                 seed
             );
-            return super::SceneAction::Replace(Box::new(super::singleplayer::SinglePlayer::new(
-                gl,
-                assets,
-                window.size(),
-                seed,
-                self.world_path.clone(),
-                config.read().unwrap().username.clone(),
-            )));
+            return vec![SceneAction::Replace(Box::new(
+                super::singleplayer::SinglePlayer::new(
+                    gl,
+                    assets,
+                    window.size(),
+                    seed,
+                    self.world_path.clone(),
+                    config.read().unwrap().username.clone(),
+                ),
+            ))];
         }
 
-        super::SceneAction::None
+        Vec::new()
     }
 
     fn render(

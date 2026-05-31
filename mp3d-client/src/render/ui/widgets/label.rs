@@ -162,12 +162,11 @@ impl Font {
     pub fn measure_text(&self, text: &str, params: ColorlessTextParams) -> Vec2 {
         let layout = self.layout_text(text, params);
 
-        let char_size = self.char_size(params.font_size);
-
         let mut max_x = 0.0_f32;
-        let mut max_y = char_size.y;
+        let mut max_y = params.font_size;
 
         for (pos, c) in layout {
+            let char_size = self.char_size(params.font_size, c);
             max_x = max_x.max(pos.x + self.char_width(params.font_size, c));
             max_y = max_y.max(pos.y + char_size.y);
         }
@@ -182,16 +181,17 @@ impl Font {
         }
     }
 
-    fn char_size(&self, font_size: f32) -> Vec2 {
-        Vec2::new(font_size * (self.char_size.x / self.char_size.y), font_size)
+    fn char_size(&self, font_size: f32, c: char) -> Vec2 {
+        let glyph_count = self.glyph_indices(c).map(|g| g.len()).unwrap_or(1);
+
+        Vec2::new(
+            font_size * (self.char_size.x / self.char_size.y) * glyph_count as f32,
+            font_size,
+        )
     }
 
     fn char_width(&self, font_size: f32, c: char) -> f32 {
-        let glyph_indices_len = self
-            .glyph_indices(c)
-            .map(|indices| indices.len())
-            .unwrap_or(0);
-        font_size * (self.char_size.x / self.char_size.y) * glyph_indices_len as f32
+        self.char_size(font_size, c).x - self.char_back(font_size, c)
     }
 
     pub fn text(&self, text: &str, params: TextParams) -> Vec<DrawCommand> {
@@ -199,12 +199,14 @@ impl Font {
 
         for (pos, c) in self.layout_text(text, params.without_color()) {
             if let Some(uvs) = self.glyph_uvs(c) {
-                let char_size = self.char_size(params.font_size);
+                let char_size = self.char_size(params.font_size, c);
                 let pos = pos - Vec2::new(self.char_back(params.font_size, c), 0.0);
 
-                for uv_rect in uvs {
-                    let pos_min = pos;
-                    let pos_max = pos + char_size;
+                let glyph_width = char_size.x / uvs.len() as f32;
+
+                for (i, uv_rect) in uvs.into_iter().enumerate() {
+                    let pos_min = pos + Vec2::new(i as f32 * glyph_width, 0.0);
+                    let pos_max = pos_min + Vec2::new(glyph_width, char_size.y);
 
                     commands.push(DrawCommand::Quad {
                         rect: [pos_min, pos_max],

@@ -5,7 +5,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::{Assets, SceneUpdateContext},
+    scenes::{Assets, SceneAction, SceneUpdateContext},
 };
 
 pub struct PackSelection {
@@ -114,14 +114,19 @@ impl PackSelection {
 }
 
 impl super::Scene for PackSelection {
-    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
         let SceneUpdateContext {
             ctx,
             window,
+            sdl_ctx,
             assets,
             config,
             ..
         } = ctx;
+
+        window.set_title("Mineplace3D - Resource packs").unwrap();
+        sdl_ctx.mouse().set_relative_mouse_mode(false);
+
         let new_available_packs = Self::get_packs();
         if self.available_packs != new_available_packs {
             self.available_packs = new_available_packs;
@@ -313,10 +318,10 @@ impl super::Scene for PackSelection {
         {
             config.read().unwrap().save();
 
-            return super::SceneAction::ReloadAssetsAndPop;
+            return vec![SceneAction::ReloadAssets, SceneAction::Pop];
         }
 
-        super::SceneAction::None
+        Vec::new()
     }
 
     fn render(

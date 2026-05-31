@@ -2,6 +2,7 @@
 //! a world from a save file.
 
 /// Errors that can occur when loading a world from a save file.
+#[derive(Clone, PartialEq, Eq)]
 pub enum WorldLoadError {
     MissingSaveFile(std::path::PathBuf),
     InvalidSaveFormat(String),

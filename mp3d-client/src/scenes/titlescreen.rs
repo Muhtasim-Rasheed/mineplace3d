@@ -7,7 +7,7 @@ use glow::HasContext;
 
 use crate::{
     render::ui::{uirenderer::UIRenderer, widgets::*},
-    scenes::{Assets, SceneUpdateContext},
+    scenes::{Assets, SceneAction, SceneUpdateContext},
 };
 
 static SPLASHES: std::sync::OnceLock<Vec<(&str, Vec4)>> = std::sync::OnceLock::new();
@@ -146,45 +146,7 @@ impl TitleScreen {
 }
 
 impl super::Scene for TitleScreen {
-    fn handle_event(&mut self, _gl: &std::sync::Arc<glow::Context>, event: &sdl2::event::Event) {
-        if let sdl2::event::Event::Window { win_event, .. } = event
-            && let sdl2::event::WindowEvent::Resized(width, _) = win_event
-        {
-            let container_padding_left_right = self.container.padding.x + self.container.padding.y;
-            self.container.get_widget_mut::<Row>(2).unwrap().min_size =
-                Vec2::new(*width as f32 - container_padding_left_right, 0.0);
-
-            if *width >= 1050 {
-                self.container
-                    .find_widget_mut::<Button>(&[1, 0])
-                    .unwrap()
-                    .size = Vec2::new(1010.0, 80.0);
-                self.container
-                    .find_widget_mut::<Button>(&[1, 1, 0])
-                    .unwrap()
-                    .size = Vec2::new(500.0, 80.0);
-                self.container
-                    .find_widget_mut::<Button>(&[1, 1, 1])
-                    .unwrap()
-                    .size = Vec2::new(500.0, 80.0);
-            } else {
-                self.container
-                    .find_widget_mut::<Button>(&[1, 0])
-                    .unwrap()
-                    .size = Vec2::new(*width as f32 - 40.0, 80.0);
-                self.container
-                    .find_widget_mut::<Button>(&[1, 1, 0])
-                    .unwrap()
-                    .size = Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0);
-                self.container
-                    .find_widget_mut::<Button>(&[1, 1, 1])
-                    .unwrap()
-                    .size = Vec2::new((*width as f32 - 40.0 - 5.0) / 2.0, 80.0);
-            }
-        }
-    }
-
-    fn update(&mut self, ctx: &mut SceneUpdateContext) -> super::SceneAction {
+    fn update(&mut self, ctx: &mut SceneUpdateContext) -> Vec<SceneAction> {
         let SceneUpdateContext {
             ctx,
             window,
@@ -196,6 +158,40 @@ impl super::Scene for TitleScreen {
 
         window.set_title("Mineplace3D").unwrap();
         sdl_ctx.mouse().set_relative_mouse_mode(false);
+
+        let new_size = window.size();
+        let container_padding_left_right = self.container.padding.x + self.container.padding.y;
+        self.container.get_widget_mut::<Row>(2).unwrap().min_size =
+            Vec2::new(new_size.0 as f32 - container_padding_left_right, 0.0);
+
+        if new_size.0 >= 1050 {
+            self.container
+                .find_widget_mut::<Button>(&[1, 0])
+                .unwrap()
+                .size = Vec2::new(1010.0, 80.0);
+            self.container
+                .find_widget_mut::<Button>(&[1, 1, 0])
+                .unwrap()
+                .size = Vec2::new(500.0, 80.0);
+            self.container
+                .find_widget_mut::<Button>(&[1, 1, 1])
+                .unwrap()
+                .size = Vec2::new(500.0, 80.0);
+        } else {
+            self.container
+                .find_widget_mut::<Button>(&[1, 0])
+                .unwrap()
+                .size = Vec2::new(new_size.0 as f32 - 40.0, 80.0);
+            self.container
+                .find_widget_mut::<Button>(&[1, 1, 0])
+                .unwrap()
+                .size = Vec2::new((new_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0);
+            self.container
+                .find_widget_mut::<Button>(&[1, 1, 1])
+                .unwrap()
+                .size = Vec2::new((new_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0);
+        }
+
         self.container.update(ctx);
         self.container.layout(&LayoutContext {
             max_size: Vec2::new(window.size().0 as f32, window.size().1 as f32),
@@ -208,9 +204,9 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 0])
             .is_some_and(|btn| btn.is_released())
         {
-            return super::SceneAction::Push(Box::new(
+            return vec![SceneAction::Push(Box::new(
                 crate::scenes::worldselection::WorldSelection::new(assets, window.size()),
-            ));
+            ))];
         }
 
         if self
@@ -218,11 +214,11 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 1, 0])
             .is_some_and(|btn| btn.is_released())
         {
-            return super::SceneAction::Push(Box::new(super::options::Options::new(
+            return vec![SceneAction::Push(Box::new(super::options::Options::new(
                 assets,
                 window.size(),
                 config,
-            )));
+            )))];
         }
 
         if self
@@ -230,9 +226,10 @@ impl super::Scene for TitleScreen {
             .find_widget::<Button>(&[1, 1, 1])
             .is_some_and(|btn| btn.is_released())
         {
-            return super::SceneAction::Quit;
+            return vec![SceneAction::Quit];
         }
-        super::SceneAction::None
+
+        Vec::new()
     }
 
     fn render(
