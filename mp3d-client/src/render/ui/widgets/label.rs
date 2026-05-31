@@ -268,6 +268,7 @@ pub struct Label {
     pub position: Vec2,
     pub font_size: f32,
     pub color: Vec4,
+    pub wrap: Option<f32>,
 }
 
 impl Label {
@@ -277,7 +278,13 @@ impl Label {
             position: Vec2::ZERO,
             font_size,
             color,
+            wrap: None,
         }
+    }
+
+    pub fn with_wrap(mut self, wrap_width: f32) -> Self {
+        self.wrap = Some(wrap_width);
+        self
     }
 }
 
@@ -295,7 +302,7 @@ impl Widget for Label {
             &self.text,
             ColorlessTextParams {
                 font_size: self.font_size,
-                ..Default::default()
+                word_wrap_width: self.wrap,
             },
         )
     }
@@ -325,7 +332,7 @@ impl Widget for Label {
                 TextParams {
                     font_size: self.font_size,
                     color: self.color,
-                    ..Default::default()
+                    word_wrap_width: self.wrap,
                 },
             )
             .into_iter()

@@ -8,11 +8,15 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use glow::HasContext;
 use image::GenericImageView;
 use mp3d_core::block::BlockState;
 
 use crate::{
-    render::ui::{uirenderer::UIRenderer, widgets::Font},
+    render::{
+        dialog::draw_dialog,
+        ui::{uirenderer::UIRenderer, widgets::Font},
+    },
     resource::{
         ResourceManager,
         block::{BlockModel, States, TextureAtlas},
@@ -31,10 +35,23 @@ pub enum SceneAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SceneActionResult {
-    Ok,
+pub enum SceneActionError {
     FailedReloadingAssets(String),
 }
+
+impl std::fmt::Display for SceneActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SceneActionError::FailedReloadingAssets(e) => {
+                write!(f, "Failed reloading assets: {}", e)
+            }
+        }
+    }
+}
+
+impl std::error::Error for SceneActionError {}
+
+pub type SceneActionResult = Result<(), SceneActionError>;
 
 /// Assets given to scenes during update and render, which they can use to access resources such
 /// as block textures and models.
@@ -187,6 +204,7 @@ impl Assets {
     }
 }
 
+#[allow(unused)]
 pub struct SceneUpdateContext<'a> {
     pub gl: &'a Arc<glow::Context>,
     pub ctx: &'a crate::other::UpdateContext<'a>,
@@ -194,7 +212,6 @@ pub struct SceneUpdateContext<'a> {
     pub sdl_ctx: &'a sdl2::Sdl,
     pub assets: &'a Arc<Assets>,
     pub config: &'a Arc<RwLock<ClientConfig>>,
-    #[allow(unused)]
     pub result: &'a SceneActionResult,
 }
 
@@ -224,6 +241,9 @@ pub struct SceneManager {
     config: Arc<RwLock<ClientConfig>>,
     scenes: Vec<Box<dyn Scene>>,
     just_switched: bool,
+    timer: f32,
+    last_err_time: f32,
+    last_err: Option<SceneActionError>,
     result: SceneActionResult,
 }
 
@@ -235,7 +255,10 @@ impl SceneManager {
             config: Arc::new(RwLock::new(config)),
             scenes: vec![initial_scene],
             just_switched: false,
-            result: SceneActionResult::Ok,
+            timer: 0.0,
+            last_err_time: 0.0,
+            last_err: None,
+            result: Ok(()),
         }
     }
 
@@ -254,6 +277,7 @@ impl SceneManager {
         window: &mut sdl2::video::Window,
         sdl_ctx: &sdl2::Sdl,
     ) -> bool {
+        self.timer += ctx.delta_time;
         if self.just_switched {
             self.just_switched = false;
             return true;
@@ -270,22 +294,22 @@ impl SceneManager {
             });
             let is_switching = !matches!(switch, SceneAction::None | SceneAction::ReloadAssets);
             match switch {
-                SceneAction::None => self.result = SceneActionResult::Ok,
+                SceneAction::None => self.result = Ok(()),
                 SceneAction::Push(new_scene) => {
                     self.scenes.push(new_scene);
-                    self.result = SceneActionResult::Ok;
+                    self.result = Ok(());
                 }
                 SceneAction::Pop => {
                     self.scenes.pop();
-                    self.result = SceneActionResult::Ok;
+                    self.result = Ok(());
                 }
                 SceneAction::Replace(new_scene) => {
                     self.scenes.pop();
                     self.scenes.push(new_scene);
-                    self.result = SceneActionResult::Ok;
+                    self.result = Ok(());
                 }
                 SceneAction::Quit => {
-                    self.result = SceneActionResult::Ok;
+                    self.result = Ok(());
                     return false;
                 }
                 SceneAction::ReloadAssets => {
@@ -294,11 +318,11 @@ impl SceneManager {
                         Ok(new_assets) => {
                             self.assets = Arc::new(new_assets);
                             log::info!("Assets reloaded successfully");
-                            self.result = SceneActionResult::Ok;
+                            self.result = Ok(());
                         }
                         Err(e) => {
                             log::error!("Failed to reload assets: {}", e);
-                            self.result = SceneActionResult::FailedReloadingAssets(e);
+                            self.result = Err(SceneActionError::FailedReloadingAssets(e));
                         }
                     }
                 }
@@ -308,11 +332,11 @@ impl SceneManager {
                         Ok(new_assets) => {
                             self.assets = Arc::new(new_assets);
                             log::info!("Assets reloaded successfully");
-                            self.result = SceneActionResult::Ok;
+                            self.result = Ok(());
                         }
                         Err(e) => {
                             log::error!("Failed to reload assets: {}", e);
-                            self.result = SceneActionResult::FailedReloadingAssets(e);
+                            self.result = Err(SceneActionError::FailedReloadingAssets(e));
                         }
                     }
                     self.scenes.pop();
@@ -322,6 +346,10 @@ impl SceneManager {
                 self.just_switched = true;
             }
         }
+        if let Err(e) = &self.result {
+            self.last_err_time = self.timer;
+            self.last_err = Some(e.clone());
+        }
         true
     }
 
@@ -329,6 +357,21 @@ impl SceneManager {
     pub fn render(&mut self, gl: &Arc<glow::Context>, ui: &mut UIRenderer) {
         if let Some(current_scene) = self.scenes.last_mut() {
             current_scene.render(gl, ui, &self.assets, &self.config);
+        }
+
+        unsafe {
+            gl.clear(glow::DEPTH_BUFFER_BIT);
+            gl.disable(glow::DEPTH_TEST);
+        }
+
+        if let Some(err) = &self.last_err {
+            draw_dialog(
+                &format!("Error: {}", err),
+                &self.assets,
+                ui,
+                self.timer,
+                self.last_err_time,
+            );
         }
     }
 }

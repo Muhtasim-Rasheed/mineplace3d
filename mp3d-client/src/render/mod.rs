@@ -4,6 +4,7 @@
 //! shaders.
 
 pub mod clouds;
+pub mod dialog;
 pub mod entities;
 pub mod meshing;
 pub mod particles;

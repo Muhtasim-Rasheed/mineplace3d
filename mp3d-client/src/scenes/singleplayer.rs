@@ -122,11 +122,6 @@ impl SinglePlayer {
     ) -> Self {
         let connection = LocalConnection::new(server);
         let client = Client::new(connection, username, None);
-
-        let return_to_game = Button::new("Return to Game", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-        let save = Button::new("Save and Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-        let quit = Button::new("Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
         let layout_ctx = crate::render::ui::widgets::LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
@@ -176,6 +171,10 @@ impl SinglePlayer {
         for i in 0..9 {
             hotbar_row.add_widget(HotbarSlot::new(&client.player.inventory, i + 3 * 9));
         }
+
+        let return_to_game = Button::new("Return to Game", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+        let save = Button::new("Save and Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+        let quit = Button::new("Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
 
         let mut pause_screen = Column::new(
             20.0,

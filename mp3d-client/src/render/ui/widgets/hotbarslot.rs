@@ -27,7 +27,7 @@ impl HotbarSlot {
         let nineslice = NineSlice::new(
             [UVec2::new(32, 16), UVec2::new(16, 16)],
             HOTBAR_SLOT_SIZE,
-            UVec4::new(3, 3, 3, 4),
+            UVec4::new(3, 3, 3, 5),
             4,
             1,
             Vec4::ONE,
