@@ -13,27 +13,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout main branch
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Set up Node.js (for JSON handling)
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Extract release info
+      - name: Extract version info
         id: release
         run: |
           echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           echo "DATE=$(date -u +"%Y-%m-%dT%H:%M:%S%:z")" >> $GITHUB_OUTPUT
 
-      - name: Fetch release assets
-        id: assets
+      - name: Fetch release assets (optional fallback)
         run: |
           curl -s \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.release.outputs.TAG }} \
-            > release.json
+            > release.json || echo "{}" > release.json
 
       - name: Update manifest
         run: |
@@ -41,29 +45,39 @@ jobs:
           const fs = require('fs');
 
           const manifestPath = 'docs/manifest.json';
+
           const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
           const release = JSON.parse(fs.readFileSync('release.json', 'utf8'));
 
-          const version = release.tag_name.replace(/^v/, '');
+          const version = process.env.VERSION;
 
           const files = {};
 
-          for (const asset of release.assets) {
-            const name = asset.name;
+          if (release.assets && Array.isArray(release.assets)) {
+            for (const asset of release.assets) {
+              const name = asset.name;
 
-            // Example: mineplace3d-windows-x86_64.exe
-            const match = name.match(/mineplace3d-(.+)\.(exe|app)?$/);
+              // match: mineplace3d-windows-x86_64.exe
+              const match = name.match(/^mineplace3d-(.+)\.(exe|app|zip|tar\.gz)?$/);
 
-            if (!match) continue;
+              if (!match) continue;
 
-            const platform = match[1].replace('-', '_');
-            files[platform] = name;
+              const platform = match[1].replace(/-/g, "_");
+              files[platform] = {
+                file: name,
+                url: asset.browser_download_url
+              };
+            }
           }
 
+          manifest.versions = manifest.versions || {};
+
           manifest.versions[version] = {
-            uploaded_on: release.published_at,
+            uploaded_on: release.published_at || new Date().toISOString(),
             files
           };
+
+          manifest.latest = manifest.latest || {};
 
           if (version.includes("alpha")) {
             manifest.latest.alpha = version;
@@ -75,6 +89,8 @@ jobs:
 
           fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
           EOF
+        env:
+          VERSION: ${{ steps.release.outputs.VERSION }}
 
       - name: Commit changes
         run: |
@@ -82,5 +98,8 @@ jobs:
           git config user.email "github-actions@github.com"
 
           git add docs/manifest.json
-          git commit -m "Update manifest for ${{ steps.release.outputs.TAG }}" || echo "No changes"
-          git push
+
+          git diff --cached --quiet && echo "No changes" && exit 0
+
+          git commit -m "Update manifest for ${{ steps.release.outputs.TAG }}"
+          git push origin main
