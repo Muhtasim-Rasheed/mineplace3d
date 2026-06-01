@@ -1,7 +1,6 @@
 use glam::*;
 use glfw::MouseButton;
 use noise::{NoiseFn, OpenSimplex, Seedable};
-use rand::{Rng, SeedableRng, rngs::StdRng};
 use rayon::prelude::*;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -193,7 +192,6 @@ pub enum ChunkResult {
         cy: i32,
         cz: i32,
         chunk: Chunk,
-        outside_blocks: HashMap<(IVec3, IVec3), Block>,
     },
 }
 
@@ -240,8 +238,6 @@ pub enum Block {
     PlanksStairsE    = PARTIAL_STAIRS_E    | 0x0003,
     PlanksStairsW    = PARTIAL_STAIRS_W    | 0x0003,
     Stone            = FULL_BLOCK          | 0x0004,
-    OakLog           = FULL_BLOCK          | 0x0005,
-    Leaves           = FULL_BLOCK          | 0x0006,
     CobbleStone      = FULL_BLOCK          | 0x0007,
     StoneSlabTop     = PARTIAL_SLAB_TOP    | 0x0007,
     StoneSlabBottom  = PARTIAL_SLAB_BOTTOM | 0x0007,
@@ -278,7 +274,7 @@ impl Block {
     }
 
     pub fn is_transparent(&self) -> bool {
-        matches!(self, Block::Air | Block::Leaves | Block::Glass)
+        matches!(self, Block::Air | Block::Glass)
     }
 
     pub fn block_type(&self) -> BlockType {
@@ -493,8 +489,7 @@ impl Chunk {
         noise: &OpenSimplex,
         cave_noise: &OpenSimplex,
         biome_noise: &OpenSimplex,
-    ) -> (Self, HashMap<(IVec3, IVec3), Block>) {
-        let mut rng = StdRng::seed_from_u64(noise.seed() as u64);
+    ) -> Self {
         let mut blocks = vec![Block::Air; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         let mut foliage_color = vec![Vec3::splat(0.0); CHUNK_SIZE * CHUNK_SIZE];
         fn fractal_noise(
@@ -577,8 +572,6 @@ impl Chunk {
             }
         }
 
-        let mut outside_blocks = HashMap::new();
-
         fn get_chunk_and_local_coords(x: i32, y: i32, z: i32) -> (IVec3, usize, usize, usize) {
             let chunk_x = x.div_euclid(CHUNK_SIZE as i32);
             let chunk_y = y.div_euclid(CHUNK_SIZE as i32);
@@ -596,109 +589,12 @@ impl Chunk {
             )
         }
 
-        fn place_block(
-            blocks: &mut Vec<Block>,
-            outside_blocks: &mut HashMap<(IVec3, IVec3), Block>,
-            chunk_pos: IVec3,
-            target_chunk: IVec3,
-            local: IVec3,
-            block: Block,
-        ) {
-            if target_chunk == chunk_pos {
-                if local.y >= 0 && local.y < CHUNK_SIZE as i32 {
-                    blocks[local.x as usize * CHUNK_SIZE * CHUNK_SIZE
-                        + local.y as usize * CHUNK_SIZE
-                        + local.z as usize] = block;
-                }
-            } else {
-                outside_blocks.entry((target_chunk, local)).or_insert(block);
-            }
+        Chunk {
+            is_dirty: true,
+            cached_mesh: None,
+            blocks,
+            foliage_color,
         }
-
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                for y in (0..CHUNK_SIZE).rev() {
-                    let block = blocks[x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z];
-                    if block == Block::Grass && rng.random_bool(0.005) {
-                        let tree_height = rng.random_range(4..7);
-                        let global_x = cx * CHUNK_SIZE as i32 + x as i32;
-                        let global_z = cz * CHUNK_SIZE as i32 + z as i32;
-                        let global_y = cy * CHUNK_SIZE as i32 + y as i32;
-
-                        for ty in 1..=tree_height {
-                            let tree_y = global_y + ty;
-                            let (target_chunk_pos, local_x, local_y, local_z) =
-                                get_chunk_and_local_coords(global_x, tree_y, global_z);
-
-                            place_block(
-                                &mut blocks,
-                                &mut outside_blocks,
-                                IVec3::new(cx, cy, cz),
-                                target_chunk_pos,
-                                IVec3::new(local_x as i32, local_y as i32, local_z as i32),
-                                Block::OakLog,
-                            );
-                        }
-
-                        let leaf_start = global_y + tree_height;
-                        for lx_offset in -2i32..=2 {
-                            for lz_offset in -2i32..=2 {
-                                for ly_offset in -2i32..=2 {
-                                    if lx_offset.abs() + lz_offset.abs() + ly_offset.abs() <= 3 {
-                                        let lx_global = global_x + lx_offset;
-                                        let lz_global = global_z + lz_offset;
-                                        let ly_global = leaf_start + ly_offset;
-
-                                        let (target_chunk_pos, local_x, local_y, local_z) =
-                                            get_chunk_and_local_coords(
-                                                lx_global, ly_global, lz_global,
-                                            );
-
-                                        let is_air = if target_chunk_pos == IVec3::new(cx, cy, cz) {
-                                            local_y < CHUNK_SIZE
-                                                && blocks[local_x * CHUNK_SIZE * CHUNK_SIZE
-                                                    + local_y * CHUNK_SIZE
-                                                    + local_z]
-                                                    == Block::Air
-                                        } else {
-                                            true
-                                        };
-
-                                        if is_air {
-                                            place_block(
-                                                &mut blocks,
-                                                &mut outside_blocks,
-                                                IVec3::new(cx, cy, cz),
-                                                target_chunk_pos,
-                                                IVec3::new(
-                                                    local_x as i32,
-                                                    local_y as i32,
-                                                    local_z as i32,
-                                                ),
-                                                Block::Leaves,
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    } else if block != Block::Air {
-                        break;
-                    }
-                }
-            }
-        }
-
-        (
-            Chunk {
-                is_dirty: true,
-                cached_mesh: None,
-                blocks,
-                foliage_color,
-            },
-            outside_blocks,
-        )
     }
 
     pub fn get_block(&self, x: usize, y: usize, z: usize) -> &Block {
@@ -820,16 +716,12 @@ impl Chunk {
                             let ny = y as isize + face_template.normal.y as isize;
                             let nz = z as isize + face_template.normal.z as isize;
 
-                            let neighbour = neighbour_block_at(nx, ny, nz, blocks, neighbour_chunks);
+                            let neighbour =
+                                neighbour_block_at(nx, ny, nz, blocks, neighbour_chunks);
                             if should_occlude(block.block_type(), neighbour.block_type()) {
                                 continue;
                             }
-                            let face = Face::use_template(
-                                *face_template,
-                                cube[0],
-                                cube[1],
-                                uvs[i],
-                            );
+                            let face = Face::use_template(*face_template, cube[0], cube[1], uvs[i]);
 
                             // Push 4 vertices
                             for i in 0..4 {
@@ -993,12 +885,7 @@ impl Entity for Player {
                 _ => {}
             }
         }
-        self.selected_block = cast_ray(
-            world,
-            self.camera_pos(),
-            self.forward,
-            5.0,
-        );
+        self.selected_block = cast_ray(world, self.camera_pos(), self.forward, 5.0);
 
         let player_accel = 0.9;
         let jump_accel = 0.8 * 10.0;
@@ -1124,7 +1011,7 @@ impl World {
             for y in -1..=3 {
                 for z in -3..=3 {
                     let res = Chunk::new(x, y, z, &noise, &cave_noise, &biome_noise);
-                    chunks.insert(ivec3(x, y, z), res.0);
+                    chunks.insert(ivec3(x, y, z), res);
                 }
             }
         }
@@ -1205,14 +1092,7 @@ impl World {
         self.chunks.contains_key(&ivec3(x, y, z))
     }
 
-    pub fn add_chunk(
-        &mut self,
-        x: i32,
-        y: i32,
-        z: i32,
-        chunk: Chunk,
-        outside_blocks: HashMap<(IVec3, IVec3), Block>,
-    ) {
+    pub fn add_chunk(&mut self, x: i32, y: i32, z: i32, chunk: Chunk) {
         let mut chunk = chunk;
         for local_x in 0..CHUNK_SIZE {
             for local_y in 0..CHUNK_SIZE {
@@ -1226,24 +1106,13 @@ impl World {
                 }
             }
         }
-        for ((chunk_pos, pos), block) in outside_blocks.into_iter() {
-            let local_pos = pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
-
-            self.get_chunk(chunk_pos.x, chunk_pos.y, chunk_pos.z)
-                .set_block(
-                    local_pos.x as usize,
-                    local_pos.y as usize,
-                    local_pos.z as usize,
-                    block,
-                );
-        }
         self.chunks.insert(ivec3(x, y, z), chunk);
     }
 
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
         self.chunks.entry(ivec3(x, y, z)).or_insert_with(|| {
             let res = Chunk::new(x, y, z, &self.noise, &self.cave_noise, &self.biome_noise);
-            res.0
+            res
         })
     }
 
@@ -1285,7 +1154,8 @@ impl World {
                     if dx.abs() + dy.abs() + dz.abs() != 1 {
                         continue;
                     }
-                    self.get_chunk(dx + chunk_x, dy + chunk_y, dz + chunk_z).is_dirty = true;
+                    self.get_chunk(dx + chunk_x, dy + chunk_y, dz + chunk_z)
+                        .is_dirty = true;
                 }
             }
         }
@@ -1365,7 +1235,6 @@ impl World {
         pos.z = new_pos.z;
         if self.is_player_colliding(pos, player_width, player_height) {
             collided.2 = true;
-            pos.z = old_pos.z;
         }
 
         collided
@@ -1386,7 +1255,10 @@ impl World {
                     d: self.chunks.get(&(chunk_pos + ivec3(0, -1, 0))),
                 };
                 let chunk_pos = *chunk_pos;
-                (chunk_pos, chunk.generate_chunk_mesh(chunk_pos, &neighbour_chunks, &self.model_defs))
+                (
+                    chunk_pos,
+                    chunk.generate_chunk_mesh(chunk_pos, &neighbour_chunks, &self.model_defs),
+                )
             })
             .collect();
         let results: Vec<_> = results

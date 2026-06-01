@@ -11,7 +11,6 @@ use crate::texture::Texture;
 use crate::ui::*;
 
 mod asset;
-mod framebuffer;
 mod game;
 mod mesh;
 mod shader;
@@ -37,7 +36,7 @@ const WINDOW_HEIGHT: u32 = 900;
 
 const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE - 1;
 
-const PLACABLE_BLOCKS: [Block; 21] = [
+const PLACABLE_BLOCKS: [Block; 19] = [
     Block::Grass,
     Block::Dirt,
     Block::Planks,
@@ -47,8 +46,6 @@ const PLACABLE_BLOCKS: [Block; 21] = [
     Block::PlanksStairsS,
     Block::PlanksStairsE,
     Block::PlanksStairsW,
-    Block::OakLog,
-    Block::Leaves,
     Block::CobbleStone,
     Block::StoneSlabTop,
     Block::StoneSlabBottom,
@@ -171,8 +168,6 @@ fn main() {
     shader!("block/" -> VERT_SHADER & FRAG_SHADER -> shader_program);
     shader!("outline/" -> OUTLINE_VERT_SHADER & OUTLINE_FRAG_SHADER -> outline_shader_program);
     shader!("cloud/" -> CLOUD_VERT_SHADER & CLOUD_FRAG_SHADER -> cloud_shader_program);
-    shader!("ssao/" -> SSAO_VERT_SHADER & SSAO_FRAG_SHADER -> ssao_shader_program);
-    shader!("postprocessing/" -> POSTPROCESSING_VERT_SHADER & POSTPROCESSING_FRAG_SHADER -> postprocessing_shader_program);
     shader!("ui/" -> UI_VERT_SHADER & UI_FRAG_SHADER -> ui_shader_program);
 
     let (task_sender, task_receiver) = mpsc::channel::<ChunkTask>();
@@ -188,15 +183,8 @@ fn main() {
                     cave_noise,
                     biome_noise,
                 } => {
-                    let (chunk, outside_blocks) =
-                        game::Chunk::new(cx, cy, cz, &noise, &cave_noise, &biome_noise);
-                    let result = ChunkResult::Generated {
-                        cx,
-                        cy,
-                        cz,
-                        chunk,
-                        outside_blocks,
-                    };
+                    let chunk = game::Chunk::new(cx, cy, cz, &noise, &cave_noise, &biome_noise);
+                    let result = ChunkResult::Generated { cx, cy, cz, chunk };
                     result_sender.send(result).unwrap();
                 }
             }
@@ -256,52 +244,6 @@ fn main() {
     let mut grab: bool = false;
 
     let mut time = 0.0;
-
-    let framebuffer = framebuffer::Framebuffer::new(
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        true,
-        framebuffer::ColorFormat::UnsignedRGBA,
-    );
-    framebuffer.bind();
-    unsafe {
-        gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
-    }
-    framebuffer::Framebuffer::unbind();
-    let ssao_framebuffer = framebuffer::Framebuffer::new(
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        false,
-        framebuffer::ColorFormat::FloatR,
-    );
-    ssao_framebuffer.bind();
-    unsafe {
-        gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
-    }
-    framebuffer::Framebuffer::unbind();
-    let mut ssao_samples = [vec3(0.0, 0.0, 0.0); 64];
-    for i in 0..64 {
-        let scale = i as f32 / 64.0;
-        let mut sample = vec3(
-            rand::random::<f32>() * 2.0 - 1.0,
-            rand::random::<f32>() * 2.0 - 1.0,
-            rand::random::<f32>(),
-        );
-        sample = sample.normalize() * rand::random::<f32>();
-        let lerp = 0.1 + 0.9 * scale * scale;
-        sample *= lerp;
-        ssao_samples[i] = sample;
-    }
-    let mut ssao_noise_data = [0u8; 4 * 16];
-    for i in 0..16 {
-        let x = rand::random::<f32>() * 2.0 - 1.0;
-        let y = rand::random::<f32>() * 2.0 - 1.0;
-        ssao_noise_data[i * 4 + 0] = ((x * 0.5 + 0.5) * 255.0) as u8;
-        ssao_noise_data[i * 4 + 1] = ((y * 0.5 + 0.5) * 255.0) as u8;
-        ssao_noise_data[i * 4 + 2] = 0;
-        ssao_noise_data[i * 4 + 3] = 0;
-    }
-    let ssao_noise_texture = Texture::new(4, 4, ssao_noise_data.as_slice());
 
     let cloud_plane = game::make_cloud_plane();
     let cloud_texture = game::cloud_texture_gen(UVec2::splat(144), world.seed());
@@ -388,7 +330,11 @@ Current Block: {}"#,
                 .unwrap_or(&"Unknown".to_string())
         );
         debug_mesh = font.build(&text, 50.0, 50.0, 24.0);
-        view = Mat4::look_at_rh(player.camera_pos(), player.camera_pos() + player.forward, player.up);
+        view = Mat4::look_at_rh(
+            player.camera_pos(),
+            player.camera_pos() + player.forward,
+            player.up,
+        );
 
         request_chunks_around_player(
             player.position,
@@ -398,15 +344,8 @@ Current Block: {}"#,
         );
         queued_chunks
             .retain(|&chunk_pos| !world.chunk_exists(chunk_pos.x, chunk_pos.y, chunk_pos.z));
-        while let Ok(ChunkResult::Generated {
-            cx,
-            cy,
-            cz,
-            chunk,
-            outside_blocks,
-        }) = result_receiver.try_recv()
-        {
-            world.add_chunk(cx, cy, cz, chunk, outside_blocks);
+        while let Ok(ChunkResult::Generated { cx, cy, cz, chunk }) = result_receiver.try_recv() {
+            world.add_chunk(cx, cy, cz, chunk);
         }
         world.update(window_events.as_slice(), dt);
         let vp = projection * view;
@@ -440,8 +379,6 @@ Current Block: {}"#,
                 let alpha = if i == 3 { 1.0 } else { 0.75 };
                 if matches!(block, Block::Grass) {
                     vec4(0.5, 1.0, 0.6, alpha)
-                } else if matches!(block, Block::Leaves) {
-                    vec4(0.45, 1.3, 0.54, alpha)
                 } else {
                     vec4(1.0, 1.0, 1.0, alpha)
                 }
@@ -449,9 +386,9 @@ Current Block: {}"#,
             .collect::<Vec<_>>();
 
         unsafe {
-            framebuffer.bind();
-
             gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::CULL_FACE);
+            gl::DepthMask(gl::TRUE);
             gl::ClearColor(0.6, 0.6, 0.9, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
@@ -463,7 +400,6 @@ Current Block: {}"#,
             shader_program.set_uniform("textures_per_row", 12);
             shader_program.set_uniform("texture_row_count", 12);
             shader_program.set_uniform("time", time);
-            // mesh.draw();
             for mesh in &world.meshes {
                 mesh.draw();
             }
@@ -490,39 +426,8 @@ Current Block: {}"#,
             cloud_texture.bind_to_unit(0);
             cloud_shader_program.set_uniform("cloud_texture", 0);
             cloud_plane.draw();
-            gl::Enable(gl::CULL_FACE);
-            gl::DepthMask(gl::TRUE);
-
-            framebuffer::Framebuffer::unbind();
-
-            ssao_framebuffer.bind();
 
             gl::Disable(gl::DEPTH_TEST);
-            gl::ClearBufferfv(gl::COLOR, 0, [1.0].as_ptr());
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-            ssao_shader_program.use_program();
-            framebuffer.depth_texture().unwrap().bind_to_unit(0);
-            ssao_shader_program.set_uniform("depth_texture", 0);
-            ssao_noise_texture.bind_to_unit(1);
-            ssao_shader_program.set_uniform("noise_texture", 1);
-            ssao_shader_program.set_uniform("samples", ssao_samples);
-            ssao_shader_program.set_uniform("projection", projection);
-            ssao_shader_program.set_uniform(
-                "screen_size",
-                vec2(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32),
-            );
-            mesh::quad_mesh().draw();
-
-            framebuffer::Framebuffer::unbind();
-
-            gl::Disable(gl::DEPTH_TEST);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-            postprocessing_shader_program.use_program();
-            framebuffer.texture().bind_to_unit(0);
-            postprocessing_shader_program.set_uniform("texture_sampler", 0);
-            ssao_framebuffer.texture().bind_to_unit(1);
-            postprocessing_shader_program.set_uniform("ssao_texture", 1);
-            mesh::quad_mesh().draw();
 
             ui_shader_program.use_program();
             font_texture.bind_to_unit(0);
@@ -533,6 +438,9 @@ Current Block: {}"#,
                 cursor.draw();
             }
             atlas_texture.bind_to_unit(0);
+
+            gl::Enable(gl::DEPTH_TEST);
+            gl::DepthMask(gl::TRUE);
             for (block_mesh, color) in block_meshes.iter().zip(block_mesh_multiply_colors.iter()) {
                 ui_shader_program.set_uniform("ui_color", color);
                 block_mesh.draw();
