@@ -1,5 +1,5 @@
 {
-	"parent": "cube",
+	"parent": "cube/cube",
 	"textures": {
 		"$particle": "$a",
 		"$n": "$a",

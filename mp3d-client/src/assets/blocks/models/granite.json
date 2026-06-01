@@ -1,5 +1,5 @@
 {
-	"parent": "cube.all",
+	"parent": "cube/all",
 	"textures": {
 		"$a": "granite"
 	}

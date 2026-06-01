@@ -1,5 +1,5 @@
 {
-	"parent": "slab.top.all",
+	"parent": "slab/top/all",
 	"textures": {
 		"$a": "stone"
 	}

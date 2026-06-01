@@ -1,5 +1,5 @@
 {
-	"parent": "slab.bot",
+	"parent": "slab/top/top",
 	"textures": {
 		"$particle": "$d",
 		"$n": "$a",

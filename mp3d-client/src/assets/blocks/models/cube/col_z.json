@@ -1,0 +1,10 @@
+{
+	"parent": "cube/cube",
+	"textures": {
+		"$particle": "$s",
+		"$e": "$side",
+		"$w": "$side",
+		"$u": "$side",
+		"$d": "$side"
+	}
+}

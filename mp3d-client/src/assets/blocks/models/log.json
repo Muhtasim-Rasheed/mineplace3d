@@ -1,5 +1,5 @@
 {
-	"parent": "cube.col",
+	"parent": "cube/col_y",
 	"textures": {
 		"$side": "log_side",
 		"$u": "log_end",

@@ -1,5 +1,5 @@
 {
-	"parent": "cube.col",
+	"parent": "cube/col_y",
 	"textures": {
 		"$side": "grass_side",
 		"$u": "grass_top",
