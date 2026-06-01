@@ -10,7 +10,6 @@ use crate::shader::ShaderProgramBuilder;
 use crate::texture::Texture;
 use crate::ui::*;
 
-mod asset;
 mod game;
 mod mesh;
 mod shader;
@@ -27,9 +26,6 @@ macro_rules! shader {
             .build();
     };
 }
-
-const TRANSLATIONS_JSON: &str = include_str!("assets/translations.json");
-const MODEL_DEF_JSON: &str = include_str!("assets/models.json");
 
 const WINDOW_WIDTH: u32 = 1600;
 const WINDOW_HEIGHT: u32 = 900;
@@ -114,10 +110,7 @@ fn main() {
     let atlas_image = image::load_from_memory(include_bytes!("assets/atlas.png"))
         .expect("Failed to load texture");
 
-    let mut world = World::new(
-        rand::random::<u32>(),
-        vec2(atlas_image.width() as f32, atlas_image.height() as f32),
-    );
+    let mut world = World::new(rand::random::<u32>());
 
     let mut view;
     let projection = Mat4::perspective_rh(
@@ -218,9 +211,6 @@ fn main() {
 
     let mut window_events = Vec::new();
 
-    let translations =
-        asset::Translations::new(TRANSLATIONS_JSON).expect("Failed to load translations");
-
     while !window.should_close() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
@@ -259,45 +249,8 @@ fn main() {
             fps = 1.0 / dt.max(f64::MIN_POSITIVE);
             duration = Instant::now();
         }
-        let text = format!(
-            r#"Mineplace3D v{}
-FPS: {:.2}
-DT: {:.4}
-XYZ: {:.2} {:.2} {:.2}
-SEED: {}
-FACING: {}
-VERTICES: {}
-
-
-
-Current Block: {}"#,
-            env!("CARGO_PKG_VERSION"),
-            fps,
-            dt,
-            player.position.x,
-            player.position.y,
-            player.position.z,
-            world.seed(),
-            if player.forward.x.abs() > player.forward.z.abs() {
-                if player.forward.x > 0.0 {
-                    "+X / E"
-                } else {
-                    "-X / W"
-                }
-            } else if player.forward.z > 0.0 {
-                "+Z / S"
-            } else {
-                "-Z / N"
-            },
-            world.meshes.iter().map(|m| m.vertex_count()).sum::<usize>(),
-            translations
-                .get({
-                    let block = PLACABLE_BLOCKS[player.current_block];
-                    block.into()
-                })
-                .unwrap_or(&"Unknown".to_string())
-        );
-        debug_mesh = font.build(&text, 50.0, 50.0, 24.0);
+        let text = format!("FPS: {:.2} DT: {:.4}", fps, dt);
+        debug_mesh = font.build(&text, 50.0, 50.0, 36.0);
         view = Mat4::look_at_rh(
             player.camera_pos(),
             player.camera_pos() + player.forward,
@@ -318,20 +271,6 @@ Current Block: {}"#,
         world.update(window_events.as_slice(), dt);
         let vp = projection * view;
         world.generate_meshes(vp);
-
-        let block = PLACABLE_BLOCKS[player.current_block];
-        let block_mesh = block.ui_mesh(
-            vec2(100.0, WINDOW_HEIGHT as f32 - 50.0),
-            vec2(160.0, WINDOW_HEIGHT as f32 - 110.0),
-            Mat4::from_rotation_x(30f32.to_radians())
-                * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
-            world.model_defs(),
-        );
-        let block_mesh_multiply_color = if matches!(block, Block::Grass) {
-            vec4(0.5, 1.0, 0.6, 1.0)
-        } else {
-            vec4(1.0, 1.0, 1.0, 1.0)
-        };
 
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -386,11 +325,6 @@ Current Block: {}"#,
                 cursor.draw();
             }
             atlas_texture.bind_to_unit(0);
-
-            gl::Enable(gl::DEPTH_TEST);
-            gl::DepthMask(gl::TRUE);
-            ui_shader_program.set_uniform("ui_color", block_mesh_multiply_color);
-            block_mesh.draw();
         }
 
         window.swap_buffers();

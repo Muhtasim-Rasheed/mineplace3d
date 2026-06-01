@@ -23,7 +23,6 @@ impl Texture {
                 gl::UNSIGNED_BYTE,
                 image.as_ptr() as *const _,
             );
-            gl::GenerateMipmap(gl::TEXTURE_2D);
             gl::BindTexture(gl::TEXTURE_2D, 0);
         }
         Texture { id }

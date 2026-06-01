@@ -10,8 +10,7 @@ use std::{
 };
 
 use crate::{
-    MODEL_DEF_JSON, PLACABLE_BLOCKS,
-    asset::{Key, KeyPart, ModelDefs},
+    PLACABLE_BLOCKS,
     mesh::{BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex},
     texture::Texture,
 };
@@ -214,14 +213,8 @@ pub enum Block {
 }
 
 impl Block {
-    pub fn is_solid_at(
-        &self,
-        model_defs: &ModelDefs,
-        local_pos: Vec3,
-        player_width: f32,
-        player_height: f32,
-    ) -> bool {
-        let cubes = self.cubes(model_defs);
+    pub fn is_solid_at(&self, local_pos: Vec3, player_width: f32, player_height: f32) -> bool {
+        let cubes = self.cubes();
         for [min, max] in cubes.iter() {
             if collision_aabb(
                 local_pos - vec3(player_width / 2.0, 0.0, player_width / 2.0),
@@ -242,9 +235,9 @@ impl Block {
         BlockType::FullOpaque
     }
 
-    pub fn ui_mesh(&self, from: Vec2, to: Vec2, m: Mat4, model_defs: &ModelDefs) -> Mesh<UIVertex> {
-        let cubes = self.cubes(model_defs);
-        let uvs = self.uvs(model_defs);
+    pub fn ui_mesh(&self, from: Vec2, to: Vec2, m: Mat4) -> Mesh<UIVertex> {
+        let cubes = self.cubes();
+        let uvs = self.uvs();
 
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
@@ -309,64 +302,26 @@ impl Block {
         vec2(tile_x as f32 * uv_unit, tile_y as f32 * uv_row_unit)
     }
 
-    pub fn uvs(&self, model_defs: &ModelDefs) -> Vec<[[Vec2; 4]; 6]> {
+    pub fn uvs(&self) -> Vec<[[Vec2; 4]; 6]> {
         let offset = self.uv_offset();
+        let uv_unit = 1.0 / 12.0;
 
-        fn face_uv(min: Vec2, max: Vec2) -> [Vec2; 4] {
-            [
-                vec2(max.x, max.y),
-                vec2(min.x, max.y),
-                vec2(min.x, min.y),
-                vec2(max.x, min.y),
-            ]
-        }
-
-        fn faces_uvs(minmax: &[[Vec2; 2]; 6]) -> [[Vec2; 4]; 6] {
-            minmax.map(|[min, max]| face_uv(min, max))
-        }
-
-        macro_rules! get_uvs {
-            ($name:ident) => {
-                let $name = model_defs
-                    .get(stringify!($name))
-                    .unwrap()
-                    .uvs
-                    .iter()
-                    .map(|face_uvs| faces_uvs(face_uvs).map(|uv| uv.map(|v| v + offset)))
-                    .collect::<Vec<_>>();
-            };
-        }
-
-        get_uvs!(full);
-
-        full
+        vec![
+            [[
+                vec2(0.0, 1.0) * uv_unit + offset,
+                vec2(1.0, 1.0) * uv_unit + offset,
+                vec2(1.0, 0.0) * uv_unit + offset,
+                vec2(0.0, 0.0) * uv_unit + offset,
+            ]; 6],
+        ]
     }
 
-    pub fn cubes(&self, model_defs: &ModelDefs) -> Vec<[Vec3; 2]> {
-        macro_rules! get_cubes {
-            ($name:ident) => {
-                let $name = model_defs.get(stringify!($name)).unwrap().cubes.clone();
-            };
-        }
-
-        get_cubes!(empty);
-
+    pub fn cubes(&self) -> Vec<[Vec3; 2]> {
         if *self == Block::Air {
-            return empty;
+            vec![]
+        } else {
+            vec![[vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)]]
         }
-
-        get_cubes!(full);
-        full
-    }
-}
-
-impl From<Block> for Key {
-    fn from(value: Block) -> Self {
-        let parts = vec![
-            KeyPart::Text("block".to_string()),
-            KeyPart::Numeric(value as u32),
-        ];
-        Key { parts }
     }
 }
 
@@ -498,7 +453,6 @@ impl Chunk {
         &self,
         chunk_pos: IVec3,
         neighbour_chunks: &NeighbourChunks,
-        model_defs: &ModelDefs,
     ) -> (Vec<BlockVertex>, Vec<u32>) {
         // Fast path: cached
         if !self.is_dirty {
@@ -518,7 +472,6 @@ impl Chunk {
         // Make local aliases for speed
         let blocks = &self.blocks;
         let foliage = &self.foliage_color;
-        let model_defs = model_defs; // local alias - cheap
 
         // Helper: read block at world-local coords (x,y,z) where coords are isize
         // Returns Block::Air for out-of-range or missing neighbour chunk
@@ -595,8 +548,8 @@ impl Chunk {
                         continue;
                     }
 
-                    let cubes = block.cubes(model_defs);
-                    let uvs_collection = block.uvs(model_defs);
+                    let cubes = block.cubes();
+                    let uvs_collection = block.uvs();
 
                     for (cube, uvs) in cubes.iter().zip(uvs_collection.iter()) {
                         for (i, face_template) in FACE_TEMPLATES.iter().enumerate() {
@@ -871,11 +824,10 @@ pub struct World {
     noise: OpenSimplex,
     cave_noise: OpenSimplex,
     biome_noise: OpenSimplex,
-    model_defs: ModelDefs,
 }
 
 impl World {
-    pub fn new(seed: u32, atlas_size: Vec2) -> Self {
+    pub fn new(seed: u32) -> Self {
         let noise = OpenSimplex::new(seed);
         let cave_noise = OpenSimplex::new(seed.wrapping_add(u32::MAX / 3));
         const TWO_THIRDS_U32: u32 = (u32::MAX as f32 * (2.0 / 3.0)) as u32;
@@ -891,13 +843,6 @@ impl World {
             }
         }
 
-        let model_defs = match ModelDefs::new(MODEL_DEF_JSON, atlas_size) {
-            Ok(defs) => defs,
-            Err(e) => {
-                panic!("Failed to load model definitions: {}", e);
-            }
-        };
-
         let player = Player::new(vec3(0.0, 10.0, 0.0));
 
         World {
@@ -908,7 +853,6 @@ impl World {
             noise,
             cave_noise,
             biome_noise,
-            model_defs: model_defs,
         }
     }
 
@@ -1036,10 +980,6 @@ impl World {
         }
     }
 
-    pub fn model_defs(&self) -> &ModelDefs {
-        &self.model_defs
-    }
-
     pub fn is_player_colliding(
         &mut self,
         player_pos: Vec3,
@@ -1055,8 +995,6 @@ impl World {
         let y_max = (player_pos.y + player_height).floor() as i32;
         let z_max = (player_pos.z + half_w).floor() as i32;
 
-        let model_defs = self.model_defs.clone();
-
         for x in x_min..=x_max {
             for y in y_min..=y_max {
                 for z in z_min..=z_max {
@@ -1066,7 +1004,6 @@ impl World {
                         let local_y = player_pos.y - y as f32 - player_height;
                         let local_z = player_pos.z - z as f32;
                         block.is_solid_at(
-                            &model_defs,
                             vec3(local_x, local_y, local_z),
                             player_width,
                             player_height,
@@ -1132,7 +1069,7 @@ impl World {
                 let chunk_pos = *chunk_pos;
                 (
                     chunk_pos,
-                    chunk.generate_chunk_mesh(chunk_pos, &neighbour_chunks, &self.model_defs),
+                    chunk.generate_chunk_mesh(chunk_pos, &neighbour_chunks),
                 )
             })
             .collect();

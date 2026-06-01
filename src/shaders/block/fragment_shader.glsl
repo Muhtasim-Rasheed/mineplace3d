@@ -19,7 +19,6 @@ void main() {
 	}
 
 	if (frag_block_type == 1u) base_color *= vec4(frag_foliage, 1.0);
-	if (frag_block_type == 6u) base_color *= vec4(frag_foliage * vec3(0.9, 1.3, 0.9), 1.0);
 
 	vec3 light_color = vec3(1.0, 1.0, 1.0);
 	vec3 light_dir = normalize(vec3(1.2, 1.0, 0.7));
