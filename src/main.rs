@@ -128,7 +128,6 @@ fn main() {
 
     shader!("block/" -> VERT_SHADER & FRAG_SHADER -> shader_program);
     shader!("outline/" -> OUTLINE_VERT_SHADER & OUTLINE_FRAG_SHADER -> outline_shader_program);
-    shader!("cloud/" -> CLOUD_VERT_SHADER & CLOUD_FRAG_SHADER -> cloud_shader_program);
     shader!("ui/" -> UI_VERT_SHADER & UI_FRAG_SHADER -> ui_shader_program);
 
     let (task_sender, task_receiver) = mpsc::channel::<ChunkTask>();
@@ -305,16 +304,6 @@ fn main() {
             }
 
             gl::Disable(gl::CULL_FACE);
-            gl::DepthMask(gl::FALSE);
-            cloud_shader_program.use_program();
-            cloud_shader_program.set_uniform("view", view);
-            cloud_shader_program.set_uniform("projection", cloud_projection);
-            cloud_shader_program.set_uniform("time", time);
-            cloud_texture.bind_to_unit(0);
-            cloud_shader_program.set_uniform("cloud_texture", 0);
-            cloud_plane.draw();
-
-            gl::Disable(gl::DEPTH_TEST);
 
             ui_shader_program.use_program();
             font_texture.bind_to_unit(0);

@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     PLACABLE_BLOCKS,
-    mesh::{BlockVertex, CloudPlaneVertex, DrawMode, Mesh, UIVertex},
+    mesh::{BlockVertex, CloudPlaneVertex, DrawMode, Mesh},
     texture::Texture,
 };
 
@@ -235,62 +235,6 @@ impl Block {
         BlockType::FullOpaque
     }
 
-    pub fn ui_mesh(&self, from: Vec2, to: Vec2, m: Mat4) -> Mesh<UIVertex> {
-        let cubes = self.cubes();
-        let uvs = self.uvs();
-
-        let mut vertices = Vec::new();
-        let mut indices = Vec::new();
-        let mut index_offset = 0;
-
-        let size = to - from;
-
-        for ([cube_from, cube_to], uvs) in cubes.iter().zip(uvs.iter()) {
-            for (i, face_template) in FACE_TEMPLATES.iter().enumerate() {
-                let face = Face::use_template(*face_template, *cube_from, *cube_to, uvs[i]);
-
-                let v0 = m.transform_point3(face.vertices[0]);
-                let v1 = m.transform_point3(face.vertices[1]);
-                let v2 = m.transform_point3(face.vertices[2]);
-                let v3 = m.transform_point3(face.vertices[3]);
-
-                let quad = [
-                    UIVertex {
-                        position: (from + v0.xy() * size).extend(v0.z),
-                        uv: face.uvs[0],
-                    },
-                    UIVertex {
-                        position: (from + v1.xy() * size).extend(v1.z),
-                        uv: face.uvs[1],
-                    },
-                    UIVertex {
-                        position: (from + v2.xy() * size).extend(v2.z),
-                        uv: face.uvs[2],
-                    },
-                    UIVertex {
-                        position: (from + v3.xy() * size).extend(v3.z),
-                        uv: face.uvs[3],
-                    },
-                ];
-
-                vertices.extend_from_slice(&quad);
-
-                indices.extend_from_slice(&[
-                    index_offset,
-                    index_offset + 1,
-                    index_offset + 2,
-                    index_offset,
-                    index_offset + 2,
-                    index_offset + 3,
-                ]);
-
-                index_offset += 4;
-            }
-        }
-
-        Mesh::new(&vertices, &indices, DrawMode::Triangles)
-    }
-
     pub fn uv_offset(&self) -> Vec2 {
         let tile_index = *self as u32;
         let tile_x = tile_index % 12;
@@ -352,48 +296,19 @@ impl Chunk {
     ) -> Self {
         let mut blocks = vec![Block::Air; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         let mut foliage_color = vec![Vec3::splat(0.0); CHUNK_SIZE * CHUNK_SIZE];
-        fn fractal_noise(
-            noise: &OpenSimplex,
-            x: f64,
-            y: f64,
-            octaves: i32,
-            persistence: f64,
-            lacunarity: f64,
-        ) -> f64 {
-            let mut amplitude = 1.0;
-            let mut frequency = 1.0;
-            let mut value = 0.0;
-            let mut max_value = 0.0;
-
-            for _ in 0..octaves {
-                value += noise.get([x * frequency, y * frequency]) * amplitude;
-                max_value += amplitude;
-                amplitude *= persistence;
-                frequency *= lacunarity;
-            }
-
-            value / max_value
-        }
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 let real_x = x as i32 + cx * CHUNK_SIZE as i32;
                 let real_z = z as i32 + cz * CHUNK_SIZE as i32;
                 let t = (biome_noise.get([real_x as f64 * 0.01, real_z as f64 * 0.01]) + 1.0) / 2.0;
 
-                let plains_noise_val = noise.get([real_x as f64 * 0.03, real_z as f64 * 0.03]);
-                let plains_height = plains_noise_val * 40.0;
+                let plains_noise_val = noise.get([real_x as f64 * 0.02, real_z as f64 * 0.02]);
+                let plains_height = plains_noise_val * 10.0;
                 let plains_cave_thresh = -1.0;
                 let plains_foliage_color = vec3(0.5, 1.0, 0.5);
 
-                let mtn_noise_val = fractal_noise(
-                    noise,
-                    real_x as f64 * 0.02,
-                    real_z as f64 * 0.02,
-                    5,
-                    0.5,
-                    2.0,
-                );
-                let mtn_height = (mtn_noise_val * 10.0).powi(4);
+                let mtn_noise_val = noise.get([real_x as f64 * 0.05, real_z as f64 * 0.05]);
+                let mtn_height = (mtn_noise_val * 20.0).powi(2);
                 let mtn_cave_thresh = 0.3;
                 let mtn_foliage_color = vec3(0.1, 0.7, 0.5);
 
@@ -663,7 +578,7 @@ impl Entity for Player {
     }
 
     fn width(&self) -> f32 {
-        0.6
+        0.4
     }
 
     fn height(&self) -> f32 {
@@ -792,26 +707,13 @@ impl Entity for Player {
         } else {
             self.jumping = true;
         }
-
-        if collide_x || collide_z {
-            let mut stepped_pos = self.old_position;
-            stepped_pos.y += 0.55;
-            stepped_pos.x = self.position.x;
-            stepped_pos.z = self.position.z;
-
-            if !world.is_player_colliding(stepped_pos, self.width(), self.height()) && !self.jumping
-            {
-                self.position = stepped_pos;
-            } else {
-                if collide_x {
-                    self.position.x = self.old_position.x;
-                    self.velocity.x = 0.0;
-                }
-                if collide_z {
-                    self.position.z = self.old_position.z;
-                    self.velocity.z = 0.0;
-                }
-            }
+        if collide_x {
+            self.position.x = self.old_position.x;
+            self.velocity.x = 0.0;
+        }
+        if collide_z {
+            self.position.z = self.old_position.z;
+            self.velocity.z = 0.0;
         }
     }
 }
@@ -1001,7 +903,7 @@ impl World {
                     let block = self.get_block(x, y, z);
                     let solid = {
                         let local_x = player_pos.x - x as f32;
-                        let local_y = player_pos.y - y as f32 - player_height;
+                        let local_y = player_pos.y - y as f32;
                         let local_z = player_pos.z - z as f32;
                         block.is_solid_at(
                             vec3(local_x, local_y, local_z),
