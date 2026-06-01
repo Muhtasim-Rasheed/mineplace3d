@@ -23,7 +23,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 26
 
       - name: Extract version info
         id: release
@@ -57,24 +57,23 @@ jobs:
             for (const asset of release.assets) {
               const name = asset.name;
 
-              // match: mineplace3d-windows-x86_64.exe
-              const match = name.match(/^mineplace3d-(.+)\.(exe|app|zip|tar\.gz)?$/);
+              // mineplace3d-linux-x86_64
+              // mineplace3d-windows-x86_64.exe
+              // mineplace3d-windows-aarch64.exe
+              const match = name.match(/^mineplace3d-(.+?)(\.(exe|app|zip|tar\.gz))?$/);
 
               if (!match) continue;
 
               const platform = match[1].replace(/-/g, "_");
-              files[platform] = {
-                file: name,
-                url: asset.browser_download_url
-              };
+              files[platform] = name;
             }
           }
 
           manifest.versions = manifest.versions || {};
 
           manifest.versions[version] = {
-            uploaded_on: release.published_at || new Date().toISOString(),
-            files
+            files,
+            uploaded_on: release.published_at || new Date().toISOString()
           };
 
           manifest.latest = manifest.latest || {};
