@@ -18,13 +18,6 @@ uniform float time;
 
 void main() {
 	gl_Position = vec4(pos, 1.0);
-	if (block_type == 6u) {
-		float waveX = sin(time * 2.0 + pos.x * 0.5) * 0.0225;
-		float waveZ = cos(time * 2.5 + pos.z * 0.6) * 0.0225;
-
-		gl_Position.x += waveX;
-		gl_Position.z += waveZ;
-	}
 	gl_Position = projection * view * gl_Position;
 	frag_normal = normalize(normal);
 	frag_uv = uv;

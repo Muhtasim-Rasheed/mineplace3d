@@ -19,19 +19,6 @@ use crate::{
 pub const CHUNK_SIZE: usize = 16;
 pub const RENDER_DISTANCE: i32 = 7;
 
-const FULL_BLOCK: u32 = 0x00000000;
-const PARTIAL_SLAB_TOP: u32 = 0x00010000;
-const PARTIAL_SLAB_BOTTOM: u32 = 0x00020000;
-const PARTIAL_STAIRS_N: u32 = 0x00030000;
-const PARTIAL_STAIRS_S: u32 = 0x00040000;
-const PARTIAL_STAIRS_E: u32 = 0x00050000;
-const PARTIAL_STAIRS_W: u32 = 0x00060000;
-const BLOCK_MASK: u32 = 0x0000FFFF;
-
-fn mask_partial(bits: u32) -> u32 {
-    (bits >> 16) & 0x000F
-}
-
 fn collision_aabb(min_a: Vec3, max_a: Vec3, min_b: Vec3, max_b: Vec3) -> bool {
     (min_a.x <= max_b.x && max_a.x >= min_b.x)
         && (min_a.y <= max_b.y && max_a.y >= min_b.y)
@@ -202,14 +189,6 @@ fn should_occlude(self_block: BlockType, neighbour: BlockType) -> bool {
         (BlockType::FullOpaque, BlockType::FullOpaque) => true,
         (BlockType::FullOpaque, _) => false,
 
-        // Translucent
-        (BlockType::Translucent, BlockType::FullOpaque) => true,
-        (BlockType::Translucent, BlockType::Translucent) => true,
-        (BlockType::Translucent, _) => false,
-
-        // Partial
-        (BlockType::Partial, _) => false,
-
         // Air
         (BlockType::Air, _) => false,
     }
@@ -218,8 +197,6 @@ fn should_occlude(self_block: BlockType, neighbour: BlockType) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BlockType {
     FullOpaque,
-    Translucent,
-    Partial,
     Air,
 }
 
@@ -227,28 +204,13 @@ pub enum BlockType {
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Block {
-    Air              = FULL_BLOCK,
-    Grass            = FULL_BLOCK          | 0x0001,
-    Dirt             = FULL_BLOCK          | 0x0002,
-    Planks           = FULL_BLOCK          | 0x0003,
-    PlanksSlabTop    = PARTIAL_SLAB_TOP    | 0x0003,
-    PlanksSlabBottom = PARTIAL_SLAB_BOTTOM | 0x0003,
-    PlanksStairsN    = PARTIAL_STAIRS_N    | 0x0003,
-    PlanksStairsS    = PARTIAL_STAIRS_S    | 0x0003,
-    PlanksStairsE    = PARTIAL_STAIRS_E    | 0x0003,
-    PlanksStairsW    = PARTIAL_STAIRS_W    | 0x0003,
-    Stone            = FULL_BLOCK          | 0x0004,
-    CobbleStone      = FULL_BLOCK          | 0x0007,
-    StoneSlabTop     = PARTIAL_SLAB_TOP    | 0x0007,
-    StoneSlabBottom  = PARTIAL_SLAB_BOTTOM | 0x0007,
-    StoneStairsN     = PARTIAL_STAIRS_N    | 0x0007,
-    StoneStairsS     = PARTIAL_STAIRS_S    | 0x0007,
-    StoneStairsE     = PARTIAL_STAIRS_E    | 0x0007,
-    StoneStairsW     = PARTIAL_STAIRS_W    | 0x0007,
-    Glass            = FULL_BLOCK          | 0x0008,
-    Brick            = FULL_BLOCK          | 0x0009,
-    Bedrock          = FULL_BLOCK          | 0x000A,
-    Glungus          = FULL_BLOCK          | 0x000B,
+    Air              = 0x0000,
+    Grass            = 0x0001,
+    Dirt             = 0x0002,
+    Planks           = 0x0003,
+    Stone            = 0x0004,
+    Bedrock          = 0x0005,
+    Glungus          = 0x0006,
 }
 
 impl Block {
@@ -273,23 +235,11 @@ impl Block {
         false
     }
 
-    pub fn is_transparent(&self) -> bool {
-        matches!(self, Block::Air | Block::Glass)
-    }
-
     pub fn block_type(&self) -> BlockType {
         if *self == Block::Air {
             return BlockType::Air;
         }
-        let partial_bits = mask_partial(*self as u32);
-        let is_partial = partial_bits > 0;
-        if is_partial {
-            BlockType::Partial
-        } else if self.is_transparent() {
-            BlockType::Translucent
-        } else {
-            BlockType::FullOpaque
-        }
+        BlockType::FullOpaque
     }
 
     pub fn ui_mesh(&self, from: Vec2, to: Vec2, m: Mat4, model_defs: &ModelDefs) -> Mesh<UIVertex> {
@@ -349,7 +299,7 @@ impl Block {
     }
 
     pub fn uv_offset(&self) -> Vec2 {
-        let tile_index = *self as u32 & BLOCK_MASK;
+        let tile_index = *self as u32;
         let tile_x = tile_index % 12;
         let tile_y = tile_index / 12;
 
@@ -361,8 +311,6 @@ impl Block {
 
     pub fn uvs(&self, model_defs: &ModelDefs) -> Vec<[[Vec2; 4]; 6]> {
         let offset = self.uv_offset();
-
-        let partial_bits = mask_partial(*self as u32);
 
         fn face_uv(min: Vec2, max: Vec2) -> [Vec2; 4] {
             [
@@ -390,23 +338,8 @@ impl Block {
         }
 
         get_uvs!(full);
-        get_uvs!(slab_top);
-        get_uvs!(slab_bottom);
-        get_uvs!(stairs_n);
-        get_uvs!(stairs_s);
-        get_uvs!(stairs_e);
-        get_uvs!(stairs_w);
 
-        match partial_bits {
-            0 => full,           // Full block
-            1 => slab_top,       // Slab top
-            2 => slab_bottom,    // Slab bottom
-            3 => stairs_n,       // Stairs north
-            4 => stairs_s,       // Stairs south
-            5 => stairs_e,       // Stairs east
-            6 => stairs_w,       // Stairs west
-            _ => unreachable!(), // Should not happen
-        }
+        full
     }
 
     pub fn cubes(&self, model_defs: &ModelDefs) -> Vec<[Vec3; 2]> {
@@ -423,43 +356,15 @@ impl Block {
         }
 
         get_cubes!(full);
-        get_cubes!(slab_top);
-        get_cubes!(slab_bottom);
-        get_cubes!(stairs_n);
-        get_cubes!(stairs_s);
-        get_cubes!(stairs_e);
-        get_cubes!(stairs_w);
-
-        let partial_bits = mask_partial(*self as u32);
-        match partial_bits {
-            0 => full,
-            1 => slab_top,
-            2 => slab_bottom,
-            3 => stairs_n,
-            4 => stairs_s,
-            5 => stairs_e,
-            6 => stairs_w,
-            _ => unreachable!(),
-        }
+        full
     }
 }
 
 impl From<Block> for Key {
     fn from(value: Block) -> Self {
-        let lo = (value as u32 & BLOCK_MASK) as u16;
-        let hi = (value as u32 >> 16) as u16;
-        let parts;
-        if hi == 0 {
-            parts = vec![
-                KeyPart::Text("block".to_string()),
-                KeyPart::Numeric(lo as u32),
-            ];
-            return Key { parts };
-        }
         let parts = vec![
             KeyPart::Text("block".to_string()),
-            KeyPart::Numeric(lo as u32),
-            KeyPart::Numeric(hi as u32),
+            KeyPart::Numeric(value as u32),
         ];
         Key { parts }
     }
@@ -570,23 +475,6 @@ impl Chunk {
                     blocks[x * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + z] = block;
                 }
             }
-        }
-
-        fn get_chunk_and_local_coords(x: i32, y: i32, z: i32) -> (IVec3, usize, usize, usize) {
-            let chunk_x = x.div_euclid(CHUNK_SIZE as i32);
-            let chunk_y = y.div_euclid(CHUNK_SIZE as i32);
-            let chunk_z = z.div_euclid(CHUNK_SIZE as i32);
-
-            let local_x = (x.rem_euclid(CHUNK_SIZE as i32)) as usize;
-            let local_y = (y.rem_euclid(CHUNK_SIZE as i32)) as usize;
-            let local_z = (z.rem_euclid(CHUNK_SIZE as i32)) as usize;
-
-            (
-                IVec3::new(chunk_x, chunk_y, chunk_z),
-                local_x,
-                local_y,
-                local_z,
-            )
         }
 
         Chunk {
@@ -760,12 +648,7 @@ impl Chunk {
 pub trait Entity {
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
-    fn identity(&self) -> &'static str {
-        std::any::type_name::<Self>().rsplit("::").next().unwrap()
-    }
     fn position(&self) -> Vec3;
-    fn velocity(&self) -> Vec3;
-    fn apply_velocity(&mut self, delta: Vec3);
     fn width(&self) -> f32;
     fn height(&self) -> f32;
     fn eye_height(&self) -> f32;
@@ -824,14 +707,6 @@ impl Entity for Player {
 
     fn position(&self) -> Vec3 {
         self.position
-    }
-
-    fn velocity(&self) -> Vec3 {
-        self.velocity
-    }
-
-    fn apply_velocity(&mut self, delta: Vec3) {
-        self.velocity += delta;
     }
 
     fn width(&self) -> f32 {
@@ -1037,7 +912,7 @@ impl World {
         }
     }
 
-    pub fn get_player(&self) -> Ref<Player> {
+    pub fn get_player(&self) -> Ref<'_, Player> {
         for entity in &self.entities {
             if entity.borrow().as_any().is::<Player>() {
                 return Ref::map(entity.borrow(), |e| {
@@ -1048,7 +923,7 @@ impl World {
         panic!("No player found");
     }
 
-    pub fn get_player_mut(&mut self) -> RefMut<Player> {
+    pub fn get_player_mut(&mut self) -> RefMut<'_, Player> {
         for entity in &self.entities {
             if entity.borrow().as_any().is::<Player>() {
                 return RefMut::map(entity.borrow_mut(), |e| {

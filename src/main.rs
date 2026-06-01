@@ -36,45 +36,13 @@ const WINDOW_HEIGHT: u32 = 900;
 
 const CHUNK_RADIUS: i32 = game::RENDER_DISTANCE - 1;
 
-const PLACABLE_BLOCKS: [Block; 19] = [
+const PLACABLE_BLOCKS: [Block; 5] = [
     Block::Grass,
     Block::Dirt,
     Block::Planks,
-    Block::PlanksSlabTop,
-    Block::PlanksSlabBottom,
-    Block::PlanksStairsN,
-    Block::PlanksStairsS,
-    Block::PlanksStairsE,
-    Block::PlanksStairsW,
-    Block::CobbleStone,
-    Block::StoneSlabTop,
-    Block::StoneSlabBottom,
-    Block::StoneStairsN,
-    Block::StoneStairsS,
-    Block::StoneStairsE,
-    Block::StoneStairsW,
-    Block::Glass,
-    Block::Brick,
+    Block::Stone,
     Block::Glungus,
 ];
-
-fn mid<T>(v: &[T]) -> usize {
-    if v.len() % 2 == 0 {
-        v.len() / 2
-    } else {
-        v.len() / 2 - 1
-    }
-}
-
-fn shift_vec<T: Clone>(v: &[T], index: usize) -> Vec<T> {
-    let shift = (v.len() + index - mid(v)) % v.len();
-    v.iter()
-        .cycle()
-        .skip(shift)
-        .take(v.len())
-        .cloned()
-        .collect()
-}
 
 fn request_chunks_around_player(
     player_pos: Vec3,
@@ -351,39 +319,19 @@ Current Block: {}"#,
         let vp = projection * view;
         world.generate_meshes(vp);
 
-        let blocks = shift_vec(&PLACABLE_BLOCKS, player.current_block)
-            [mid(&PLACABLE_BLOCKS) - 3..=mid(&PLACABLE_BLOCKS) + 3]
-            .to_vec();
-        let block_meshes = blocks
-            .iter()
-            .enumerate()
-            .map(|(i, block)| {
-                let size = vec2(60.0, -60.0);
-                let x = 100.0 + i as f32 * (size.x * 5.0 / 3.0);
-                let y = WINDOW_HEIGHT as f32 - 50.0;
-                let position = vec2(x, y);
-
-                block.ui_mesh(
-                    position,
-                    position + size,
-                    Mat4::from_rotation_x(30f32.to_radians())
-                        * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
-                    world.model_defs(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let block_mesh_multiply_colors = blocks
-            .iter()
-            .enumerate()
-            .map(|(i, block)| {
-                let alpha = if i == 3 { 1.0 } else { 0.75 };
-                if matches!(block, Block::Grass) {
-                    vec4(0.5, 1.0, 0.6, alpha)
-                } else {
-                    vec4(1.0, 1.0, 1.0, alpha)
-                }
-            })
-            .collect::<Vec<_>>();
+        let block = PLACABLE_BLOCKS[player.current_block];
+        let block_mesh = block.ui_mesh(
+            vec2(100.0, WINDOW_HEIGHT as f32 - 50.0),
+            vec2(160.0, WINDOW_HEIGHT as f32 - 110.0),
+            Mat4::from_rotation_x(30f32.to_radians())
+                * Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_4),
+            world.model_defs(),
+        );
+        let block_mesh_multiply_color = if matches!(block, Block::Grass) {
+            vec4(0.5, 1.0, 0.6, 1.0)
+        } else {
+            vec4(1.0, 1.0, 1.0, 1.0)
+        };
 
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -441,10 +389,8 @@ Current Block: {}"#,
 
             gl::Enable(gl::DEPTH_TEST);
             gl::DepthMask(gl::TRUE);
-            for (block_mesh, color) in block_meshes.iter().zip(block_mesh_multiply_colors.iter()) {
-                ui_shader_program.set_uniform("ui_color", color);
-                block_mesh.draw();
-            }
+            ui_shader_program.set_uniform("ui_color", block_mesh_multiply_color);
+            block_mesh.draw();
         }
 
         window.swap_buffers();
