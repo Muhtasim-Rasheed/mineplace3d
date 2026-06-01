@@ -91,7 +91,7 @@ fn main() {
         .create_window(
             WINDOW_WIDTH,
             WINDOW_HEIGHT,
-            "mineplace3D",
+            "gl-test",
             glfw::WindowMode::Windowed,
         )
         .expect("Failed to create GLFW window.");
@@ -118,12 +118,6 @@ fn main() {
         WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
         0.1,
         200.0,
-    );
-    let cloud_projection = Mat4::perspective_rh(
-        90f32.to_radians(),
-        WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
-        0.1,
-        400.0,
     );
 
     shader!("block/" -> VERT_SHADER & FRAG_SHADER -> shader_program);
@@ -204,9 +198,6 @@ fn main() {
     let mut grab: bool = false;
 
     let mut time = 0.0;
-
-    let cloud_plane = game::make_cloud_plane();
-    let cloud_texture = game::cloud_texture_gen(UVec2::splat(144), world.seed());
 
     let mut window_events = Vec::new();
 

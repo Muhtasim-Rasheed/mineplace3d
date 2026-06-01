@@ -1,6 +1,6 @@
 use glam::*;
 use glfw::MouseButton;
-use noise::{NoiseFn, OpenSimplex, Seedable};
+use noise::{NoiseFn, OpenSimplex};
 use rayon::prelude::*;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -11,8 +11,7 @@ use std::{
 
 use crate::{
     PLACABLE_BLOCKS,
-    mesh::{BlockVertex, CloudPlaneVertex, DrawMode, Mesh},
-    texture::Texture,
+    mesh::{BlockVertex, DrawMode, Mesh},
 };
 
 pub const CHUNK_SIZE: usize = 16;
@@ -203,13 +202,13 @@ pub enum BlockType {
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Block {
-    Air              = 0x0000,
-    Grass            = 0x0001,
-    Dirt             = 0x0002,
-    Planks           = 0x0003,
-    Stone            = 0x0004,
-    Bedrock          = 0x0005,
-    Glungus          = 0x0006,
+    Air = 0,
+    Grass,
+    Dirt,
+    Planks,
+    Stone,
+    Bedrock,
+    Glungus,
 }
 
 impl Block {
@@ -370,10 +369,10 @@ impl Chunk {
         neighbour_chunks: &NeighbourChunks,
     ) -> (Vec<BlockVertex>, Vec<u32>) {
         // Fast path: cached
-        if !self.is_dirty {
-            if let Some((ref verts, ref idxs)) = self.cached_mesh {
-                return (verts.clone(), idxs.clone());
-            }
+        if !self.is_dirty
+            && let Some((ref verts, ref idxs)) = self.cached_mesh
+        {
+            return (verts.clone(), idxs.clone());
         }
 
         // Precompute sizes & capacities
@@ -601,19 +600,19 @@ impl Entity for Player {
                 }
                 glfw::WindowEvent::Key(key, _, action, _) => match action {
                     glfw::Action::Press => {
-                        self.keys_down.insert(key.clone());
+                        self.keys_down.insert(*key);
                     }
                     glfw::Action::Release => {
-                        self.keys_down.remove(&key);
+                        self.keys_down.remove(key);
                     }
                     _ => {}
                 },
                 glfw::WindowEvent::MouseButton(button, action, _) => match action {
                     glfw::Action::Press => {
-                        self.mouse_down.insert(button.clone());
+                        self.mouse_down.insert(*button);
                     }
                     glfw::Action::Release => {
-                        self.mouse_down.remove(&button);
+                        self.mouse_down.remove(button);
                     }
                     _ => {}
                 },
@@ -659,35 +658,35 @@ impl Entity for Player {
         if self.break_place_cooldown > 0 {
             self.break_place_cooldown -= 1;
         }
-        if self.mouse_down.contains(&MouseButton::Button2) && self.break_place_cooldown <= 0 {
-            if let Some(ref hit) = self.selected_block {
-                let block_pos = hit.block_pos;
-                let hit_normal = hit.face_normal;
-                let new_pos = block_pos + hit_normal;
-                world.set_block(
-                    new_pos.x,
-                    new_pos.y,
-                    new_pos.z,
-                    PLACABLE_BLOCKS[self.current_block],
-                );
-                let (collide_x, collide_y, collide_z) =
-                    world.player_collision_mask(self.old_position, self.position, 0.5, 1.8);
-                if collide_x || collide_y || collide_z {
-                    world.set_block(new_pos.x, new_pos.y, new_pos.z, Block::Air);
-                }
-                self.break_place_cooldown = 12;
+        if self.mouse_down.contains(&MouseButton::Button2)
+            && self.break_place_cooldown == 0
+            && let Some(ref hit) = self.selected_block
+        {
+            let block_pos = hit.block_pos;
+            let hit_normal = hit.face_normal;
+            let new_pos = block_pos + hit_normal;
+            world.set_block(
+                new_pos.x,
+                new_pos.y,
+                new_pos.z,
+                PLACABLE_BLOCKS[self.current_block],
+            );
+            let (collide_x, collide_y, collide_z) =
+                world.player_collision_mask(self.old_position, self.position, 0.5, 1.8);
+            if collide_x || collide_y || collide_z {
+                world.set_block(new_pos.x, new_pos.y, new_pos.z, Block::Air);
             }
+            self.break_place_cooldown = 12;
         }
-        if self.mouse_down.contains(&MouseButton::Button1) && self.break_place_cooldown <= 0 {
-            if let Some(ref hit) = self.selected_block {
-                if !(world.get_block(hit.block_pos.x, hit.block_pos.y, hit.block_pos.z)
-                    == Block::Bedrock)
-                {
-                    let block_pos = hit.block_pos;
-                    world.set_block(block_pos.x, block_pos.y, block_pos.z, Block::Air);
-                    self.break_place_cooldown = 12;
-                }
-            }
+        if self.mouse_down.contains(&MouseButton::Button1)
+            && self.break_place_cooldown == 0
+            && let Some(ref hit) = self.selected_block
+            && !(world.get_block(hit.block_pos.x, hit.block_pos.y, hit.block_pos.z)
+                == Block::Bedrock)
+        {
+            let block_pos = hit.block_pos;
+            world.set_block(block_pos.x, block_pos.y, block_pos.z, Block::Air);
+            self.break_place_cooldown = 12;
         }
         self.velocity.y -= 36.0 * dt as f32 - dt as f32 * 10.0 * self.velocity.y;
         self.position += self.velocity * dt as f32;
@@ -780,10 +779,6 @@ impl World {
         panic!("No player found");
     }
 
-    pub fn seed(&self) -> u32 {
-        self.noise.seed()
-    }
-
     pub fn noise(&self) -> Arc<OpenSimplex> {
         self.noise.into()
     }
@@ -832,8 +827,7 @@ impl World {
 
     pub fn get_chunk(&mut self, x: i32, y: i32, z: i32) -> &mut Chunk {
         self.chunks.entry(ivec3(x, y, z)).or_insert_with(|| {
-            let res = Chunk::new(x, y, z, &self.noise, &self.cave_noise, &self.biome_noise);
-            res
+            Chunk::new(x, y, z, &self.noise, &self.cave_noise, &self.biome_noise)
         })
     }
 
@@ -1057,81 +1051,4 @@ fn calc_face_normal(hit: Vec3, block: Vec3) -> IVec3 {
     } else {
         ivec3(0, 0, 1)
     }
-}
-
-pub fn cloud_texture_gen(texture_size: UVec2, seed: u32) -> Texture {
-    let noise = OpenSimplex::new(seed);
-    let width = texture_size.x;
-    let height = texture_size.y;
-    let mut image_data = vec![0u8; (width * height * 4) as usize];
-
-    for y in 0..height {
-        for x in 0..width {
-            let nx = x as f64 / width as f64 - 0.5;
-            let ny = y as f64 / height as f64 - 0.5;
-
-            fn fractal_noise(
-                noise: &OpenSimplex,
-                x: f64,
-                y: f64,
-                octaves: i32,
-                persistence: f64,
-                lacunarity: f64,
-            ) -> f64 {
-                let mut amplitude = 1.0;
-                let mut frequency = 1.0;
-                let mut value = 0.0;
-                let mut max_value = 0.0;
-
-                for _ in 0..octaves {
-                    value += noise.get([x * frequency, y * frequency]) * amplitude;
-                    max_value += amplitude;
-                    amplitude *= persistence;
-                    frequency *= lacunarity;
-                }
-
-                value / max_value
-            }
-
-            let noise_value = fractal_noise(&noise, nx * 30.0, ny * 15.0, 5, 0.5, 2.0);
-            let alpha = if noise_value > 0.0 { 1.0 } else { 0.0 };
-
-            let idx = ((y * width + x) * 4) as usize;
-            image_data[idx] = 255;
-            image_data[idx + 1] = 255;
-            image_data[idx + 2] = 255;
-            image_data[idx + 3] = (alpha * 255.0) as u8;
-        }
-    }
-
-    Texture::new(width, height, &image_data)
-}
-
-pub fn make_cloud_plane() -> Mesh<CloudPlaneVertex> {
-    let mut vertices = Vec::new();
-    let mut indices = Vec::new();
-
-    let positions = [
-        vec2(-1.0, -1.0),
-        vec2(1.0, -1.0),
-        vec2(1.0, 1.0),
-        vec2(-1.0, 1.0),
-    ];
-    let uvs = [
-        vec2(0.0, 0.0),
-        vec2(1.0, 0.0),
-        vec2(1.0, 1.0),
-        vec2(0.0, 1.0),
-    ];
-
-    for i in 0..4 {
-        vertices.push(CloudPlaneVertex {
-            position: positions[i],
-            uv: uvs[i],
-        });
-    }
-
-    indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
-
-    Mesh::new(&vertices, &indices, DrawMode::Triangles)
 }

@@ -34,12 +34,6 @@ pub struct OutlineVertex {
     pub position: Vec3,
 }
 
-#[derive(Clone, Copy)]
-pub struct CloudPlaneVertex {
-    pub position: Vec2,
-    pub uv: Vec2,
-}
-
 impl VertexFormat for BlockVertex {
     fn setup_attribs() {
         unsafe {
@@ -134,32 +128,6 @@ impl VertexFormat for OutlineVertex {
     }
 }
 
-impl VertexFormat for CloudPlaneVertex {
-    fn setup_attribs() {
-        unsafe {
-            gl::VertexAttribPointer(
-                0,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
-                std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, position) as *const _,
-            );
-            gl::VertexAttribPointer(
-                1,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
-                std::mem::size_of::<Self>() as i32,
-                offset_of!(Self, uv) as *const _,
-            );
-
-            gl::EnableVertexAttribArray(0);
-            gl::EnableVertexAttribArray(1);
-        }
-    }
-}
-
 pub enum DrawMode {
     Triangles = gl::TRIANGLES as isize,
     Lines = gl::LINES as isize,
@@ -191,7 +159,7 @@ impl<T: VertexFormat> Mesh<T> {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (vertices.len() * std::mem::size_of::<T>()) as isize,
+                std::mem::size_of_val(vertices) as isize,
                 vertices.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
@@ -200,7 +168,7 @@ impl<T: VertexFormat> Mesh<T> {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                (indices.len() * std::mem::size_of::<u32>()) as isize,
+                std::mem::size_of_val(indices) as isize,
                 indices.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
@@ -220,10 +188,6 @@ impl<T: VertexFormat> Mesh<T> {
             vertex_count: indices.len(),
             _marker: PhantomData,
         }
-    }
-
-    pub fn vertex_count(&self) -> usize {
-        self.vertex_count
     }
 
     pub fn draw(&self) {
@@ -283,27 +247,4 @@ pub fn outline_mesh() -> Mesh<OutlineVertex> {
     ];
 
     Mesh::new(&vertices, &indices, DrawMode::Lines)
-}
-
-pub fn quad_mesh() -> Mesh<UIVertex> {
-    let vertices: [UIVertex; 4] = [
-        UIVertex {
-            position: vec3(-1.0, -1.0, 0.0),
-            uv: vec2(0.0, 0.0),
-        },
-        UIVertex {
-            position: vec3(1.0, -1.0, 0.0),
-            uv: vec2(1.0, 0.0),
-        },
-        UIVertex {
-            position: vec3(1.0, 1.0, 0.0),
-            uv: vec2(1.0, 1.0),
-        },
-        UIVertex {
-            position: vec3(-1.0, 1.0, 0.0),
-            uv: vec2(0.0, 1.0),
-        },
-    ];
-    let indices: [u32; 6] = [0, 1, 2, 0, 2, 3];
-    Mesh::new(&vertices, &indices, DrawMode::Triangles)
 }
