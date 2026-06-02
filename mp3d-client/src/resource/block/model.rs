@@ -13,40 +13,40 @@ use super::{
 fn face_corners(from: Vec3, to: Vec3, face: Direction) -> [Vec3; 4] {
     match face {
         Direction::North => [
-            glam::vec3(from.x, from.y, from.z),
-            glam::vec3(to.x, from.y, from.z),
-            glam::vec3(to.x, to.y, from.z),
             glam::vec3(from.x, to.y, from.z),
+            glam::vec3(to.x, to.y, from.z),
+            glam::vec3(to.x, from.y, from.z),
+            glam::vec3(from.x, from.y, from.z),
         ],
         Direction::South => [
-            glam::vec3(to.x, from.y, to.z),
-            glam::vec3(from.x, from.y, to.z),
-            glam::vec3(from.x, to.y, to.z),
             glam::vec3(to.x, to.y, to.z),
+            glam::vec3(from.x, to.y, to.z),
+            glam::vec3(from.x, from.y, to.z),
+            glam::vec3(to.x, from.y, to.z),
         ],
         Direction::East => [
-            glam::vec3(to.x, from.y, from.z),
-            glam::vec3(to.x, from.y, to.z),
-            glam::vec3(to.x, to.y, to.z),
             glam::vec3(to.x, to.y, from.z),
+            glam::vec3(to.x, to.y, to.z),
+            glam::vec3(to.x, from.y, to.z),
+            glam::vec3(to.x, from.y, from.z),
         ],
         Direction::West => [
-            glam::vec3(from.x, from.y, to.z),
-            glam::vec3(from.x, from.y, from.z),
-            glam::vec3(from.x, to.y, from.z),
             glam::vec3(from.x, to.y, to.z),
+            glam::vec3(from.x, to.y, from.z),
+            glam::vec3(from.x, from.y, from.z),
+            glam::vec3(from.x, from.y, to.z),
         ],
         Direction::Up => [
-            glam::vec3(from.x, to.y, from.z),
             glam::vec3(to.x, to.y, from.z),
-            glam::vec3(to.x, to.y, to.z),
+            glam::vec3(from.x, to.y, from.z),
             glam::vec3(from.x, to.y, to.z),
+            glam::vec3(to.x, to.y, to.z),
         ],
         Direction::Down => [
-            glam::vec3(from.x, from.y, to.z),
             glam::vec3(to.x, from.y, to.z),
-            glam::vec3(to.x, from.y, from.z),
+            glam::vec3(from.x, from.y, to.z),
             glam::vec3(from.x, from.y, from.z),
+            glam::vec3(to.x, from.y, from.z),
         ],
     }
 }
@@ -225,23 +225,21 @@ impl BlockModel {
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
-                    Vec2::new(uv_max.x, uv_min.y),
-                    Vec2::new(uv_min.x, uv_min.y),
-                    Vec2::new(uv_min.x, uv_max.y),
                     Vec2::new(uv_max.x, uv_max.y),
+                    Vec2::new(uv_min.x, uv_max.y),
+                    Vec2::new(uv_min.x, uv_min.y),
+                    Vec2::new(uv_max.x, uv_min.y),
                 ];
 
                 let mut vertices = Vec::new();
 
-                // idk why but we need to swap to and from
-                let corners = face_corners(element.to, element.from, dir);
+                let corners = face_corners(element.from, element.to, dir);
                 for (vert, uv) in corners.iter().zip(uvs.iter()) {
-                    let from = element.from + 0.5;
-                    let to = element.to + 0.5;
-                    let rotated = rotation.transform_point3(*vert - (to - from) + from);
+                    let rotated = rotation.transform_point3(*vert);
+                    let p = Vec2::new(rotated.x, -rotated.y);
                     let normal = rotation.transform_vector3(dir.into());
                     vertices.push(crate::render::ui::UIVertex {
-                        position: (position + rotated.truncate() * size).extend(rotated.z + 2.0),
+                        position: (position + p * size).extend(rotated.z + 2.0),
                         uv: *uv,
                         // for shading this block we need to specify the normal.
                         normal,

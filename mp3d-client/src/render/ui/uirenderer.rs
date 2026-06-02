@@ -128,11 +128,13 @@ impl UIRenderer {
             match last_command {
                 DrawCommand::Quad { .. } => unsafe {
                     self.gl.disable(glow::DEPTH_TEST);
+                    self.gl.depth_mask(false);
                     self.gl.disable(glow::CULL_FACE);
                     self.shader_program.set_uniform("u_shade", false);
                 },
                 DrawCommand::Mesh { .. } => unsafe {
                     self.gl.enable(glow::DEPTH_TEST);
+                    self.gl.depth_mask(true);
                     self.gl.enable(glow::CULL_FACE);
                     self.shader_program.set_uniform("u_shade", true);
                 },
