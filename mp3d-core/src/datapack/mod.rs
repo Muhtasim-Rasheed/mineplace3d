@@ -37,13 +37,10 @@ impl TryFrom<RawDropEntry> for DropEntry {
     }
 }
 
-#[derive(serde::Deserialize)]
-struct RawLootTableEntry {
-    drops: FxHashMap<String, RawDropEntry>,
-}
+type RawLootTableEntry = FxHashMap<String, FxHashMap<String, RawDropEntry>>;
 
 pub struct LootTableEntry {
-    pub drops: FxHashMap<String, DropEntry>,
+    pub drops: FxHashMap<u16, FxHashMap<String, DropEntry>>,
 }
 
 impl TryFrom<RawLootTableEntry> for LootTableEntry {
@@ -52,12 +49,24 @@ impl TryFrom<RawLootTableEntry> for LootTableEntry {
     fn try_from(value: RawLootTableEntry) -> Result<Self, Self::Error> {
         Ok(Self {
             drops: value
-                .drops
                 .into_iter()
-                .map(|(k, rv)| {
-                    rv.try_into()
-                        .map_err(|e| format!("{}: {}", &k, e))
-                        .map(|v| (k, v))
+                .map(|(sd, raw_drops)| {
+                    let sd = u16::from_str_radix(&sd, 16).map_err(|e| e.to_string());
+                    if let Err(e) = sd {
+                        return Err(e);
+                    }
+                    let drops = raw_drops
+                        .into_iter()
+                        .map(|(k, rv)| {
+                            rv.try_into()
+                                .map_err(|e| format!("{}: {}", &k, e))
+                                .map(|v| (k, v))
+                        })
+                        .collect::<Result<_, _>>();
+                    if let Err(e) = drops {
+                        return Err(e);
+                    }
+                    Ok((sd.unwrap(), drops.unwrap()))
                 })
                 .collect::<Result<_, _>>()?,
         })

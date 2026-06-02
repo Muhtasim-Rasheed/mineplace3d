@@ -315,8 +315,8 @@ impl World {
                 return;
             }
             Some((ident, state))
-                if state == BlockState::slab(false) && face == Direction::Up
-                    || state == BlockState::slab(true) && face == Direction::Down =>
+                if state == BlockState::slab(0) && face == Direction::Up
+                    || state == BlockState::slab(1) && face == Direction::Down =>
             {
                 let (item_count, place_block) =
                     match self.get_entity::<PlayerEntity>(player_entity_id) {
@@ -331,16 +331,10 @@ impl World {
                     return;
                 }
 
-                if let Some(item_block) = place_block
-                    && item_block.ident == ident
-                    && ident == "stone_slab"
+                if let Some(block) = place_block
+                    && block.ident == ident
                 {
-                    self.try_place_block(
-                        player_entity_id,
-                        block_pos,
-                        Block::STONE,
-                        BlockState::none(),
-                    );
+                    self.try_place_block(player_entity_id, block_pos, *block, BlockState::slab(2));
                 }
                 return;
             }
@@ -362,10 +356,12 @@ impl World {
             return;
         }
 
-        if let Some(block) = place_block
-            && let Some(state) = BlockState::default_state(block.state_type)
-        {
-            self.try_place_block(player_entity_id, place_pos, *block, state);
+        if let Some(block) = place_block {
+            if block.state_type == BlockState::SLAB_TYPE && face == Direction::Down {
+                self.try_place_block(player_entity_id, place_pos, *block, BlockState::slab(1));
+            } else if let Some(state) = BlockState::default_state(block.state_type) {
+                self.try_place_block(player_entity_id, place_pos, *block, state);
+            }
         }
     }
 
@@ -389,15 +385,16 @@ impl World {
     }
 
     pub fn break_block(&mut self, player_entity_id: u64, block_pos: IVec3) {
-        let block = match self.get_block_at(block_pos) {
-            Some((b, _)) => *b,
+        let (block, state) = match self.get_block_at(block_pos) {
+            Some((b, s)) => (*b, *s),
             None => return,
         };
 
         let Some(loot_table_entry) = self.game_data.get_block_drops(block.ident) else {
             return;
         };
-        let drops = &loot_table_entry.drops.clone();
+        let drops = &loot_table_entry.drops;
+        let drops = drops.get(&state.data()).cloned().unwrap_or_default();
 
         self.urgent_set_block_at(
             block_pos,
@@ -426,7 +423,7 @@ impl World {
                 }
             };
 
-            let item = match crate::item::Item::from_ident(item) {
+            let item = match crate::item::Item::from_ident(&item) {
                 Some(i) => i,
                 None => {
                     log::warn!(

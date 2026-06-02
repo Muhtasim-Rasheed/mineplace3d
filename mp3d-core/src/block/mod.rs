@@ -54,8 +54,8 @@ macro_rules! blocks {
     (@interact_shape $interact_shape:expr) => { Some($interact_shape) };
     (@interact_shape) => { None };
 
-    (@state_type $state_type:expr) => { $state_type.state_type() };
-    (@state_type) => { BlockState::none().state_type() };
+    (@state_type $state_type:expr) => { $state_type };
+    (@state_type) => { BlockState::NONE_TYPE };
 }
 
 blocks! {
@@ -76,7 +76,7 @@ blocks! {
     STONE_SLAB => {
         ident: "stone_slab",
         collision_shape: CollisionShape::Slab,
-        state_type: BlockState::slab(false),
+        state_type: BlockState::SLAB_TYPE,
     },
     SHORT_GRASS => {
         ident: "short_grass",
@@ -112,9 +112,24 @@ impl Block {
                 crate::aabb_overlap(player_min, player_max, block_min, block_max)
             }
             CollisionShape::Slab => {
-                if let Some(is_top) = block_state.is_slab() {
-                    let block_min = Vec3::new(0.0, if is_top { 0.5 } else { 0.0 }, 0.0);
-                    let block_max = Vec3::new(1.0, if is_top { 1.0 } else { 0.5 }, 1.0);
+                if let Some(shape) = block_state.is_slab() {
+                    let block_min;
+                    let block_max;
+                    match shape {
+                        0x0000 => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 0.5, 1.0);
+                        }
+                        0x0001 => {
+                            block_min = Vec3::new(0.0, 0.5, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        0x0002 => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        _ => unreachable!(),
+                    }
                     let half_width = player_width / 2.0;
                     let player_min = Vec3::new(
                         player_pos_local.x - half_width,
@@ -154,9 +169,24 @@ impl Block {
                 )
             }
             CollisionShape::Slab => {
-                if let Some(is_top) = block_state.is_slab() {
-                    let block_min = Vec3::new(0.0, if is_top { 0.5 } else { 0.0 }, 0.0);
-                    let block_max = Vec3::new(1.0, if is_top { 1.0 } else { 0.5 }, 1.0);
+                if let Some(shape) = block_state.is_slab() {
+                    let block_min;
+                    let block_max;
+                    match shape {
+                        0x0000 => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 0.5, 1.0);
+                        }
+                        0x0001 => {
+                            block_min = Vec3::new(0.0, 0.5, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        0x0002 => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        _ => unreachable!(),
+                    }
                     crate::ray_intersect_aabb(
                         ray_origin_local,
                         ray_direction_local,
@@ -204,6 +234,9 @@ pub enum CollisionShape {
 pub struct BlockState(u32);
 
 impl BlockState {
+    pub const NONE_TYPE: u16 = 0x0000;
+    pub const SLAB_TYPE: u16 = 0x0001;
+
     /// Creates a new block state with the given type and data.
     #[inline]
     pub const fn new(state_type: u16, data: u16) -> BlockState {
@@ -237,27 +270,27 @@ impl BlockState {
     /// Creates an empty block state with no data.
     #[inline]
     pub const fn none() -> BlockState {
-        BlockState::new(0x0000, 0x0000)
+        BlockState::new(Self::NONE_TYPE, 0x0000)
     }
 
     /// Creates a slab block state with the given top/bottom value.
     #[inline]
-    pub const fn slab(is_top: bool) -> BlockState {
-        BlockState::new(0x0001, if is_top { 0x0001 } else { 0x0000 })
+    pub const fn slab(data: u16) -> BlockState {
+        BlockState::new(Self::SLAB_TYPE, data)
     }
 
     /// Checks if the block state is empty (i.e. has no data).
     #[inline]
     pub const fn is_none(&self) -> bool {
-        self.state_type() == 0x0000
+        self.state_type() == Self::NONE_TYPE
     }
 
     /// Checks if the block state is a slab and returns whether it is the top or bottom half of the
     /// block if it is.
     #[inline]
-    pub const fn is_slab(&self) -> Option<bool> {
-        if self.state_type() == 0x0001 {
-            Some(self.data() != 0)
+    pub const fn is_slab(&self) -> Option<u16> {
+        if self.state_type() == Self::SLAB_TYPE {
+            Some(self.data())
         } else {
             None
         }
@@ -270,8 +303,8 @@ impl BlockState {
     #[inline]
     pub const fn possible_data_values(state_type: u16) -> Option<&'static [u16]> {
         match state_type {
-            0x0000 => Some(&[0x0000]),         // NONE
-            0x0001 => Some(&[0x0000, 0x0001]), // SLAB
+            Self::NONE_TYPE => Some(&[0x0000]),                 // NONE
+            Self::SLAB_TYPE => Some(&[0x0000, 0x0001, 0x0002]), // SLAB
             _ => None,
         }
     }
@@ -281,8 +314,8 @@ impl BlockState {
     #[inline]
     pub const fn default_state(state_type: u16) -> Option<BlockState> {
         match state_type {
-            0x0000 => Some(BlockState::none()),
-            0x0001 => Some(BlockState::slab(false)),
+            Self::NONE_TYPE => Some(BlockState::none()),
+            Self::SLAB_TYPE => Some(BlockState::slab(0)),
             _ => None,
         }
     }

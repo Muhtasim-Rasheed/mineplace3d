@@ -1,6 +1,7 @@
 {
 	"states": {
 		"0000": { "model": "stone_slab_bot" },
-		"0001": { "model": "stone_slab_top" }
+		"0001": { "model": "stone_slab_top" },
+		"0002": { "model": "stone" }
 	}
 }
