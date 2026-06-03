@@ -12,10 +12,26 @@ pub struct RawBlockModel {
 
 #[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize)]
 pub struct RawBlockModelTransform {
-    /// Rotation is in multiples of 90 degrees
-    pub rotation: [u8; 3],
+    pub rotation: [f32; 3],
     pub translation: [f32; 3],
     pub scale: [f32; 3],
+}
+
+impl From<RawBlockModelTransform> for glam::Affine3A {
+    fn from(transform: RawBlockModelTransform) -> Self {
+        let rotation = glam::Vec3::from_array(transform.rotation.map(|r| r.to_radians()));
+        let translation = glam::Vec3::from_array(transform.translation);
+        let scale = glam::Vec3::from_array(transform.scale);
+        let center = glam::Vec3::splat(0.5);
+        let to_origin = glam::Affine3A::from_translation(-center);
+        let from_origin = glam::Affine3A::from_translation(center);
+        let rotation = glam::Affine3A::from_rotation_x(rotation.x)
+            * glam::Affine3A::from_rotation_y(rotation.y)
+            * glam::Affine3A::from_rotation_z(rotation.z);
+        let scale = glam::Affine3A::from_scale(scale);
+        let translation = glam::Affine3A::from_translation(translation);
+        from_origin * rotation * scale * to_origin * translation
+    }
 }
 
 impl std::ops::Mul for RawBlockModelTransform {
@@ -24,9 +40,9 @@ impl std::ops::Mul for RawBlockModelTransform {
     fn mul(self, rhs: Self) -> Self::Output {
         Self {
             rotation: [
-                (self.rotation[0] + rhs.rotation[0]) % 4,
-                (self.rotation[1] + rhs.rotation[1]) % 4,
-                (self.rotation[2] + rhs.rotation[2]) % 4,
+                (self.rotation[0] + rhs.rotation[0]) % 360.0,
+                (self.rotation[1] + rhs.rotation[1]) % 360.0,
+                (self.rotation[2] + rhs.rotation[2]) % 360.0,
             ],
             translation: [
                 self.translation[0] + rhs.translation[0],

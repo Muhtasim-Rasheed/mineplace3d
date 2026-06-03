@@ -3,7 +3,7 @@
 layout(location = 0) out vec4 frag_color;
 layout(location = 1) out vec4 frag_normal;
 
-flat in ivec3 v_normal;
+in vec3 v_normal;
 in float v_ao;
 in vec2 v_uv;
 

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use glam::{Affine3A, Mat4, Vec2, Vec3, Vec4};
 use mp3d_core::direction::Direction;
 
 use crate::resource::{ResourceManager, block::raw_model::RawBlockModelTransform};
@@ -55,6 +55,7 @@ fn face_corners(from: Vec3, to: Vec3, face: Direction) -> [Vec3; 4] {
 pub struct BlockModel {
     pub elements: Vec<BlockElement>,
     pub particle: Option<String>,
+    is_full_cube: bool,
 }
 
 impl BlockModel {
@@ -87,6 +88,12 @@ impl BlockModel {
         if atlas.is_finished() {
             return Err("Cannot create block model after texture atlas is finished".to_string());
         }
+
+        let is_full_cube = Self::is_raw_full_cube(
+            &raw,
+            resource_manager,
+            &mut std::collections::HashSet::new(),
+        )?;
 
         let mut textures = HashMap::new();
         if let Some(raw_textures) = raw.textures {
@@ -130,7 +137,40 @@ impl BlockModel {
             .and_then(|tex_ref| tex_ref.resolve(&textures))
             .map(|(_, name)| name);
 
-        Ok(BlockModel { elements, particle })
+        Ok(BlockModel {
+            elements,
+            particle,
+            is_full_cube,
+        })
+    }
+
+    fn is_raw_full_cube(
+        raw: &RawBlockModel,
+        resource_manager: &ResourceManager,
+        visited: &mut std::collections::HashSet<PathBuf>,
+    ) -> Result<bool, String> {
+        if let Some(elements) = &raw.elements {
+            if raw.transform.is_some() {
+                return Ok(false);
+            }
+            Ok(elements.len() == 1
+                && elements[0].from == [0.0, 0.0, 0.0]
+                && elements[0].to == [16.0, 16.0, 16.0])
+        } else if let Some(parent) = &raw.parent {
+            let path = PathBuf::from("blocks/models").join(format!("{}.json", parent));
+            if visited.contains(&path) {
+                return Err(format!("Circular model inheritance detected at {:?}", path));
+            }
+            visited.insert(path.clone());
+            if let Some(parent_content) = resource_manager.read_utf8(&path) {
+                if let Ok(parent_raw) = serde_json::from_str::<RawBlockModel>(&parent_content) {
+                    return Self::is_raw_full_cube(&parent_raw, resource_manager, visited);
+                }
+            }
+            Ok(false)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Recursively resolves elements from parent models, while also resolving texture references
@@ -193,13 +233,22 @@ impl BlockModel {
         } else if let Some(grand_parent) = parent_raw.parent {
             let grand_parent_path =
                 PathBuf::from("blocks/models").join(format!("{}.json", grand_parent));
+            let combined_transform = if let Some(parent_transform) = parent_raw.transform {
+                if let Some(current_transform) = transform {
+                    Some(parent_transform * current_transform)
+                } else {
+                    Some(parent_transform)
+                }
+            } else {
+                transform
+            };
             Self::resolve_elements(
                 &grand_parent_path,
                 textures,
                 visited,
                 resource_manager,
                 atlas,
-                parent_raw.transform,
+                combined_transform,
             )
         } else {
             Err(format!("Model {:?} has no elements and no parent", parent))
@@ -219,9 +268,7 @@ impl BlockModel {
     ) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
         let mut commands = Vec::new();
         for element in &self.elements {
-            for (i, face) in element.faces.iter().enumerate() {
-                let dir = (i as u8).try_into().unwrap();
-
+            for face in element.faces.iter() {
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
@@ -233,11 +280,11 @@ impl BlockModel {
 
                 let mut vertices = Vec::new();
 
-                let corners = face_corners(element.from, element.to, dir);
+                let corners = face.vertices;
                 for (vert, uv) in corners.iter().zip(uvs.iter()) {
                     let rotated = rotation.transform_point3(*vert);
                     let p = Vec2::new(rotated.x, -rotated.y);
-                    let normal = rotation.transform_vector3(dir.into());
+                    let normal = rotation.transform_vector3(face.normal);
                     vertices.push(crate::render::ui::UIVertex {
                         position: (position + p * size).extend(rotated.z + 2.0),
                         uv: *uv,
@@ -262,17 +309,13 @@ impl BlockModel {
     /// Returns if this block model contains only one cube element from (0, 0, 0) to (16, 16, 16).
     #[inline]
     pub fn is_full_cube(&self) -> bool {
-        self.elements.len() == 1
-            && self.elements[0].from == Vec3::ZERO
-            && self.elements[0].to == Vec3::ONE
+        self.is_full_cube
     }
 }
 
 /// A single cuboid element of a block model, defined by two opposite corners and the faces that
 /// make up the cuboid. Each face has its own texture and UV coordinates.
 pub struct BlockElement {
-    pub from: Vec3,
-    pub to: Vec3,
     pub faces: [BlockFace; 6],
 }
 
@@ -291,92 +334,23 @@ impl BlockElement {
 
         let faces: [BlockFace; 6] = [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
             .into_iter()
-            .map(|raw_face| BlockFace::from_raw(raw_face, textures, resource_manager, atlas))
+            .enumerate()
+            .map(|(i, raw_face)| {
+                BlockFace::from_raw(
+                    raw_face,
+                    textures,
+                    resource_manager,
+                    atlas,
+                    (from, to),
+                    Direction::try_from(i as u8).unwrap(),
+                    transform,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?
             .try_into()
             .map_err(|_| "Expected exactly 6 faces".to_string())?;
 
-        if let Some(transform) = transform {
-            let scale = Vec3::from(transform.scale);
-            let rotation = glam::Quat::from_euler(
-                glam::EulerRot::XYZ,
-                transform.rotation[0] as f32 * std::f32::consts::FRAC_PI_2,
-                transform.rotation[1] as f32 * std::f32::consts::FRAC_PI_2,
-                transform.rotation[2] as f32 * std::f32::consts::FRAC_PI_2,
-            );
-            let translation = Vec3::from(transform.translation) / 16.0;
-
-            let pivot = Vec3::splat(0.5);
-            let corners = [
-                Vec3::new(from.x, from.y, from.z),
-                Vec3::new(to.x, from.y, from.z),
-                Vec3::new(to.x, to.y, from.z),
-                Vec3::new(from.x, to.y, from.z),
-                Vec3::new(from.x, from.y, to.z),
-                Vec3::new(to.x, from.y, to.z),
-                Vec3::new(to.x, to.y, to.z),
-                Vec3::new(from.x, to.y, to.z),
-            ];
-
-            let transformed: Vec<Vec3> = corners
-                .iter()
-                .map(|c| {
-                    let mut p = *c;
-                    p = (p - pivot) * scale + pivot;
-                    p = rotation * (p - pivot) + pivot;
-                    p + translation
-                })
-                .collect();
-
-            let mut new_from = transformed[0];
-            let mut new_to = transformed[0];
-
-            for p in &transformed[1..] {
-                new_from = new_from.min(*p);
-                new_to = new_to.max(*p);
-            }
-
-            // update uvs
-            let mut new_faces = faces;
-            for face in &mut new_faces {
-                let uv_min = face.uv[0] * 16.0;
-                let uv_max = face.uv[1] * 16.0;
-                let uv_corners = [
-                    Vec3::new(uv_min.x, uv_min.y, 0.0),
-                    Vec3::new(uv_max.x, uv_min.y, 0.0),
-                    Vec3::new(uv_max.x, uv_max.y, 0.0),
-                    Vec3::new(uv_min.x, uv_max.y, 0.0),
-                ];
-
-                let transformed_uvs: Vec<Vec3> = uv_corners
-                    .iter()
-                    .map(|uv| {
-                        let mut p = *uv;
-                        p = (p - pivot) * scale + pivot;
-                        p = rotation * (p - pivot) + pivot;
-                        p + translation
-                    })
-                    .collect();
-
-                let mut new_uv_min = transformed_uvs[0];
-                let mut new_uv_max = transformed_uvs[0];
-
-                for uv in &transformed_uvs[1..] {
-                    new_uv_min = new_uv_min.min(*uv);
-                    new_uv_max = new_uv_max.max(*uv);
-                }
-
-                face.uv = [new_uv_min.truncate() / 16.0, new_uv_max.truncate() / 16.0];
-            }
-
-            Ok(BlockElement {
-                from: new_from,
-                to: new_to,
-                faces: new_faces,
-            })
-        } else {
-            Ok(BlockElement { from, to, faces })
-        }
+        Ok(BlockElement { faces })
     }
 }
 
@@ -384,10 +358,18 @@ impl BlockElement {
 /// texture reference is resolved to a file path and added to the texture atlas when creating a
 /// `BlockFace` from a `RawBlockFace`.
 pub struct BlockFace {
+    pub vertices: [Vec3; 4],
     pub uv: [Vec2; 2],
+    pub normal: Vec3,
     pub texture_name: String,
     pub occludes: bool,
     pub cullable: bool,
+    pub occlusion_face: Option<OcclusionFace>,
+}
+
+pub struct OcclusionFace {
+    pub cull_face: Direction,
+    pub rect: [Vec2; 2],
 }
 
 impl BlockFace {
@@ -399,6 +381,9 @@ impl BlockFace {
         textures: &HashMap<String, TextureRef>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
+        aabb: (Vec3, Vec3),
+        face: Direction,
+        transform: Option<RawBlockModelTransform>,
     ) -> Result<Self, String> {
         let texture_path = raw
             .texture
@@ -413,14 +398,33 @@ impl BlockFace {
         atlas
             .add_texture(texture_path.1.clone(), image)
             .ok_or("Atlas is full, cannot add more textures")?;
+
+        let transform = transform.map_or(Affine3A::IDENTITY, Into::into);
+        let vertices =
+            face_corners(aabb.0, aabb.1, face).map(|corner| transform.transform_point3(corner));
+        let normal = transform.transform_vector3(face.into());
+        let uv = [
+            Vec2::from_slice(&raw.uv[0..2]) / super::TEXTURE_SIZE as f32,
+            Vec2::from_slice(&raw.uv[2..4]) / super::TEXTURE_SIZE as f32,
+        ];
+        let cull_face = if let Some(dir) = normal.try_into().ok() {
+            Some(dir)
+        } else {
+            None
+        };
+        let mut occlusion_face = None;
+        if let Some(cull_face) = cull_face {
+            let rect = [Vec2::new(aabb.0.x, aabb.0.y), Vec2::new(aabb.1.x, aabb.1.y)];
+            occlusion_face = Some(OcclusionFace { cull_face, rect });
+        }
         Ok(BlockFace {
-            uv: [
-                Vec2::new(raw.uv[0], raw.uv[1]) / super::TEXTURE_SIZE as f32,
-                Vec2::new(raw.uv[2], raw.uv[3]) / super::TEXTURE_SIZE as f32,
-            ],
+            vertices,
+            uv,
+            normal,
             texture_name: texture_path.1,
             occludes: raw.occludes.unwrap_or(true),
             cullable: raw.cullable.unwrap_or(true),
+            occlusion_face,
         })
     }
 }

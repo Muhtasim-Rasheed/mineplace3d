@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use glam::{IVec3, Vec2, Vec3, Vec3Swizzles};
+use glam::{IVec3, Vec2, Vec3};
 use glow::HasContext;
 use mp3d_core::{
     block::{Block, BlockState},
@@ -19,7 +19,7 @@ use crate::{
 #[repr(C)]
 pub struct ChunkVertex {
     pub position: Vec3,
-    pub normal: IVec3,
+    pub normal: Vec3,
     pub uv: Vec2,
     pub ao: u8,
 }
@@ -37,7 +37,7 @@ impl Vertex for ChunkVertex {
 
             // Normal attribute
             gl.enable_vertex_attrib_array(1);
-            gl.vertex_attrib_pointer_i32(1, 3, glow::INT, stride, offset);
+            gl.vertex_attrib_pointer_f32(1, 3, glow::FLOAT, false, stride, offset);
             offset += std::mem::size_of::<IVec3>() as i32;
 
             // UV attribute
@@ -49,16 +49,6 @@ impl Vertex for ChunkVertex {
             gl.enable_vertex_attrib_array(3);
             gl.vertex_attrib_pointer_i32(3, 1, glow::UNSIGNED_BYTE, stride, offset);
         }
-    }
-}
-
-/// Gets a rect of a face of a block
-#[inline]
-fn get_face_rect(face: Direction, element: &crate::resource::block::BlockElement) -> [Vec2; 2] {
-    match face {
-        Direction::North | Direction::South => [element.from.xy(), element.to.xy()],
-        Direction::East | Direction::West => [element.from.zy(), element.to.zy()],
-        Direction::Up | Direction::Down => [element.from.xz(), element.to.xz()],
     }
 }
 
@@ -86,20 +76,27 @@ fn should_occlude(
 
     for a_el in &a_model.elements {
         let a_face = &a_el.faces[face as usize];
+
+        let Some(a_occ) = &a_face.occlusion_face else {
+            continue;
+        };
+
         if !a_face.cullable {
             continue;
         }
 
-        let a_rect = get_face_rect(face, a_el);
-
         for b_el in &b_model.elements {
             let b_face = &b_el.faces[face.opposite() as usize];
+
+            let Some(b_occ) = &b_face.occlusion_face else {
+                continue;
+            };
+
             if !b_face.occludes {
                 continue;
             }
 
-            let b_rect = get_face_rect(face.opposite(), b_el);
-            if covers(a_rect[0], a_rect[1], b_rect[0], b_rect[1]) {
+            if covers(a_occ.rect[0], a_occ.rect[1], b_occ.rect[0], b_occ.rect[1]) {
                 return true;
             }
         }
@@ -128,62 +125,6 @@ fn block_is_full_cube(
         .is_some_and(|model| model.is_full_cube())
 }
 
-/// The vertex positions for each face of a cube, in the order of NSEWUD.
-const FACE_VERTS: [[Vec3; 4]; 6] = [
-    // North (-Z)
-    [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(1.0, 1.0, 0.0),
-    ],
-    // South (+Z)
-    [
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 1.0),
-        Vec3::new(1.0, 1.0, 1.0),
-        Vec3::new(0.0, 1.0, 1.0),
-    ],
-    // East (+X)
-    [
-        Vec3::new(1.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(1.0, 1.0, 0.0),
-        Vec3::new(1.0, 1.0, 1.0),
-    ],
-    // West (-X)
-    [
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 1.0, 1.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    ],
-    // Up (+Y)
-    [
-        Vec3::new(1.0, 1.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 1.0, 1.0),
-        Vec3::new(1.0, 1.0, 1.0),
-    ],
-    // Down (-Y)
-    [
-        Vec3::new(1.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-    ],
-];
-
-/// The normal vectors for each face of a cube, in the order of NSEWUD.
-const NORMALS: [IVec3; 6] = [
-    IVec3::new(0, 0, -1), // North
-    IVec3::new(0, 0, 1),  // South
-    IVec3::new(1, 0, 0),  // East
-    IVec3::new(-1, 0, 0), // West
-    IVec3::new(0, 1, 0),  // Up
-    IVec3::new(0, -1, 0), // Down
-];
-
 fn ao_for_vertex(side1: bool, side2: bool, corner: bool) -> u8 {
     if side1 && side2 {
         0
@@ -198,16 +139,6 @@ const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
     // North face (-Z)
     [
         [
-            IVec3::new(1, 0, -1),
-            IVec3::new(0, -1, -1),
-            IVec3::new(1, -1, -1),
-        ],
-        [
-            IVec3::new(-1, 0, -1),
-            IVec3::new(0, -1, -1),
-            IVec3::new(-1, -1, -1),
-        ],
-        [
             IVec3::new(-1, 0, -1),
             IVec3::new(0, 1, -1),
             IVec3::new(-1, 1, -1),
@@ -216,21 +147,21 @@ const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
             IVec3::new(1, 0, -1),
             IVec3::new(0, 1, -1),
             IVec3::new(1, 1, -1),
+        ],
+        [
+            IVec3::new(1, 0, -1),
+            IVec3::new(0, -1, -1),
+            IVec3::new(1, -1, -1),
+        ],
+        [
+            IVec3::new(-1, 0, -1),
+            IVec3::new(0, -1, -1),
+            IVec3::new(-1, -1, -1),
         ],
     ],
     // South face (+Z)
     [
         [
-            IVec3::new(-1, 0, 1),
-            IVec3::new(0, -1, 1),
-            IVec3::new(-1, -1, 1),
-        ],
-        [
-            IVec3::new(1, 0, 1),
-            IVec3::new(0, -1, 1),
-            IVec3::new(1, -1, 1),
-        ],
-        [
             IVec3::new(1, 0, 1),
             IVec3::new(0, 1, 1),
             IVec3::new(1, 1, 1),
@@ -240,19 +171,19 @@ const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
             IVec3::new(0, 1, 1),
             IVec3::new(-1, 1, 1),
         ],
+        [
+            IVec3::new(-1, 0, 1),
+            IVec3::new(0, -1, 1),
+            IVec3::new(-1, -1, 1),
+        ],
+        [
+            IVec3::new(1, 0, 1),
+            IVec3::new(0, -1, 1),
+            IVec3::new(1, -1, 1),
+        ],
     ],
     // East face (+X)
     [
-        [
-            IVec3::new(1, 0, 1),
-            IVec3::new(1, -1, 0),
-            IVec3::new(1, -1, 1),
-        ],
-        [
-            IVec3::new(1, 0, -1),
-            IVec3::new(1, -1, 0),
-            IVec3::new(1, -1, -1),
-        ],
         [
             IVec3::new(1, 0, -1),
             IVec3::new(1, 1, 0),
@@ -263,19 +194,19 @@ const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
             IVec3::new(1, 1, 0),
             IVec3::new(1, 1, 1),
         ],
+        [
+            IVec3::new(1, 0, 1),
+            IVec3::new(1, -1, 0),
+            IVec3::new(1, -1, 1),
+        ],
+        [
+            IVec3::new(1, 0, -1),
+            IVec3::new(1, -1, 0),
+            IVec3::new(1, -1, -1),
+        ],
     ],
     // West face (-X)
     [
-        [
-            IVec3::new(-1, 0, -1),
-            IVec3::new(-1, -1, 0),
-            IVec3::new(-1, -1, -1),
-        ],
-        [
-            IVec3::new(-1, 0, 1),
-            IVec3::new(-1, -1, 0),
-            IVec3::new(-1, -1, 1),
-        ],
         [
             IVec3::new(-1, 0, 1),
             IVec3::new(-1, 1, 0),
@@ -285,6 +216,16 @@ const AO_NEIGHBORS: [[[IVec3; 3]; 4]; 6] = [
             IVec3::new(-1, 0, -1),
             IVec3::new(-1, 1, 0),
             IVec3::new(-1, 1, -1),
+        ],
+        [
+            IVec3::new(-1, 0, -1),
+            IVec3::new(-1, -1, 0),
+            IVec3::new(-1, -1, -1),
+        ],
+        [
+            IVec3::new(-1, 0, 1),
+            IVec3::new(-1, -1, 0),
+            IVec3::new(-1, -1, 1),
         ],
     ],
     // Up face (+Y)
@@ -470,9 +411,7 @@ fn mesh_chunk(
                 });
 
                 // Create faces for each non-occluded side
-                for dir_ivec in NORMALS.iter().copied() {
-                    let dir = Direction::try_from(dir_ivec).unwrap();
-
+                for dir in Direction::ALL {
                     let neighbor_pos = world_pos + dir;
 
                     // Create face the neighboring block is air or doesn't occlude this face.
@@ -538,20 +477,17 @@ fn mesh_chunk(
 
                             let base_index = vertices.len() as u32;
                             let uvs = [
-                                Vec2::new(uv_max.x, uv_min.y),
-                                Vec2::new(uv_min.x, uv_min.y),
-                                Vec2::new(uv_min.x, uv_max.y),
                                 Vec2::new(uv_max.x, uv_max.y),
+                                Vec2::new(uv_min.x, uv_max.y),
+                                Vec2::new(uv_min.x, uv_min.y),
+                                Vec2::new(uv_max.x, uv_min.y),
                             ];
-                            for (i, (vert, uv)) in
-                                FACE_VERTS[dir as usize].iter().zip(uvs.iter()).enumerate()
-                            {
+                            let normal = face.normal;
+                            for (i, vert) in face.vertices.iter().enumerate() {
                                 vertices.push(ChunkVertex {
-                                    position: *vert * (el.to - el.from)
-                                        + el.from
-                                        + world_pos.as_vec3(),
-                                    normal: dir_ivec,
-                                    uv: *uv,
+                                    position: *vert + world_pos.as_vec3(),
+                                    normal,
+                                    uv: uvs[i],
                                     ao: aos[i],
                                 });
                             }
