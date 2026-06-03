@@ -92,6 +92,7 @@ items!(
     LEAVES => { "leaves", block: Some(&Block::LEAVES) },
     GLUNGUS_BLOCK => { "glungus_block", block: Some(&Block::GLUNGUS) },
     STONE_SLAB => { "stone_slab", block: Some(&Block::STONE_SLAB) },
+    STONE_STAIRS => { "stone_stairs", block: Some(&Block::STONE_STAIRS) },
     SHORT_GRASS => { "short_grass", block: Some(&Block::SHORT_GRASS) },
 );
 

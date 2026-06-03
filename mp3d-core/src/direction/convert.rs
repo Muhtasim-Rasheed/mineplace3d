@@ -31,11 +31,29 @@ impl From<Direction> for IVec3 {
     }
 }
 
-impl TryFrom<Vec3> for Direction {
-    type Error = ();
+impl From<Vec3> for Direction {
+    fn from(v: Vec3) -> Self {
+        let a = v.abs();
 
-    fn try_from(value: Vec3) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_ivec3())
+        if a.x > a.y && a.x > a.z {
+            if v.x > 0.0 {
+                Direction::East
+            } else {
+                Direction::West
+            }
+        } else if a.y > a.z {
+            if v.y > 0.0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            }
+        } else {
+            if v.z > 0.0 {
+                Direction::South
+            } else {
+                Direction::North
+            }
+        }
     }
 }
 
@@ -49,15 +67,7 @@ impl TryFrom<u8> for Direction {
     type Error = ();
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Direction::North),
-            1 => Ok(Direction::South),
-            2 => Ok(Direction::East),
-            3 => Ok(Direction::West),
-            4 => Ok(Direction::Up),
-            5 => Ok(Direction::Down),
-            _ => Err(()),
-        }
+        Self::from_u8(value).ok_or(())
     }
 }
 

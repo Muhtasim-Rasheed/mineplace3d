@@ -2,6 +2,8 @@
 
 use glam::{IVec3, Vec3};
 
+use crate::direction::Direction;
+
 mod save_impls;
 
 /// A struct used for declaring different types of blocks on the fly. Mineplace provides some
@@ -78,10 +80,15 @@ blocks! {
         collision_shape: CollisionShape::Slab,
         state_type: BlockState::SLAB_TYPE,
     },
+    STONE_STAIRS => {
+        ident: "stone_stairs",
+        collision_shape: CollisionShape::Stairs,
+        state_type: BlockState::STAIR_TYPE,
+    },
     SHORT_GRASS => {
         ident: "short_grass",
         collision_shape: CollisionShape::None,
-        interact_shape: CollisionShape::FullBlock,
+        interact_shape: CollisionShape::Slab,
     },
 }
 
@@ -93,20 +100,20 @@ impl Block {
         player_pos_local: Vec3,
         block_state: BlockState,
     ) -> bool {
+        let half_width = player_width / 2.0;
+        let player_min = Vec3::new(
+            player_pos_local.x - half_width,
+            player_pos_local.y,
+            player_pos_local.z - half_width,
+        );
+        let player_max = Vec3::new(
+            player_pos_local.x + half_width,
+            player_pos_local.y + player_height,
+            player_pos_local.z + half_width,
+        );
         match self.collision_shape {
             CollisionShape::None => false,
             CollisionShape::FullBlock => {
-                let half_width = player_width / 2.0;
-                let player_min = Vec3::new(
-                    player_pos_local.x - half_width,
-                    player_pos_local.y,
-                    player_pos_local.z - half_width,
-                );
-                let player_max = Vec3::new(
-                    player_pos_local.x + half_width,
-                    player_pos_local.y + player_height,
-                    player_pos_local.z + half_width,
-                );
                 let block_min = Vec3::new(0.0, 0.0, 0.0);
                 let block_max = Vec3::new(1.0, 1.0, 1.0);
                 crate::aabb_overlap(player_min, player_max, block_min, block_max)
@@ -130,18 +137,38 @@ impl Block {
                         }
                         _ => unreachable!(),
                     }
-                    let half_width = player_width / 2.0;
-                    let player_min = Vec3::new(
-                        player_pos_local.x - half_width,
-                        player_pos_local.y,
-                        player_pos_local.z - half_width,
-                    );
-                    let player_max = Vec3::new(
-                        player_pos_local.x + half_width,
-                        player_pos_local.y + player_height,
-                        player_pos_local.z + half_width,
-                    );
                     crate::aabb_overlap(player_min, player_max, block_min, block_max)
+                } else {
+                    false
+                }
+            }
+            CollisionShape::Stairs => {
+                if let Some(shape) = block_state.is_stairs() {
+                    let element_a_min = Vec3::new(0.0, 0.0, 0.0);
+                    let element_a_max = Vec3::new(1.0, 0.5, 1.0);
+                    let element_b_min;
+                    let element_b_max;
+                    match shape {
+                        Direction::North => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
+                            element_b_max = Vec3::new(1.0, 1.0, 0.5);
+                        }
+                        Direction::South => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.5);
+                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::West => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
+                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
+                        }
+                        Direction::East => {
+                            element_b_min = Vec3::new(0.5, 0.5, 0.0);
+                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        _ => unreachable!(),
+                    }
+                    crate::aabb_overlap(player_min, player_max, element_a_min, element_a_max)
+                        || crate::aabb_overlap(player_min, player_max, element_b_min, element_b_max)
                 } else {
                     false
                 }
@@ -197,6 +224,49 @@ impl Block {
                     None
                 }
             }
+            CollisionShape::Stairs => {
+                if let Some(shape) = block_state.is_stairs() {
+                    let element_a_min = Vec3::new(0.0, 0.0, 0.0);
+                    let element_a_max = Vec3::new(1.0, 0.5, 1.0);
+                    let element_b_min;
+                    let element_b_max;
+                    match shape {
+                        Direction::North => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
+                            element_b_max = Vec3::new(1.0, 1.0, 0.5);
+                        }
+                        Direction::South => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.5);
+                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::West => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
+                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
+                        }
+                        Direction::East => {
+                            element_b_min = Vec3::new(0.5, 0.5, 0.0);
+                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        _ => unreachable!(),
+                    }
+                    crate::ray_intersect_aabb(
+                        ray_origin_local,
+                        ray_direction_local,
+                        element_a_min,
+                        element_a_max,
+                    )
+                    .or_else(|| {
+                        crate::ray_intersect_aabb(
+                            ray_origin_local,
+                            ray_direction_local,
+                            element_b_min,
+                            element_b_max,
+                        )
+                    })
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -217,6 +287,8 @@ pub enum CollisionShape {
     FullBlock = 1,
     /// A slab (whether it's top or bottom is determined by the block state).
     Slab = 2,
+    /// A stair (the facing direction is determined by the block state).
+    Stairs = 3,
 }
 
 /// Struct to store the block state of a block in the world.
@@ -236,6 +308,7 @@ pub struct BlockState(u32);
 impl BlockState {
     pub const NONE_TYPE: u16 = 0x0000;
     pub const SLAB_TYPE: u16 = 0x0001;
+    pub const STAIR_TYPE: u16 = 0x0002;
 
     /// Creates a new block state with the given type and data.
     #[inline]
@@ -279,6 +352,13 @@ impl BlockState {
         BlockState::new(Self::SLAB_TYPE, data)
     }
 
+    /// Creates a stair block state with the given facing direction
+    #[inline]
+    pub const fn stairs(dir: Direction) -> BlockState {
+        assert!(!matches!(dir, Direction::Up | Direction::Down));
+        BlockState::new(Self::STAIR_TYPE, dir as u16)
+    }
+
     /// Checks if the block state is empty (i.e. has no data).
     #[inline]
     pub const fn is_none(&self) -> bool {
@@ -296,6 +376,16 @@ impl BlockState {
         }
     }
 
+    /// Checks if the block state is stairs and returns the facing direction if it is.
+    #[inline]
+    pub const fn is_stairs(&self) -> Option<Direction> {
+        if self.state_type() == Self::STAIR_TYPE {
+            Direction::from_u8(self.data() as u8)
+        } else {
+            None
+        }
+    }
+
     /// Returns all possible data values for the given block state type. If the slice is empty,
     /// then the block state of that type can have any data value (i.e. the data value is not used
     /// for that block state type). If the block state type is not recognized, then `None` is
@@ -305,6 +395,7 @@ impl BlockState {
         match state_type {
             Self::NONE_TYPE => Some(&[0x0000]),                 // NONE
             Self::SLAB_TYPE => Some(&[0x0000, 0x0001, 0x0002]), // SLAB
+            Self::STAIR_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]), // STAIRS
             _ => None,
         }
     }
@@ -316,6 +407,7 @@ impl BlockState {
         match state_type {
             Self::NONE_TYPE => Some(BlockState::none()),
             Self::SLAB_TYPE => Some(BlockState::slab(0)),
+            Self::STAIR_TYPE => Some(BlockState::stairs(Direction::North)),
             _ => None,
         }
     }

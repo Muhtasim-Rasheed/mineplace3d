@@ -1,0 +1,24 @@
+{
+	"elements": [
+		{
+			"from": [8, 0, 0],
+			"to": [8, 16, 16],
+			"n": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"s": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"e": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"w": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"u": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"d": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false}
+		},
+		{
+			"from": [0, 0, 8],
+			"to": [16, 16, 8],
+			"n": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"s": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"e": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"w": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"u": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false},
+			"d": {"uv": [0, 0, 16, 16], "texture": "$a", "occludes": false, "cullable": false}
+		}
+	]
+}

@@ -467,10 +467,12 @@ impl BlockFace {
             Vec2::from_slice(&raw.uv[2..4]) / super::TEXTURE_SIZE as f32,
         ];
         let mut occlusion_face = None;
-        if Direction::try_from(normal).is_ok() {
+        let cardinal = normal.abs().max_element() > 0.999 && normal.abs().min_element() < 0.001;
+        if cardinal {
             let rect = [Vec2::new(aabb.0.x, aabb.0.y), Vec2::new(aabb.1.x, aabb.1.y)];
             occlusion_face = Some(OcclusionFace { rect });
         }
+
         Ok(BlockFace {
             vertices,
             uv,

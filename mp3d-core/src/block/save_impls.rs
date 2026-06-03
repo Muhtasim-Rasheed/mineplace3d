@@ -31,6 +31,7 @@ impl Saveable for Block {
             0 => CollisionShape::None,
             1 => CollisionShape::FullBlock,
             2 => CollisionShape::Slab,
+            3 => CollisionShape::Stairs,
             _ => {
                 return Err(WorldLoadError::InvalidSaveFormat(format!(
                     "Invalid collision shape: {}",
@@ -47,6 +48,7 @@ impl Saveable for Block {
                     0 => CollisionShape::None,
                     1 => CollisionShape::FullBlock,
                     2 => CollisionShape::Slab,
+                    3 => CollisionShape::Stairs,
                     _ => {
                         return Err(WorldLoadError::InvalidSaveFormat(format!(
                             "Invalid interact shape: {}",

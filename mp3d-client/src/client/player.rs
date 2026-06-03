@@ -193,11 +193,25 @@ impl ClientPlayer {
     }
 
     fn collision_check(&mut self, dt: f32, world: &ClientWorld) {
-        let new_pos_x = self.position.with_x(self.position.x + self.velocity.x * dt);
-        if !world.collides(new_pos_x, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.x = new_pos_x.x;
-        } else {
-            self.velocity.x = 0.0;
+        let dx = self.velocity.x * dt;
+
+        let new_pos = self.position.with_x(self.position.x + dx);
+
+        if !world.collides(new_pos, PlayerEntity::width(), PlayerEntity::height()) {
+            self.position.x = new_pos.x;
+        } else if !self.flying {
+            let stepped = self
+                .position
+                .with_y(self.position.y + mp3d_core::entity::player::STEP_HEIGHT)
+                .with_x(self.position.x + dx);
+
+            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height()) {
+                self.position = stepped;
+                self.velocity.y = 0.0;
+                self.on_ground = false;
+            } else {
+                self.velocity.x = 0.0;
+            }
         }
 
         let new_pos_y = self.position.with_y(self.position.y + self.velocity.y * dt);
@@ -221,11 +235,25 @@ impl ClientPlayer {
             self.velocity.y = 0.0;
         }
 
-        let new_pos_z = self.position.with_z(self.position.z + self.velocity.z * dt);
-        if !world.collides(new_pos_z, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.z = new_pos_z.z;
-        } else {
-            self.velocity.z = 0.0;
+        let dz = self.velocity.z * dt;
+
+        let new_pos = self.position.with_z(self.position.z + dz);
+
+        if !world.collides(new_pos, PlayerEntity::width(), PlayerEntity::height()) {
+            self.position.z = new_pos.z;
+        } else if !self.flying {
+            let stepped = self
+                .position
+                .with_y(self.position.y + mp3d_core::entity::player::STEP_HEIGHT)
+                .with_z(self.position.z + dz);
+
+            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height()) {
+                self.position = stepped;
+                self.velocity.y = 0.0;
+                self.on_ground = false;
+            } else {
+                self.velocity.z = 0.0;
+            }
         }
     }
 

@@ -29,6 +29,18 @@ impl Direction {
         Direction::Down,
     ];
 
+    pub const fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Direction::North),
+            1 => Some(Direction::South),
+            2 => Some(Direction::East),
+            3 => Some(Direction::West),
+            4 => Some(Direction::Up),
+            5 => Some(Direction::Down),
+            _ => None,
+        }
+    }
+
     pub fn opposite(self) -> Self {
         // No branches in the final compiled binary because of optimization
 

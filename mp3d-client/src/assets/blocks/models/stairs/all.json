@@ -1,5 +1,5 @@
 {
-	"parent": "slab/slab",
+	"parent": "stairs/stairs",
 	"textures": {
 		"$particle": "$d",
 		"$n": "$a",
