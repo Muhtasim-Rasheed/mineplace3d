@@ -65,6 +65,7 @@ impl BlockModel {
     pub fn from_block(
         model_path: PathBuf,
         model_file: &str,
+        transform: Option<BlockModelTransform>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
@@ -75,13 +76,14 @@ impl BlockModel {
                 e
             )
         })?;
-        Self::from_raw(raw_model, resource_manager, atlas)
+        Self::from_raw(raw_model, transform, resource_manager, atlas)
     }
 
     /// Creates a [`BlockModel`] from a [`RawBlockModel`], resolving texture references and parent
     /// models.
     pub fn from_raw(
         raw: RawBlockModel,
+        state_transform: Option<BlockModelTransform>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
@@ -105,6 +107,15 @@ impl BlockModel {
             }
         }
 
+        let mut transform = raw.transform.map(BlockModelTransform::from);
+        if let Some(state_transform) = state_transform {
+            transform = Some(if let Some(raw_transform) = transform {
+                state_transform * raw_transform
+            } else {
+                state_transform
+            });
+        }
+
         let mut elements = Vec::new();
 
         if let Some(raw_elements) = raw.elements {
@@ -114,7 +125,7 @@ impl BlockModel {
                     &textures,
                     resource_manager,
                     atlas,
-                    raw.transform,
+                    transform,
                 )
                 .map_err(|e| format!("Failed to resolve element {}: {}", i, e))?;
                 elements.push(element);
@@ -127,7 +138,7 @@ impl BlockModel {
                 &mut std::collections::HashSet::new(),
                 resource_manager,
                 atlas,
-                raw.transform,
+                transform,
             )
             .map_err(|e| format!("Failed to resolve parent model '{}': {}", parent, e))?;
         }
@@ -181,7 +192,7 @@ impl BlockModel {
         visited: &mut std::collections::HashSet<PathBuf>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
-        transform: Option<RawBlockModelTransform>,
+        transform: Option<BlockModelTransform>,
     ) -> Result<Vec<BlockElement>, String> {
         if visited.contains(parent) {
             return Err(format!(
@@ -211,6 +222,8 @@ impl BlockModel {
             let mut resolved_elements = Vec::new();
             for (i, raw_element) in elements.into_iter().enumerate() {
                 let combined_transform = if let Some(parent_transform) = parent_raw.transform {
+                    let parent_transform = BlockModelTransform::from(parent_transform);
+
                     if let Some(current_transform) = transform {
                         Some(parent_transform * current_transform)
                     } else {
@@ -234,6 +247,8 @@ impl BlockModel {
             let grand_parent_path =
                 PathBuf::from("blocks/models").join(format!("{}.json", grand_parent));
             let combined_transform = if let Some(parent_transform) = parent_raw.transform {
+                let parent_transform = BlockModelTransform::from(parent_transform);
+
                 if let Some(current_transform) = transform {
                     Some(parent_transform * current_transform)
                 } else {
@@ -313,6 +328,51 @@ impl BlockModel {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BlockModelTransform {
+    pub rotation: Vec3,
+    pub translation: Vec3,
+    pub scale: Vec3,
+}
+
+impl From<BlockModelTransform> for glam::Affine3A {
+    fn from(transform: BlockModelTransform) -> Self {
+        let center = glam::Vec3::splat(0.5);
+        let to_origin = glam::Affine3A::from_translation(-center);
+        let from_origin = glam::Affine3A::from_translation(center);
+        let rotation = glam::Affine3A::from_rotation_x(transform.rotation.x)
+            * glam::Affine3A::from_rotation_y(transform.rotation.y)
+            * glam::Affine3A::from_rotation_z(transform.rotation.z);
+        let scale = glam::Affine3A::from_scale(transform.scale);
+        let translation = glam::Affine3A::from_translation(transform.translation);
+        from_origin * rotation * scale * to_origin * translation
+    }
+}
+
+impl From<RawBlockModelTransform> for BlockModelTransform {
+    fn from(raw: RawBlockModelTransform) -> Self {
+        Self {
+            rotation: raw
+                .rotation
+                .map_or(Vec3::ZERO, |r| Vec3::from_array(r.map(|v| v.to_radians()))),
+            translation: raw.translation.map_or(Vec3::ZERO, Vec3::from_array),
+            scale: raw.scale.map_or(Vec3::ONE, Vec3::from_array),
+        }
+    }
+}
+
+impl std::ops::Mul for BlockModelTransform {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            rotation: (self.rotation + rhs.rotation) % Vec3::splat(std::f32::consts::TAU),
+            translation: self.translation + rhs.translation,
+            scale: self.scale * rhs.scale,
+        }
+    }
+}
+
 /// A single cuboid element of a block model, defined by two opposite corners and the faces that
 /// make up the cuboid. Each face has its own texture and UV coordinates.
 pub struct BlockElement {
@@ -327,7 +387,7 @@ impl BlockElement {
         textures: &HashMap<String, TextureRef>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
-        transform: Option<RawBlockModelTransform>,
+        transform: Option<BlockModelTransform>,
     ) -> Result<Self, String> {
         let from = Vec3::from(raw.from) / 16.0;
         let to = Vec3::from(raw.to) / 16.0;
@@ -368,7 +428,6 @@ pub struct BlockFace {
 }
 
 pub struct OcclusionFace {
-    pub cull_face: Direction,
     pub rect: [Vec2; 2],
 }
 
@@ -383,7 +442,7 @@ impl BlockFace {
         atlas: &mut TextureAtlas,
         aabb: (Vec3, Vec3),
         face: Direction,
-        transform: Option<RawBlockModelTransform>,
+        transform: Option<BlockModelTransform>,
     ) -> Result<Self, String> {
         let texture_path = raw
             .texture
@@ -407,15 +466,10 @@ impl BlockFace {
             Vec2::from_slice(&raw.uv[0..2]) / super::TEXTURE_SIZE as f32,
             Vec2::from_slice(&raw.uv[2..4]) / super::TEXTURE_SIZE as f32,
         ];
-        let cull_face = if let Some(dir) = normal.try_into().ok() {
-            Some(dir)
-        } else {
-            None
-        };
         let mut occlusion_face = None;
-        if let Some(cull_face) = cull_face {
+        if Direction::try_from(normal).is_ok() {
             let rect = [Vec2::new(aabb.0.x, aabb.0.y), Vec2::new(aabb.1.x, aabb.1.y)];
-            occlusion_face = Some(OcclusionFace { cull_face, rect });
+            occlusion_face = Some(OcclusionFace { rect });
         }
         Ok(BlockFace {
             vertices,

@@ -8,7 +8,7 @@
 			"e": {"uv": [0, 0, 16, 8], "texture": "$e", "occludes": false},
 			"w": {"uv": [0, 0, 16, 8], "texture": "$w", "occludes": false},
 			"u": {"uv": [0, 0, 16, 16], "texture": "$u", "occludes": false, "cullable": false},
-			"d": {"uv": [0, 0, 16, 16], "texture": "$d"}
+			"d": {"uv": [0, 0, 16, 16], "texture": "$d", "occludes": false}
 		}
 	]
 }

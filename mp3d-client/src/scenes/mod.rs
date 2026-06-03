@@ -133,6 +133,7 @@ impl Assets {
                 let model = BlockModel::from_block(
                     model_path,
                     model_file,
+                    state.transform,
                     &resource_manager,
                     &mut block_textures,
                 )?;
