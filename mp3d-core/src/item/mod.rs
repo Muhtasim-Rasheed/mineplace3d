@@ -93,6 +93,7 @@ items!(
     GLUNGUS_BLOCK => { "glungus_block", block: Some(&Block::GLUNGUS) },
     STONE_SLAB => { "stone_slab", block: Some(&Block::STONE_SLAB) },
     STONE_STAIRS => { "stone_stairs", block: Some(&Block::STONE_STAIRS) },
+    STONE_VSLAB => { "stone_vslab", block: Some(&Block::STONE_VSLAB) },
     SHORT_GRASS => { "short_grass", block: Some(&Block::SHORT_GRASS) },
 );
 

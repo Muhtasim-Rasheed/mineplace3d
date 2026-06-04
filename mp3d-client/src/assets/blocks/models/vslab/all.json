@@ -1,0 +1,12 @@
+{
+	"parent": "vslab/vslab",
+	"textures": {
+		"$particle": "$d",
+		"$n": "$a",
+		"$s": "$a",
+		"$e": "$a",
+		"$w": "$a",
+		"$u": "$a",
+		"$d": "$a"
+	}
+}

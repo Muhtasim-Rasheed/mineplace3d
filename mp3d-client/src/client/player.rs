@@ -205,7 +205,9 @@ impl ClientPlayer {
                 .with_y(self.position.y + mp3d_core::entity::player::STEP_HEIGHT)
                 .with_x(self.position.x + dx);
 
-            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height()) {
+            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height())
+                && self.on_ground
+            {
                 self.position = stepped;
                 self.velocity.y = 0.0;
                 self.on_ground = false;
@@ -247,7 +249,9 @@ impl ClientPlayer {
                 .with_y(self.position.y + mp3d_core::entity::player::STEP_HEIGHT)
                 .with_z(self.position.z + dz);
 
-            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height()) {
+            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height())
+                && self.on_ground
+            {
                 self.position = stepped;
                 self.velocity.y = 0.0;
                 self.on_ground = false;

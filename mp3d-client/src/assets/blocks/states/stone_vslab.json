@@ -1,0 +1,17 @@
+{
+	"states": {
+		"0000": { "model": "stone_vslab" },
+		"0001": {
+			"model": "stone_vslab",
+			"transform": { "rotation": [0, 180, 0] }
+		},
+		"0002": {
+			"model": "stone_vslab",
+			"transform": { "rotation": [0, -90, 0] }
+		},
+		"0003": {
+			"model": "stone_vslab",
+			"transform": { "rotation": [0, 90, 0] }
+		}
+	}
+}

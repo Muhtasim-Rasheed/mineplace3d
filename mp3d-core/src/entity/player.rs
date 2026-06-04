@@ -252,7 +252,7 @@ impl Entity for PlayerEntity {
                 .with_y(self.position.y + STEP_HEIGHT)
                 .with_x(self.position.x + dx);
 
-            if !world.collides(stepped, Self::width(), Self::height()) {
+            if !world.collides(stepped, Self::width(), Self::height()) && self.on_ground {
                 self.position = stepped;
                 self.velocity.y = 0.0;
                 self.on_ground = false;
@@ -296,7 +296,7 @@ impl Entity for PlayerEntity {
                 .with_y(self.position.y + STEP_HEIGHT)
                 .with_z(self.position.z + dz);
 
-            if !world.collides(stepped, Self::width(), Self::height()) {
+            if !world.collides(stepped, Self::width(), Self::height()) && self.on_ground {
                 self.position = stepped;
                 self.velocity.y = 0.0;
                 self.on_ground = false;

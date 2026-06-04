@@ -357,31 +357,39 @@ impl World {
         }
 
         if let Some(block) = place_block {
+            let player_fwd = self
+                .get_entity::<PlayerEntity>(player_entity_id)
+                .unwrap()
+                .forward_vector();
+            let player_dir = if player_fwd.x.abs() > player_fwd.z.abs() {
+                if player_fwd.x > 0.0 {
+                    Direction::East
+                } else {
+                    Direction::West
+                }
+            } else {
+                if player_fwd.z > 0.0 {
+                    Direction::South
+                } else {
+                    Direction::North
+                }
+            };
+
             if block.state_type == BlockState::SLAB_TYPE && face == Direction::Down {
                 self.try_place_block(player_entity_id, place_pos, *block, BlockState::slab(1));
             } else if block.state_type == BlockState::STAIR_TYPE {
-                let player_fwd = self
-                    .get_entity::<PlayerEntity>(player_entity_id)
-                    .unwrap()
-                    .forward_vector();
-                let player_dir = if player_fwd.x.abs() > player_fwd.z.abs() {
-                    if player_fwd.x > 0.0 {
-                        Direction::East
-                    } else {
-                        Direction::West
-                    }
-                } else {
-                    if player_fwd.z > 0.0 {
-                        Direction::South
-                    } else {
-                        Direction::North
-                    }
-                };
                 self.try_place_block(
                     player_entity_id,
                     place_pos,
                     *block,
                     BlockState::stairs(player_dir),
+                );
+            } else if block.state_type == BlockState::FACING_TYPE {
+                self.try_place_block(
+                    player_entity_id,
+                    place_pos,
+                    *block,
+                    BlockState::facing(player_dir),
                 );
             } else if let Some(state) = BlockState::default_state(block.state_type) {
                 self.try_place_block(player_entity_id, place_pos, *block, state);

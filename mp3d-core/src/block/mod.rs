@@ -85,10 +85,15 @@ blocks! {
         collision_shape: CollisionShape::Stairs,
         state_type: BlockState::STAIR_TYPE,
     },
+    STONE_VSLAB => {
+        ident: "stone_vslab",
+        collision_shape: CollisionShape::VSlab,
+        state_type: BlockState::FACING_TYPE,
+    },
     SHORT_GRASS => {
         ident: "short_grass",
         collision_shape: CollisionShape::None,
-        interact_shape: CollisionShape::Slab,
+        interact_shape: CollisionShape::FullBlock,
     },
 }
 
@@ -157,18 +162,46 @@ impl Block {
                             element_b_min = Vec3::new(0.0, 0.5, 0.5);
                             element_b_max = Vec3::new(1.0, 1.0, 1.0);
                         }
-                        Direction::West => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
-                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
-                        }
                         Direction::East => {
                             element_b_min = Vec3::new(0.5, 0.5, 0.0);
                             element_b_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::West => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
+                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
                         }
                         _ => unreachable!(),
                     }
                     crate::aabb_overlap(player_min, player_max, element_a_min, element_a_max)
                         || crate::aabb_overlap(player_min, player_max, element_b_min, element_b_max)
+                } else {
+                    false
+                }
+            }
+            CollisionShape::VSlab => {
+                if let Some(shape) = block_state.is_facing() {
+                    let block_min;
+                    let block_max;
+                    match shape {
+                        Direction::North => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 0.5);
+                        }
+                        Direction::South => {
+                            block_min = Vec3::new(0.0, 0.0, 0.5);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::East => {
+                            block_min = Vec3::new(0.5, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::West => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(0.5, 1.0, 1.0);
+                        }
+                        _ => unreachable!(),
+                    }
+                    crate::aabb_overlap(player_min, player_max, block_min, block_max)
                 } else {
                     false
                 }
@@ -239,13 +272,13 @@ impl Block {
                             element_b_min = Vec3::new(0.0, 0.5, 0.5);
                             element_b_max = Vec3::new(1.0, 1.0, 1.0);
                         }
-                        Direction::West => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
-                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
-                        }
                         Direction::East => {
                             element_b_min = Vec3::new(0.5, 0.5, 0.0);
                             element_b_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::West => {
+                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
+                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
                         }
                         _ => unreachable!(),
                     }
@@ -263,6 +296,39 @@ impl Block {
                             element_b_max,
                         )
                     })
+                } else {
+                    None
+                }
+            }
+            CollisionShape::VSlab => {
+                if let Some(shape) = block_state.is_facing() {
+                    let block_min;
+                    let block_max;
+                    match shape {
+                        Direction::North => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 0.5);
+                        }
+                        Direction::South => {
+                            block_min = Vec3::new(0.0, 0.0, 0.5);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::East => {
+                            block_min = Vec3::new(0.5, 0.0, 0.0);
+                            block_max = Vec3::new(1.0, 1.0, 1.0);
+                        }
+                        Direction::West => {
+                            block_min = Vec3::new(0.0, 0.0, 0.0);
+                            block_max = Vec3::new(0.5, 1.0, 1.0);
+                        }
+                        _ => unreachable!(),
+                    }
+                    crate::ray_intersect_aabb(
+                        ray_origin_local,
+                        ray_direction_local,
+                        block_min,
+                        block_max,
+                    )
                 } else {
                     None
                 }
@@ -289,6 +355,8 @@ pub enum CollisionShape {
     Slab = 2,
     /// A stair (the facing direction is determined by the block state).
     Stairs = 3,
+    /// A vertical slab (the facing direction is determined by the block state).
+    VSlab = 4,
 }
 
 /// Struct to store the block state of a block in the world.
@@ -309,6 +377,7 @@ impl BlockState {
     pub const NONE_TYPE: u16 = 0x0000;
     pub const SLAB_TYPE: u16 = 0x0001;
     pub const STAIR_TYPE: u16 = 0x0002;
+    pub const FACING_TYPE: u16 = 0x0003;
 
     /// Creates a new block state with the given type and data.
     #[inline]
@@ -359,6 +428,13 @@ impl BlockState {
         BlockState::new(Self::STAIR_TYPE, dir as u16)
     }
 
+    /// Creates a vertical slab block state with the given facing direction.
+    #[inline]
+    pub const fn facing(dir: Direction) -> BlockState {
+        assert!(!matches!(dir, Direction::Up | Direction::Down));
+        BlockState::new(Self::FACING_TYPE, dir as u16)
+    }
+
     /// Checks if the block state is empty (i.e. has no data).
     #[inline]
     pub const fn is_none(&self) -> bool {
@@ -386,6 +462,16 @@ impl BlockState {
         }
     }
 
+    /// Checks if the block state is a vertical slab and returns the facing direction if it is.
+    #[inline]
+    pub const fn is_facing(&self) -> Option<Direction> {
+        if self.state_type() == Self::FACING_TYPE {
+            Direction::from_u8(self.data() as u8)
+        } else {
+            None
+        }
+    }
+
     /// Returns all possible data values for the given block state type. If the slice is empty,
     /// then the block state of that type can have any data value (i.e. the data value is not used
     /// for that block state type). If the block state type is not recognized, then `None` is
@@ -393,9 +479,10 @@ impl BlockState {
     #[inline]
     pub const fn possible_data_values(state_type: u16) -> Option<&'static [u16]> {
         match state_type {
-            Self::NONE_TYPE => Some(&[0x0000]),                 // NONE
-            Self::SLAB_TYPE => Some(&[0x0000, 0x0001, 0x0002]), // SLAB
-            Self::STAIR_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]), // STAIRS
+            Self::NONE_TYPE => Some(&[0x0000]),
+            Self::SLAB_TYPE => Some(&[0x0000, 0x0001, 0x0002]),
+            Self::STAIR_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]),
+            Self::FACING_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]),
             _ => None,
         }
     }
@@ -408,6 +495,7 @@ impl BlockState {
             Self::NONE_TYPE => Some(BlockState::none()),
             Self::SLAB_TYPE => Some(BlockState::slab(0)),
             Self::STAIR_TYPE => Some(BlockState::stairs(Direction::North)),
+            Self::FACING_TYPE => Some(BlockState::facing(Direction::North)),
             _ => None,
         }
     }
