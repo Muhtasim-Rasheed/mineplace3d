@@ -192,9 +192,6 @@ impl<C: Connection> Client<C> {
                 self.player.yaw = self.player.yaw.rem_euclid(360.0);
                 self.player.delta_yaw = self.player.yaw - previous_yaw;
 
-                self.player.input.yaw = self.player.yaw;
-                self.player.input.pitch = self.player.pitch;
-
                 let kb = &update_context.keyboard;
 
                 self.player.input.forward = if kb.down.contains(&Keycode::W) {
@@ -317,6 +314,8 @@ impl<C: Connection> Client<C> {
 
         self.player.optimistic(dt, &self.world);
 
+        self.player.input.yaw = self.player.yaw;
+        self.player.input.pitch = self.player.pitch;
         self.connection.send(C2SMessage::Move(self.player.input));
 
         let needed_chunks = self.world.needs_chunks(self.player.position.as_ivec3());

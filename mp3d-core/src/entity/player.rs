@@ -12,7 +12,7 @@ use crate::{
 pub const GRAVITY: f32 = 45.0;
 pub const JUMP: f32 = 11.0;
 pub const GROUND_EPSILON: f32 = 0.0002;
-pub const STEP_HEIGHT: f32 = 0.55;
+pub const STEP_HEIGHT: f32 = 0.5;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct MoveInput {
@@ -82,6 +82,16 @@ impl PlayerEntity {
             self.yaw.to_radians().sin(),
             0.0,
             self.yaw.to_radians().cos(),
+        )
+    }
+
+    pub fn forward_with_pitch(&self) -> Vec3 {
+        let yaw_rad = self.yaw.to_radians();
+        let pitch_rad = self.pitch.to_radians();
+        Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            -pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
         )
     }
 }

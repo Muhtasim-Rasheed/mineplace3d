@@ -377,8 +377,7 @@ impl Server {
                     && let Some(player_entity) =
                         self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
                 {
-                    let pos = player_entity.position;
-                    let coords = crate::parse_coords(x_str, y_str, z_str, pos)?;
+                    let coords = crate::parse_coords(x_str, y_str, z_str, player_entity)?;
                     player_entity.position = coords;
                     // change the velocity to force the client to update the position
                     // immediately
