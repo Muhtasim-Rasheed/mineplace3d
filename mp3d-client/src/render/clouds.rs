@@ -46,7 +46,7 @@ impl CloudRenderer {
         let height = width;
         for z in 0..width {
             for x in 0..height {
-                let value = noise.get_noise_2d(x as f32 * 15.0, z as f32 * 10.0);
+                let value = noise.get_noise_2d(x as f32 * 7.0, z as f32 * 5.0);
                 let alpha = ((value + 1.0) / 2.0 * 255.0) as u8;
                 data.push(255);
                 data.push(255);
@@ -92,8 +92,17 @@ impl CloudRenderer {
             self.shader.set_uniform("u_projection", projection);
             self.shader.set_uniform("u_camera_pos", position);
             self.shader.set_uniform("u_time", timer);
+            self.shader.set_uniform("u_offset", 0.0);
+            self.shader.set_uniform("u_speed", 0.004);
+            self.shader.set_uniform("u_altitude", 100_u32);
             self.shader.set_uniform("u_texture", 0);
             self.texture.bind(0);
+            self.mesh.draw();
+
+            self.shader.use_program();
+            self.shader.set_uniform("u_offset", 30.0);
+            self.shader.set_uniform("u_speed", 0.01);
+            self.shader.set_uniform("u_altitude", 140_u32);
             self.mesh.draw();
         }
     }

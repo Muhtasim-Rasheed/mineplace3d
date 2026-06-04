@@ -362,9 +362,8 @@ pub enum CollisionShape {
 /// Struct to store the block state of a block in the world.
 ///
 /// For example, slabs store whether they are the top or bottom half of a block, stairs store their
-/// facing direction and whether they are upside down, etc. This data is not stored in the block
-/// struct itself because it is not shared between all blocks of the same type, but rather is
-/// stored in the chunk data.
+/// facing direction, etc. This data is not stored in the block struct itself because it is not shared
+/// between all blocks of the same type, but rather is stored in the chunk data.
 ///
 /// Currently, the block state is stored as a 32 bit integer (u32) for simplicity and efficiency. The
 /// type of the block state is stored in the lower 16 bits, and the data is stored in the upper 16

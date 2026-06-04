@@ -99,6 +99,17 @@ impl Uniform for i32 {
     }
 }
 
+impl Uniform for u32 {
+    fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
+        unsafe {
+            let location = gl.get_uniform_location(program, name);
+            if let Some(loc) = location {
+                gl.uniform_1_u32(Some(&loc), *self);
+            }
+        }
+    }
+}
+
 impl Uniform for Vec2 {
     fn set_uniform(&self, gl: &glow::Context, program: glow::Program, name: &str) {
         unsafe {
