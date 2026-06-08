@@ -11,7 +11,7 @@ use crate::{
 
 pub const GRAVITY: f32 = 45.0;
 pub const JUMP: f32 = 11.0;
-pub const GROUND_EPSILON: f32 = 0.0002;
+pub const GROUND_EPSILON: f32 = 0.05;
 pub const STEP_HEIGHT: f32 = 0.5;
 
 #[derive(Debug, Clone, Copy, Default)]
