@@ -76,24 +76,6 @@ impl PlayerEntity {
             on_ground: false,
         }
     }
-
-    pub fn forward_vector(&self) -> Vec3 {
-        Vec3::new(
-            self.yaw.to_radians().sin(),
-            0.0,
-            self.yaw.to_radians().cos(),
-        )
-    }
-
-    pub fn forward_with_pitch(&self) -> Vec3 {
-        let yaw_rad = self.yaw.to_radians();
-        let pitch_rad = self.pitch.to_radians();
-        Vec3::new(
-            yaw_rad.sin() * pitch_rad.cos(),
-            -pitch_rad.sin(),
-            yaw_rad.cos() * pitch_rad.cos(),
-        )
-    }
 }
 
 impl Saveable for PlayerEntity {
@@ -185,6 +167,20 @@ impl Entity for PlayerEntity {
 
     fn position(&self) -> Vec3 {
         self.position
+    }
+
+    fn position_mut(&mut self) -> &mut Vec3 {
+        &mut self.position
+    }
+
+    fn forward(&self) -> Vec3 {
+        let yaw_rad = self.yaw.to_radians();
+        let pitch_rad = self.pitch.to_radians();
+        Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            -pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
+        )
     }
 
     fn apply_velocity(&mut self, velocity: Vec3) {

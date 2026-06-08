@@ -5,12 +5,13 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
+use fxhash::FxHashMap;
 use glam::Vec3;
 
 use crate::{
+    command::{CommandContext, CommandManager, commands},
     entity::{Entity, PlayerEntity},
     protocol::*,
-    textcomponent::TextComponent,
     world::{World, chunk::CHUNK_SIZE},
 };
 
@@ -24,7 +25,7 @@ pub const MAX_RENDER_DIST: i32 = 12;
 pub const MAX_RENDER_DIST_SQ: i32 = MAX_RENDER_DIST * MAX_RENDER_DIST;
 
 fn broadcast_message(
-    sessions: &mut HashMap<u64, PlayerSession>,
+    sessions: &mut FxHashMap<u64, PlayerSession>,
     sender_id: Option<u64>,
     message: S2CMessage,
 ) {
@@ -43,15 +44,26 @@ pub struct PlayerSession {
     pub pending_messages: Vec<S2CMessage>,
 }
 
+impl PlayerSession {
+    pub fn send_chat_message(&mut self, message: String) -> Result<(), String> {
+        // Kind of a hacky way to send a chat message, but it works
+        self.pending_messages.push(S2CMessage::ChatMessage {
+            message: message.parse()?,
+        });
+        Ok(())
+    }
+}
+
 /// The main server struct that manages player sessions and world state.
 pub struct Server {
-    pub sessions: HashMap<u64, PlayerSession>,
-    pub connections: HashMap<u64, u64>,
-    pub entity_to_user: HashMap<u64, u64>,
+    pub sessions: FxHashMap<u64, PlayerSession>,
+    pub connections: FxHashMap<u64, u64>,
+    pub entity_to_user: FxHashMap<u64, u64>,
     pub world: World,
     pub singleplayer: bool,
     pub save_path: PathBuf,
     pub user_db: user::UserDatabase,
+    pub command_manager: CommandManager,
     pub tps: u8,
 }
 
@@ -59,14 +71,17 @@ impl Server {
     /// Creates a new server instance. If the server is in singleplayer mode, it will not check
     /// credentials on connection and will allow only one player to connect at a time.
     pub fn new(singleplayer: bool, seed: i32, save_path: PathBuf) -> Server {
+        let mut command_manager = CommandManager::new();
+        commands::init_command_mgr(&mut command_manager);
         Self {
-            sessions: HashMap::new(),
-            connections: HashMap::new(),
-            entity_to_user: HashMap::new(),
+            sessions: FxHashMap::default(),
+            connections: FxHashMap::default(),
+            entity_to_user: FxHashMap::default(),
             world: World::new(seed),
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),
+            command_manager,
             tps: 48,
         }
     }
@@ -93,8 +108,8 @@ impl Server {
 
     /// Gets a mutable reference to a session by entity ID, if it exists.
     fn get_session_by_entity_mut<'a>(
-        entity_to_user: &HashMap<u64, u64>,
-        sessions: &'a mut HashMap<u64, PlayerSession>,
+        entity_to_user: &FxHashMap<u64, u64>,
+        sessions: &'a mut FxHashMap<u64, PlayerSession>,
         entity_id: u64,
     ) -> Option<&'a mut PlayerSession> {
         let user_id = entity_to_user.get(&entity_id)?;
@@ -262,7 +277,15 @@ impl Server {
                     Some(uid) => *uid,
                     None => return None,
                 };
-                let status = self.execute_command(&message, connection_id);
+                let mut ctx = CommandContext {
+                    connections: &self.connections,
+                    sessions: &mut self.sessions,
+                    world: &mut self.world,
+                    connection_id,
+                    tps: self.tps,
+                };
+                let args = message.split_whitespace().collect::<Vec<_>>();
+                let status = self.command_manager.execute(&mut ctx, &args);
                 match status {
                     Ok(Some(success)) => {
                         if let Some(session) = self.sessions.get_mut(&user_id) {
@@ -356,72 +379,6 @@ impl Server {
         None
     }
 
-    /// Executes a server command, which may modify the world or player sessions.
-    pub fn execute_command(
-        &mut self,
-        command: &str,
-        connection_id: u64,
-    ) -> Result<Option<TextComponent>, String> {
-        if !command.starts_with('/') {
-            return Ok(None);
-        }
-        let mut parts = command.split_whitespace();
-        let cmd = parts.next().ok_or("No command provided")?;
-        match cmd {
-            "/tp" => {
-                let x_str = parts.next().ok_or("No X coordinate specified")?;
-                let y_str = parts.next().ok_or("No Y coordinate specified")?;
-                let z_str = parts.next().ok_or("No Z coordinate specified")?;
-                if let Some(user_id) = self.connections.get(&connection_id)
-                    && let Some(session) = self.sessions.get_mut(user_id)
-                    && let Some(player_entity) =
-                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
-                {
-                    let coords = crate::parse_coords(x_str, y_str, z_str, player_entity)?;
-                    player_entity.position = coords;
-                    // change the velocity to force the client to update the position
-                    // immediately
-                    player_entity.velocity += Vec3::new(0.0, 1.0, 0.0);
-                    Ok(Some(
-                        format!(
-                            "%b7FTeleported you to {}, {}, {}%r",
-                            coords.x, coords.y, coords.z
-                        )
-                        .parse()
-                        .unwrap(),
-                    ))
-                } else {
-                    Err("You must be connected to use this command".to_string())
-                }
-            }
-            "/give" => {
-                let item_name = parts.next().ok_or("No item specified")?;
-                let count_str = parts.next().ok_or("No count specified")?;
-                let count: u16 = count_str.parse().map_err(|_| "Invalid count")?;
-                let item =
-                    crate::item::Item::from_ident(item_name).ok_or("Unknown item identifier")?;
-                if let Some(user_id) = self.connections.get(&connection_id)
-                    && let Some(session) = self.sessions.get_mut(user_id)
-                    && let Some(player_entity) =
-                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
-                {
-                    player_entity.inventory.add_stack(*item, count);
-                    Ok(Some(
-                        format!("%b7FGave you {} x {}%r", count, item.ident)
-                            .parse()
-                            .unwrap(),
-                    ))
-                } else {
-                    Err("You must be connected to use this command".to_string())
-                }
-            }
-            "/tps" => Ok(Some(
-                format!("Current TPS: {}%r", self.tps).parse().unwrap(),
-            )),
-            _ => Err("Unknown command".to_string()),
-        }
-    }
-
     /// Ticks the server.
     pub fn tick(&mut self, tps: u8) {
         // Unload chunks that have no players nearby
@@ -494,14 +451,17 @@ impl Server {
 
     /// Loads the server state from disk, including the world and user database.
     pub fn load(singleplayer: bool, save_path: PathBuf) -> std::io::Result<Self> {
+        let mut command_manager = CommandManager::new();
+        commands::init_command_mgr(&mut command_manager);
         Ok(Self {
-            sessions: HashMap::new(),
-            connections: HashMap::new(),
-            entity_to_user: HashMap::new(),
+            sessions: FxHashMap::default(),
+            connections: FxHashMap::default(),
+            entity_to_user: FxHashMap::default(),
             world: World::load(&save_path)?,
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),
+            command_manager,
             tps: 48,
         })
     }

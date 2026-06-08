@@ -44,6 +44,15 @@ macro_rules! blocks {
             pub const ALL_BLOCKS: &'static [Block] = &[
                 $(Self::$name),*
             ];
+
+            pub fn from_ident(ident: &str) -> Option<&'static Block> {
+                match ident {
+                    $(
+                        $ident => Some(&Self::$name),
+                    )*
+                    _ => None,
+                }
+            }
         }
     };
 

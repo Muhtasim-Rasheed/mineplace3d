@@ -360,7 +360,9 @@ impl World {
             let player_fwd = self
                 .get_entity::<PlayerEntity>(player_entity_id)
                 .unwrap()
-                .forward_vector();
+                .forward()
+                .with_y(0.0)
+                .normalize_or_zero();
             let player_dir = if player_fwd.x.abs() > player_fwd.z.abs() {
                 if player_fwd.x > 0.0 {
                     Direction::East

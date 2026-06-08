@@ -3,10 +3,8 @@
 //! such as world management, entity handling, etc.
 
 use glam::{IVec3, Vec3};
-
-use crate::entity::PlayerEntity;
-
 pub mod block;
+pub mod command;
 pub mod datapack;
 pub mod direction;
 pub mod entity;
@@ -55,53 +53,4 @@ pub(crate) fn ray_intersect_aabb(
     } else {
         None
     }
-}
-
-fn parse_coord(coord: &str, player_coord: f32, player_forward: f32) -> Result<f32, String> {
-    // supports
-    // "100"
-    // "100.5"
-    // "~"
-    // "~1"
-    // "~1.5"
-    // "^"
-    // "^1"
-    // "^1.5"
-    if let Some(stripped) = coord.strip_prefix('~') {
-        let offset = if stripped.is_empty() {
-            0.0
-        } else {
-            stripped
-                .parse::<f32>()
-                .map_err(|_| format!("Invalid coordinate: {}", coord))?
-        };
-        Ok(player_coord + offset)
-    } else if let Some(stripped) = coord.strip_prefix('^') {
-        let offset = if stripped.is_empty() {
-            0.0
-        } else {
-            stripped
-                .parse::<f32>()
-                .map_err(|_| format!("Invalid coordinate: {}", coord))?
-        };
-        Ok(player_forward * offset + player_coord)
-    } else {
-        coord
-            .parse::<f32>()
-            .map_err(|_| format!("Invalid coordinate: {}", coord))
-    }
-}
-
-pub(crate) fn parse_coords(
-    x: &str,
-    y: &str,
-    z: &str,
-    player: &PlayerEntity,
-) -> Result<Vec3, String> {
-    let fwd = player.forward_with_pitch();
-    Ok(Vec3::new(
-        parse_coord(x, player.position.x, fwd.x)?,
-        parse_coord(y, player.position.y, fwd.y)?,
-        parse_coord(z, player.position.z, fwd.z)?,
-    ))
 }

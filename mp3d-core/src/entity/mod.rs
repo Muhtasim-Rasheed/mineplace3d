@@ -25,6 +25,8 @@ pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
     fn id(&self) -> u64;
     fn snapshot(&self) -> Vec<u8>;
     fn position(&self) -> Vec3;
+    fn position_mut(&mut self) -> &mut Vec3;
+    fn forward(&self) -> Vec3;
     fn apply_velocity(&mut self, velocity: Vec3);
     fn width() -> f32
     where
