@@ -6,6 +6,33 @@ pub struct TextComponent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StyledChar {
+    pub char: char,
+    pub color: TextComponentColor,
+}
+
+impl StyledChar {
+    pub fn is_whitespace(&self) -> bool {
+        self.char.is_whitespace()
+    }
+}
+
+impl TextComponent {
+    pub fn to_styled_chars(&self) -> Vec<StyledChar> {
+        let mut styled_chars = Vec::new();
+        for part in &self.parts {
+            for c in part.text.chars() {
+                styled_chars.push(StyledChar {
+                    char: c,
+                    color: part.color,
+                });
+            }
+        }
+        styled_chars
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TextComponentColor {
     Basic(u8),
     Hex(Vec4),

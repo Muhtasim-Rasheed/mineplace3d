@@ -29,16 +29,6 @@ pub struct ColorlessTextParams {
     pub word_wrap_width: Option<f32>,
 }
 
-impl ColorlessTextParams {
-    pub fn with_color(self, color: Vec4) -> TextParams {
-        TextParams {
-            font_size: self.font_size,
-            color,
-            word_wrap_width: self.word_wrap_width,
-        }
-    }
-}
-
 impl Default for TextParams {
     fn default() -> Self {
         Self {
@@ -56,6 +46,12 @@ impl Default for ColorlessTextParams {
             word_wrap_width: None,
         }
     }
+}
+
+struct PositionedGlyph {
+    position: Vec2,
+    char: char,
+    color: Vec4,
 }
 
 pub struct Font {
@@ -122,7 +118,7 @@ impl Font {
             .and_then(|indices| indices.into_iter().map(|i| self.index_to_uvs(i)).collect())
     }
 
-    pub fn layout_text(&self, text: &str, params: ColorlessTextParams) -> Vec<(Vec2, char)> {
+    fn layout_text(&self, text: &str, params: ColorlessTextParams) -> Vec<PositionedGlyph> {
         let mut result = Vec::new();
 
         let mut cursor = Vec2::ZERO;
@@ -151,12 +147,38 @@ impl Font {
                     continue;
                 }
 
-                result.push((cursor, c));
+                result.push(PositionedGlyph {
+                    position: cursor,
+                    char: c,
+                    color: Vec4::ONE,
+                });
                 cursor.x += self.char_width(params.font_size, c);
             }
         }
 
         result
+    }
+
+    fn layout_text_component(
+        &self,
+        component: &TextComponent,
+        params: ColorlessTextParams,
+    ) -> Vec<PositionedGlyph> {
+        self.layout_text(
+            &component
+                .to_styled_chars()
+                .iter()
+                .map(|sc| sc.char)
+                .collect::<String>(),
+            params,
+        )
+        .into_iter()
+        .zip(component.to_styled_chars())
+        .map(|(mut pg, sc)| {
+            pg.color = sc.color.into();
+            pg
+        })
+        .collect()
     }
 
     pub fn measure_text(&self, text: &str, params: ColorlessTextParams) -> Vec2 {
@@ -165,7 +187,9 @@ impl Font {
         let mut max_x = 0.0_f32;
         let mut max_y = params.font_size;
 
-        for (pos, c) in layout {
+        for g in layout {
+            let pos = g.position;
+            let c = g.char;
             let char_size = self.char_size(params.font_size, c);
             max_x = max_x.max(pos.x + self.char_width(params.font_size, c));
             max_y = max_y.max(pos.y + char_size.y);
@@ -197,7 +221,9 @@ impl Font {
     pub fn text(&self, text: &str, params: TextParams) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
 
-        for (pos, c) in self.layout_text(text, params.without_color()) {
+        for g in self.layout_text(text, params.without_color()) {
+            let pos = g.position;
+            let c = g.char;
             if let Some(uvs) = self.glyph_uvs(c) {
                 let char_size = self.char_size(params.font_size, c);
                 let pos = pos - Vec2::new(self.char_back(params.font_size, c), 0.0);
@@ -229,13 +255,18 @@ impl Font {
         component: &TextComponent,
         params: ColorlessTextParams,
     ) -> Vec2 {
-        let mut size = Vec2::ZERO;
-        for part in &component.parts {
-            let part_size = self.measure_text(&part.text, params);
-            size.x += part_size.x;
-            size.y = size.y.max(part_size.y);
+        let mut max_x = 0.0_f32;
+        let mut max_y = params.font_size;
+
+        for g in self.layout_text_component(component, params) {
+            let pos = g.position;
+            let c = g.char;
+            let char_size = self.char_size(params.font_size, c);
+            max_x = max_x.max(pos.x + self.char_width(params.font_size, c));
+            max_y = max_y.max(pos.y + char_size.y);
         }
-        size
+
+        Vec2::new(max_x, max_y)
     }
 
     pub fn text_component(
@@ -244,23 +275,33 @@ impl Font {
         params: ColorlessTextParams,
     ) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
-        let mut cursor = Vec2::ZERO;
-        for part in &component.parts {
-            let part_commands = self.text(&part.text, params.with_color(part.color.into()));
-            for mut cmd in part_commands {
-                if let DrawCommand::Quad { rect, .. } = &mut cmd {
-                    rect[0] += cursor;
-                    rect[1] += cursor;
-                } else if let DrawCommand::Mesh { vertices, .. } = &mut cmd {
-                    for vertex in vertices {
-                        vertex.position += cursor.extend(0.0);
-                    }
+
+        for g in self.layout_text_component(component, params) {
+            let pos = g.position;
+            let c = g.char;
+            if let Some(uvs) = self.glyph_uvs(c) {
+                let char_size = self.char_size(params.font_size, c);
+                let pos = pos - Vec2::new(self.char_back(params.font_size, c), 0.0);
+
+                let glyph_width = char_size.x / uvs.len() as f32;
+
+                for (i, uv_rect) in uvs.into_iter().enumerate() {
+                    let pos_min = pos + Vec2::new(i as f32 * glyph_width, 0.0);
+                    let pos_max = pos_min + Vec2::new(glyph_width, char_size.y);
+
+                    commands.push(DrawCommand::Quad {
+                        rect: [pos_min, pos_max],
+                        uv_rect,
+                        mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
+                            self.atlas().handle(),
+                            g.color,
+                        ),
+                        layer: 2000,
+                    });
                 }
-                commands.push(cmd);
             }
-            let part_size = self.measure_text(&part.text, params);
-            cursor.x += part_size.x;
         }
+
         commands
     }
 }

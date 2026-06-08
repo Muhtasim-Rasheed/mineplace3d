@@ -281,6 +281,7 @@ impl Server {
                     connections: &self.connections,
                     sessions: &mut self.sessions,
                     world: &mut self.world,
+                    command_manager: &self.command_manager,
                     connection_id,
                     tps: self.tps,
                 };

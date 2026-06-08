@@ -11,6 +11,7 @@ pub struct CommandContext<'a> {
     pub connections: &'a FxHashMap<u64, u64>,
     pub sessions: &'a mut FxHashMap<u64, PlayerSession>,
     pub world: &'a mut World,
+    pub command_manager: &'a CommandManager,
     pub connection_id: u64,
     pub tps: u8,
 }
@@ -76,6 +77,12 @@ impl CommandManager {
     /// Registers a command for execution. The command must implement the [`Command`] trait, which
     /// allows it to be executed through dynamic dispatch.
     pub fn register<C: Command + 'static>(&mut self, command: C) {
+        if self.commands.contains_key(command.name()) {
+            panic!(
+                "Command {} is already registered. Consider using a different name.",
+                command.name()
+            );
+        }
         self.commands.insert(command.name(), Box::new(command));
     }
 
@@ -84,7 +91,7 @@ impl CommandManager {
     /// types. The implementation can return an optional [`TextComponent`] to send as a response to
     /// the command, or an error message if the execution fails (e.g. due to invalid arguments).
     pub fn execute(
-        &mut self,
+        &self,
         ctx: &mut CommandContext,
         args: &[&str],
     ) -> Result<Option<TextComponent>, String> {
@@ -99,6 +106,32 @@ impl CommandManager {
         } else {
             Ok(None)
         }
+    }
+
+    /// Retrieves a command by name, if it exists. This can be used for tab completion or help
+    /// messages.
+    pub fn get(&self, name: &str) -> Option<&dyn Command> {
+        self.commands.get(name).map(|v| v.as_ref())
+    }
+
+    /// Returns an iterator over all registered commands, sorted by name. This can be used for help
+    /// messages or command listing.
+    pub fn iter<'a>(&'a self) -> Commands<'a> {
+        let mut commands: Vec<&dyn Command> = self.commands.values().map(|v| v.as_ref()).collect();
+        commands.sort_unstable_by(|a, b| b.name().cmp(a.name()));
+        Commands { commands }
+    }
+}
+
+pub struct Commands<'a> {
+    commands: Vec<&'a dyn Command>,
+}
+
+impl<'a> Iterator for Commands<'a> {
+    type Item = &'a dyn Command;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.commands.pop()
     }
 }
 
