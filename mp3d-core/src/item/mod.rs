@@ -354,4 +354,13 @@ impl Inventory {
     pub fn hotbar_slot_mut(&mut self, index: usize) -> &mut ItemStack {
         &mut self.main[3 * 9 + index]
     }
+
+    /// Clears the inventory by setting all general slots to empty and the temporary slot to empty.
+    pub fn clear(&mut self) {
+        for slot in self.main.iter_mut() {
+            *slot = ItemStack::empty();
+        }
+        self.temp = ItemStack::empty();
+        self.dirty = true;
+    }
 }

@@ -53,7 +53,7 @@ impl Command for HelpCommand {
         match arg {
             PageOrCommand::Page(page) => {
                 let commands = ctx.command_manager.iter().collect::<Vec<_>>();
-                let total_pages = (commands.len() + 19) / 20;
+                let total_pages = commands.len().div_ceil(20);
                 if page == 0 || page > total_pages {
                     return Err(format!(
                         "Invalid page number. There are {} pages.",

@@ -104,11 +104,7 @@ impl Font {
                 Some(vec![base + 1, base + 2])
             }
             _ => {
-                if let Some(i) = (c as u32).checked_sub(self.first_char as u32) {
-                    Some(vec![i])
-                } else {
-                    None
-                }
+                (c as u32).checked_sub(self.first_char as u32).map(|i| vec![i])
             }
         }
     }

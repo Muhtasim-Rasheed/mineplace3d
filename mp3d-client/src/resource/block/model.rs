@@ -173,11 +173,10 @@ impl BlockModel {
                 return Err(format!("Circular model inheritance detected at {:?}", path));
             }
             visited.insert(path.clone());
-            if let Some(parent_content) = resource_manager.read_utf8(&path) {
-                if let Ok(parent_raw) = serde_json::from_str::<RawBlockModel>(&parent_content) {
+            if let Some(parent_content) = resource_manager.read_utf8(&path)
+                && let Ok(parent_raw) = serde_json::from_str::<RawBlockModel>(&parent_content) {
                     return Self::is_raw_full_cube(&parent_raw, resource_manager, visited);
                 }
-            }
             Ok(false)
         } else {
             Ok(false)

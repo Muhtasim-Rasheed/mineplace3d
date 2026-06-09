@@ -67,6 +67,12 @@ pub struct CommandManager {
     commands: FxHashMap<&'static str, Box<dyn Command>>,
 }
 
+impl Default for CommandManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommandManager {
     pub fn new() -> Self {
         Self {
@@ -150,13 +156,9 @@ impl<'a> ArgStream<'a> {
         self.iter.peek().map(|&v| *v)
     }
 
-    pub fn next(&mut self) -> Option<&'a str> {
-        self.iter.next().copied()
-    }
-
     pub fn rest(&mut self) -> String {
         let mut string = String::new();
-        while let Some(s) = self.next() {
+        for s in self.by_ref() {
             string.push_str(s);
             string.push(' ');
         }
@@ -172,10 +174,18 @@ impl<'a> ArgStream<'a> {
     }
 }
 
+impl<'a> Iterator for ArgStream<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().copied()
+    }
+}
+
 /// Trait for parsing a single command argument from a string. This can be implemented for various
 /// types.
 pub trait CommandArg: Sized {
-    fn parse<'a>(args: &mut ArgStream) -> Result<Self, String>;
+    fn parse(args: &mut ArgStream) -> Result<Self, String>;
 }
 
 /// Object-safe version of [`TypedCommand`] for dynamic dispatch. The [`Command::execute`] method takes a slice
