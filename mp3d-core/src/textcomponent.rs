@@ -1,5 +1,9 @@
 use glam::Vec4;
 
+pub fn sanitize(str: &str) -> String {
+    str.replace("%", "%%")
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextComponent {
     pub parts: Vec<TextComponentPart>,

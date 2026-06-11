@@ -45,12 +45,27 @@ pub struct PlayerSession {
 }
 
 impl PlayerSession {
-    pub fn send_chat_message(&mut self, message: String) -> Result<(), String> {
-        // Kind of a hacky way to send a chat message, but it works
-        self.pending_messages.push(S2CMessage::ChatMessage {
-            message: message.parse()?,
-        });
-        Ok(())
+    pub fn send_chat_message(
+        self_id: u64,
+        sessions: &mut FxHashMap<u64, PlayerSession>,
+        message: &str,
+    ) {
+        if let Some(session) = sessions.get_mut(&self_id) {
+            let username = session.username.clone();
+            if let Ok(c) = format!("{}%r: {}", username, message).parse() {
+                broadcast_message(sessions, None, S2CMessage::ChatMessage { message: c });
+                log::info!("{}: {}", username, message);
+            } else {
+                session.pending_messages.push(S2CMessage::ChatMessage {
+                    message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
+                });
+                log::warn!(
+                    "{} attempted to send a message with invalid formatting codes: {}",
+                    username,
+                    message
+                );
+            }
+        }
     }
 }
 
@@ -297,26 +312,7 @@ impl Server {
                         }
                     }
                     Ok(None) => {
-                        if let Some(session) = self.sessions.get_mut(&user_id) {
-                            let username = session.username.clone();
-                            if let Ok(c) = format!("{}%r: {}", username, message).parse() {
-                                broadcast_message(
-                                    &mut self.sessions,
-                                    None,
-                                    S2CMessage::ChatMessage { message: c },
-                                );
-                                log::info!("{}: {}", username, message);
-                            } else {
-                                session.pending_messages.push(S2CMessage::ChatMessage {
-                                    message: "%bC3Error: Make sure your message doesn't contain invalid formatting codes.%r".parse().unwrap(),
-                                });
-                                log::warn!(
-                                    "{} attempted to send a message with invalid formatting codes: {}",
-                                    username,
-                                    message
-                                );
-                            }
-                        }
+                        PlayerSession::send_chat_message(user_id, &mut self.sessions, &message);
                     }
                     Err(err) => {
                         if let Some(session) = self.sessions.get_mut(&user_id) {

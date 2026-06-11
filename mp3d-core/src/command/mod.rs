@@ -17,13 +17,20 @@ pub struct CommandContext<'a> {
 }
 
 impl<'a> CommandContext<'a> {
+    pub fn get_sender_session_id(&mut self) -> Result<u64, String> {
+        self.connections
+            .get(&self.connection_id)
+            .ok_or_else(|| {
+                format!(
+                    "Connection {} doesn't have an associated session id",
+                    self.connection_id
+                )
+            })
+            .map(|v| *v)
+    }
+
     pub fn get_sender_session(&mut self) -> Result<&mut PlayerSession, String> {
-        let session_id = *self.connections.get(&self.connection_id).ok_or_else(|| {
-            format!(
-                "Connection {} doesn't have an associated session id",
-                self.connection_id
-            )
-        })?;
+        let session_id = self.get_sender_session_id()?;
         self.sessions.get_mut(&session_id).ok_or_else(|| {
             format!(
                 "Session {} (Connection {}) doesn't exist",
@@ -33,12 +40,7 @@ impl<'a> CommandContext<'a> {
     }
 
     pub fn get_sender(&mut self) -> Result<&mut dyn Entity, String> {
-        let session_id = *self.connections.get(&self.connection_id).ok_or_else(|| {
-            format!(
-                "Connection {} doesn't have an associated session id",
-                self.connection_id
-            )
-        })?;
+        let session_id = self.get_sender_session_id()?;
         let entity_id = self
             .sessions
             .get(&session_id)

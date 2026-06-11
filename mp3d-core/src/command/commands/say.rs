@@ -1,6 +1,7 @@
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext, parser::GreedyString},
-    textcomponent::TextComponent,
+    server::PlayerSession,
+    textcomponent::{TextComponent, sanitize},
 };
 
 pub struct SayCommand;
@@ -27,7 +28,7 @@ impl Command for SayCommand {
         ctx: &mut CommandContext,
         mut args: ArgStream,
     ) -> Result<TextComponent, String> {
-        let sender = match ctx.get_sender_session() {
+        let sender_id = match ctx.get_sender_session_id() {
             Ok(session) => session,
             Err(e) => {
                 log::error!("{}", e);
@@ -38,7 +39,9 @@ impl Command for SayCommand {
         let text = GreedyString::parse(&mut args)?.0;
         args.ensure_empty()?;
 
-        sender.send_chat_message(text.clone())?;
-        Ok(format!("%bA9You said: {}%r", text).parse().unwrap())
+        PlayerSession::send_chat_message(sender_id, ctx.sessions, &text);
+        Ok(format!("%bA9You said: {}%r", sanitize(&text))
+            .parse()
+            .unwrap())
     }
 }
