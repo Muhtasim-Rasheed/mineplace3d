@@ -103,9 +103,9 @@ impl Font {
                 let base = self.strikethrough?;
                 Some(vec![base + 1, base + 2])
             }
-            _ => {
-                (c as u32).checked_sub(self.first_char as u32).map(|i| vec![i])
-            }
+            _ => (c as u32)
+                .checked_sub(self.first_char as u32)
+                .map(|i| vec![i]),
         }
     }
 

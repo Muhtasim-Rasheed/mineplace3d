@@ -6,6 +6,7 @@ mod help;
 mod say;
 mod seed;
 mod setblock;
+mod test;
 mod tp;
 mod tps;
 
@@ -18,4 +19,5 @@ pub fn init_command_mgr(mgr: &mut CommandManager) {
     mgr.register(setblock::SetBlockCommand);
     mgr.register(tp::TpCommand);
     mgr.register(tps::TpsCommand);
+    mgr.register(test::TestCommand);
 }
