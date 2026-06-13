@@ -5,12 +5,13 @@
   },
   "base": "https://github.com/Muhtasim-Rasheed/mineplace3d/releases/download/",
   "versions": {
-    "0.2.2": {
+    "0.2.2-alpha": {
       "files": {
         "linux_x86_64": "mineplace3d-linux-x86_64",
         "windows_x86_64": "mineplace3d-windows-x86_64.exe"
       },
-      "uploaded_on": "2025-10-14T21:28:00+06:00"
+      "uploaded_on": "2025-10-14T21:28:00+06:00",
+			"real_name": "0.2.2"
     },
     "0.2.3-alpha": {
       "files": {
