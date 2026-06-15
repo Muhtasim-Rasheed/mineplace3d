@@ -937,7 +937,7 @@ fn measure_messages(font: &Font, messages: &[TextComponent], font_size: f32) -> 
             message,
             ColorlessTextParams {
                 font_size,
-                word_wrap_width: Some(400.0),
+                word_wrap_width: Some(700.0),
             },
         );
         size.x = size.x.max(message_size.x);
@@ -959,7 +959,7 @@ fn text_messages(
             message,
             ColorlessTextParams {
                 font_size,
-                word_wrap_width: Some(400.0),
+                word_wrap_width: Some(700.0),
             },
         );
         for mut cmd in message_commands {
@@ -977,7 +977,7 @@ fn text_messages(
             message,
             ColorlessTextParams {
                 font_size,
-                word_wrap_width: Some(400.0),
+                word_wrap_width: Some(700.0),
             },
         );
         cursor.y += message_size.y;

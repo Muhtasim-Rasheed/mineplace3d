@@ -7,6 +7,7 @@ mod say;
 mod seed;
 mod setblock;
 mod test;
+mod time;
 mod tp;
 mod tps;
 
@@ -20,4 +21,5 @@ pub fn init_command_mgr(mgr: &mut CommandManager) {
     mgr.register(tp::TpCommand);
     mgr.register(tps::TpsCommand);
     mgr.register(test::TestCommand);
+    mgr.register(time::TimeCommand);
 }

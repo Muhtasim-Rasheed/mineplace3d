@@ -11,7 +11,7 @@ pub struct SayCommand;
 const DESC: &str = r#"
 `say` - Make the sender say something in the chat.
 
-Usage: `/say word1 word2`
+Usage: `/say word1 word2 ... wordN`
 
 Example: `/say Hello world!` will make the sender say "Hello world!" in the chat.
 "#;

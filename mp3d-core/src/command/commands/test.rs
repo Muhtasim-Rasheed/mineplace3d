@@ -1,7 +1,7 @@
 //! Implementation of the /test command
 
 use crate::{
-    command::{ArgStream, Command, CommandArg, CommandContext, parser::Word},
+    command::{ArgStream, Command, CommandArg, CommandContext},
     textcomponent::TextComponent,
 };
 
@@ -14,6 +14,22 @@ Usage: `/test <pass | error>`
 
 Example: `/test error` will run a test of a command error
 "#;
+
+enum Subcommand {
+    Pass,
+    Error,
+}
+
+impl CommandArg for Subcommand {
+    fn parse(args: &mut ArgStream) -> Result<Self, String> {
+        match args.next() {
+            Some("pass") => Ok(Self::Pass),
+            Some("error") => Ok(Self::Error),
+            Some(s) => Err(format!("Invalid test mode '{}'", s)),
+            None => Err(format!("Expected a test mode but got nothing")),
+        }
+    }
+}
 
 impl Command for TestCommand {
     fn name(&self) -> &'static str {
@@ -29,24 +45,22 @@ impl Command for TestCommand {
         ctx: &mut CommandContext,
         mut args: ArgStream,
     ) -> Result<TextComponent, String> {
-        let mode = Word::parse(&mut args)?;
+        let mode = Subcommand::parse(&mut args)?;
         args.ensure_empty()?;
 
-        if mode.0 == "error" {
-            return Err(format!(
+        match mode {
+            Subcommand::Error => Err(format!(
                 "Current seed: {}\nCurrent tps: {}\nTHIS IS A TEST ERROR",
                 ctx.world.generator.seed(),
                 ctx.tps
-            ));
-        } else if mode.0 == "pass" {
-            return Ok(format!(
-                "%xFF0000FF RED %x00FF00FF GREEN %x0000FFFF BLUE %x000000FF BLACK %xFFFFFFFF WHITE\nCurrent seed: {}\nCurrent tps: {}",
+            )),
+            Subcommand::Pass => Ok(format!(
+                "%xFF0000FF RED %x00FF00FF GREEN %x0000FFFF BLUE %x000000FF BLACK %xFFFFFFFF WHITE\nCurrent seed: {}\nCurrent tps: {}%r",
                 ctx.world.generator.seed(),
                 ctx.tps
             )
             .parse()
-            .unwrap());
+            .unwrap()),
         }
-        Err(format!("`{}` is not a valid test mode!", mode.0))
     }
 }

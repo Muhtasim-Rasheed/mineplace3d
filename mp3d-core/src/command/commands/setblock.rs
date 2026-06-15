@@ -15,7 +15,7 @@ const DESC: &str = r#"
 `setblock` - Set a block at the specified coordinates, optionally specifying blockstate aswell.
 
 Usage: `/setblock block_ident x y z [state_data]`
-The block identifier is a string that identifies a block. A coordinate can be a number (e.g. "100.5"), be relative from the player's position (e.g. "~4") or scale on the player's forward direction. Finally, the state_data is a 16-bit integer that defines the blocks behaviour and appearance.
+The block identifier is a string that identifies a block. A coordinate can be a number (e.g. "100.5"), be relative from the player's position (e.g. "~4") or scale on the player's forward direction. Finally, the state_data is a 16-bit integer that defines the blocks behavior and appearance.
 
 Example: `/setblock stone_slab ~ ~10 ~ 1` places a top-slab 10 blocks above the player.
 "#;

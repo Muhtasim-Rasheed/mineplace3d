@@ -25,13 +25,12 @@ use crate::{
     },
 };
 
-const PRELOAD_RADIUS: i32 = 8;
-
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {
     pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
     pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
     pub generator: Generator,
+    pub time: u64,
 
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world.
@@ -53,20 +52,12 @@ impl World {
     /// Creates a new empty world.
     pub fn new(seed: i32) -> Self {
         let generator = Generator::new(GENERATOR_VERSION, seed).unwrap();
-        let mut chunks = fxhash::FxHashMap::default();
-        // Preload some chunks around the origin
-        for x in -PRELOAD_RADIUS..PRELOAD_RADIUS {
-            for y in -1..1 {
-                for z in -PRELOAD_RADIUS..PRELOAD_RADIUS {
-                    let chunk_pos = IVec3::new(x, y, z);
-                    chunks.insert(chunk_pos, generator.generate_chunk(chunk_pos));
-                }
-            }
-        }
+        let chunks = fxhash::FxHashMap::default();
         World {
             chunks,
             entities: fxhash::FxHashMap::default(),
             generator,
+            time: 0,
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
             changes: HashMap::new(),
@@ -234,6 +225,7 @@ impl World {
                 }
             }
         }
+        self.time += 1;
     }
 
     /// Checks for collisions between an entity (using its position, width, and height) and the
@@ -586,6 +578,7 @@ impl World {
     /// - 1 byte: save format version (u8)
     /// - 1 byte: generator version (u8)
     /// - 4 bytes: world seed (i32)
+    /// - 8 bytes: current time in ticks (u64)
     ///
     /// # entities.bin
     /// - 8 bytes: number of entities (N)
@@ -605,6 +598,7 @@ impl World {
         let mut save_file = std::fs::File::create(path.join("save.bin"))?;
         std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
         std::io::Write::write_all(&mut save_file, &self.generator.save())?;
+        std::io::Write::write_all(&mut save_file, &self.time.to_le_bytes())?;
 
         log::info!("Saved save.bin");
 
@@ -687,7 +681,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 4 => load_v0_to_4(path, &mut save_iter, version),
+            Some(version) if version <= 5 => load_v0_to_v5(path, &mut save_iter, version),
             Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
                 "Unsupported save version: {}",
                 version
@@ -699,7 +693,7 @@ impl World {
     }
 }
 
-fn load_v0_to_4(
+fn load_v0_to_v5(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,
@@ -709,10 +703,19 @@ fn load_v0_to_4(
         WorldLoadError::InvalidSaveFormat(format!("Failed to load generator: {}", e))
     })?;
 
+    // TIME
+    let time = if version >= 0x05 {
+        read_u64(save_iter, "World::time")
+            .map_err(|e| WorldLoadError::InvalidSaveFormat(format!("Failed to load time: {}", e)))?
+    } else {
+        0
+    };
+
     let mut world = World {
         chunks: fxhash::FxHashMap::default(),
         entities: fxhash::FxHashMap::default(),
         generator,
+        time,
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
         changes: HashMap::new(),

@@ -105,15 +105,33 @@ impl CommandArg for GreedyString {
     }
 }
 
-impl CommandArg for u16 {
-    fn parse<'a>(args: &mut ArgStream) -> Result<Self, String> {
-        let arg = args
-            .next()
-            .ok_or("Expected a number (16-bit integer) but got nothing")?;
-        arg.parse()
-            .map_err(|e| format!("Invalid integer '{}': {}", arg, e))
-    }
+macro_rules! num_impl {
+    ($($T:ty => $desc:literal),* $(,)?) => {
+        $(
+            impl CommandArg for $T {
+                fn parse(args: &mut ArgStream) -> Result<Self, String> {
+                    let arg = args
+                        .next()
+                        .ok_or_else(|| format!("Expected {} but got nothing", $desc))?;
+                    arg.parse().map_err(|e| format!("Invalid {} '{}': {}", $desc, arg, e))
+                }
+            }
+        )*
+    };
 }
+
+num_impl![
+    u8  => "8-bit unsigned integer",
+    u16 => "16-bit unsigned integer",
+    u32 => "32-bit unsigned integer",
+    u64 => "64-bit unsigned integer",
+    i8  => "8-bit signed integer",
+    i16 => "16-bit signed integer",
+    i32 => "32-bit signed integer",
+    i64 => "64-bit signed integer",
+    f32 => "32-bit floating point",
+    f64 => "64-bit floating point",
+];
 
 impl<A: CommandArg> CommandArg for Option<A> {
     fn parse<'a>(args: &mut ArgStream) -> Result<Self, String> {
