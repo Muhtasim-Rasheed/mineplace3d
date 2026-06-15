@@ -463,3 +463,9 @@ impl Server {
         })
     }
 }
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        log::info!("Closing server!");
+    }
+}

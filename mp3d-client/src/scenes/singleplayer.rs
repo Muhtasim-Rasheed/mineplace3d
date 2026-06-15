@@ -556,7 +556,11 @@ impl super::Scene for SinglePlayer {
         let hotbar_size = self.ui.hotbar.size_hint(&layout_ctx);
 
         if let Some(chat) = self.client.gui.chat() {
-            self.ui.chat_input_label.text = chat.clone();
+            self.ui.chat_input_label.text = chat
+                .ghost
+                .map(|i| self.client.chat_hist.get(i).unwrap().as_str())
+                .unwrap_or(chat.message.as_str())
+                .to_string();
         } else {
             self.ui.chat_input_label.text = "".to_string();
         }

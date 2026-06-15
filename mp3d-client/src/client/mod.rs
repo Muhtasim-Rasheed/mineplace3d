@@ -33,6 +33,9 @@ pub trait Connection {
     /// Sends a message to the server.
     fn send(&mut self, message: C2SMessage);
 
+    /// Ensures that all messages are reach the destination
+    fn flush(&mut self);
+
     /// Ticks the connection to update its state.
     fn tick(&mut self, _tps: u8) {}
 
@@ -69,6 +72,9 @@ impl Connection for LocalConnection {
         }
     }
 
+    // All messages are sent immediately to the server, so nothing is to be done
+    fn flush(&mut self) {}
+
     fn tick(&mut self, tps: u8) {
         self.server.tick(tps);
     }
@@ -86,10 +92,26 @@ impl Connection for LocalConnection {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct ChatGUI {
+    pub message: String,
+    pub ghost: Option<usize>,
+}
+
+impl ChatGUI {
+    pub fn slash() -> Self {
+        Self {
+            message: String::from("/"),
+            ghost: None,
+        }
+    }
+}
+
 /// An enum representing the different GUIs that can be opened on the client.
+#[derive(Debug)]
 pub enum CurrentGUI {
     None,
-    Chat(String),
+    Chat(ChatGUI),
     Inventory,
     PauseMenu,
 }
@@ -99,9 +121,9 @@ impl CurrentGUI {
         matches!(self, CurrentGUI::None)
     }
 
-    pub fn chat(&self) -> Option<&String> {
-        if let CurrentGUI::Chat(message) = self {
-            Some(message)
+    pub fn chat(&self) -> Option<&ChatGUI> {
+        if let CurrentGUI::Chat(gui) = self {
+            Some(gui)
         } else {
             None
         }
@@ -125,6 +147,7 @@ pub struct Client<C: Connection> {
     pub gui: CurrentGUI,
     pub messages: Vec<TextComponent>,
     pub world: ClientWorld,
+    pub chat_hist: Vec<String>,
 }
 
 impl<C: Connection> Client<C> {
@@ -142,6 +165,13 @@ impl<C: Connection> Client<C> {
                 password: "SINGLEPLAYER".to_string(),
             });
         }
+
+        let game_dir = crate::get_game_dir();
+        let chat_hist = std::fs::read_to_string(game_dir.join("chat_history.txt"))
+            .unwrap_or_default()
+            .lines()
+            .map(|s| s.to_string())
+            .collect();
 
         Self {
             connection,
@@ -163,6 +193,7 @@ impl<C: Connection> Client<C> {
             gui: CurrentGUI::None,
             messages: vec![],
             world: ClientWorld::new(),
+            chat_hist,
         }
     }
 
@@ -180,6 +211,8 @@ impl<C: Connection> Client<C> {
         if !self.gui.none() {
             self.player.input = MoveInstructions::default();
         }
+
+        let chat_hist = &mut self.chat_hist;
 
         // woah is that a state machine
         match &mut self.gui {
@@ -248,11 +281,11 @@ impl<C: Connection> Client<C> {
                 }
 
                 if kb.pressed.contains(&Keycode::T) {
-                    self.gui = CurrentGUI::Chat(String::new());
+                    self.gui = CurrentGUI::Chat(ChatGUI::default());
                 }
 
                 if kb.pressed.contains(&Keycode::Slash) {
-                    self.gui = CurrentGUI::Chat("/".to_string());
+                    self.gui = CurrentGUI::Chat(ChatGUI::slash());
                 }
 
                 if kb.pressed.contains(&Keycode::E) {
@@ -292,26 +325,71 @@ impl<C: Connection> Client<C> {
                 }
             }
 
-            CurrentGUI::Chat(message) => {
-                let mut msg = message.clone();
-                msg.push_str(&update_context.keyboard.text_input);
-
+            CurrentGUI::Chat(gui) => {
+                let input = &update_context.keyboard.text_input;
+                if input.len() > 0 {
+                    if let Some(ghost_idx) = gui.ghost.take() {
+                        // Unwrap is fine here as we check for bounds when handling Up and Down
+                        gui.message = chat_hist.get(ghost_idx).unwrap().to_string();
+                    }
+                    gui.message.push_str(&update_context.keyboard.text_input);
+                }
                 let kb = &update_context.keyboard;
-
-                if kb.pressed.contains(&Keycode::Return) && !msg.trim().is_empty() {
-                    self.connection.send(C2SMessage::SendMessage {
-                        message: msg.trim().to_string(),
-                    });
-                    self.gui = CurrentGUI::None;
-                } else if kb.pressed.contains(&Keycode::Backspace) {
-                    msg.pop();
-                    self.gui = CurrentGUI::Chat(msg);
-                } else {
-                    let replaced = emoji::replace_emojis(&msg);
-                    if replaced != msg {
-                        self.gui = CurrentGUI::Chat(replaced);
+                if kb.pressed.contains(&Keycode::Return)
+                    && (!gui.message.trim().is_empty() || gui.ghost.is_some())
+                {
+                    if let Some(i) = gui.ghost.take() {
+                        let c = chat_hist.get(i).unwrap();
+                        if !c.trim().is_empty() {
+                            self.connection
+                                .send(C2SMessage::SendMessage { message: c.clone() });
+                            // Check if we only stepped once
+                            if i != chat_hist.len() - 1 {
+                                chat_hist.push(c.clone());
+                            }
+                            self.gui = CurrentGUI::None;
+                        }
                     } else {
-                        *message = msg;
+                        let c = std::mem::take(&mut gui.message);
+                        self.connection
+                            .send(C2SMessage::SendMessage { message: c.clone() });
+                        chat_hist.push(c);
+                        self.gui = CurrentGUI::None;
+                    }
+                } else if kb.pressed.contains(&Keycode::Backspace) {
+                    gui.message.pop();
+                } else if kb.pressed.contains(&Keycode::Up) {
+                    let start = gui
+                        .ghost
+                        .map(|i| i.saturating_sub(1))
+                        .unwrap_or(chat_hist.len() - 1);
+                    if let Some(pos) = chat_hist[..=start]
+                        .iter()
+                        .rev()
+                        .position(|s| s.starts_with(&gui.message))
+                    {
+                        gui.ghost = Some(start - pos);
+                    }
+                } else if kb.pressed.contains(&Keycode::Down) {
+                    if let Some(i) = gui.ghost {
+                        if i != chat_hist.len() - 1 {
+                            let end = i + 1;
+                            if let Some(pos) = chat_hist[end..]
+                                .iter()
+                                .position(|s| s.starts_with(&gui.message))
+                            {
+                                gui.ghost = Some(end + pos);
+                            } else {
+                                gui.ghost = None;
+                            }
+                        } else {
+                            gui.ghost = None;
+                        }
+                    }
+                } else {
+                    let replaced = emoji::replace_emojis(&gui.message);
+                    if replaced != gui.message {
+                        gui.message = replaced;
                     }
                 }
             }
@@ -448,6 +526,28 @@ impl<C: Connection> Client<C> {
             }
         }
         Ok(())
+    }
+}
+
+impl<C: Connection> Drop for Client<C> {
+    fn drop(&mut self) {
+        log::info!("Closing client");
+        self.connection.send(C2SMessage::Disconnect);
+        self.connection.flush();
+
+        let game_dir = crate::get_game_dir();
+        let content = self
+            .chat_hist
+            .iter()
+            .rev()
+            .take(50)
+            .rev()
+            .map(|v| v.as_str())
+            .collect::<Vec<&str>>()
+            .join("\n");
+        if let Err(e) = std::fs::write(game_dir.join("chat_history.txt"), content) {
+            log::error!("Failed to save command history: {}", e);
+        }
     }
 }
 
