@@ -34,6 +34,50 @@ impl TextComponent {
         }
         styled_chars
     }
+
+    pub fn lines(&self) -> Vec<TextComponent> {
+        let mut lines: Vec<TextComponent> = Vec::new();
+        let mut current_parts: Vec<TextComponentPart> = Vec::new();
+
+        for part in &self.parts {
+            let mut current_text = String::new();
+
+            for c in part.text.chars() {
+                if c == '\n' {
+                    if !current_text.is_empty() {
+                        current_parts.push(TextComponentPart {
+                            text: current_text.clone(),
+                            color: part.color,
+                        });
+                        current_text.clear();
+                    }
+                    lines.push(TextComponent {
+                        parts: current_parts.clone(),
+                    });
+                    current_parts.clear();
+                } else {
+                    current_text.push(c);
+                }
+            }
+
+            if !current_text.is_empty() {
+                current_parts.push(TextComponentPart {
+                    text: current_text,
+                    color: part.color,
+                });
+            }
+        }
+
+        // Push the final line (even if empty, to mirror str::lines behavior...
+        // actually str::lines omits a trailing newline, so only push if non-empty)
+        if !current_parts.is_empty() {
+            lines.push(TextComponent {
+                parts: current_parts,
+            });
+        }
+
+        lines
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

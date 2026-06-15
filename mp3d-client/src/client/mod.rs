@@ -95,6 +95,7 @@ impl Connection for LocalConnection {
 #[derive(Debug, Default)]
 pub struct ChatGUI {
     pub message: String,
+    pub scroll: usize,
     pub ghost: Option<usize>,
 }
 
@@ -102,6 +103,7 @@ impl ChatGUI {
     pub fn slash() -> Self {
         Self {
             message: String::from("/"),
+            scroll: 0,
             ghost: None,
         }
     }
@@ -212,6 +214,7 @@ impl<C: Connection> Client<C> {
             self.player.input = MoveInstructions::default();
         }
 
+        let chat_messages = &self.messages;
         let chat_hist = &mut self.chat_hist;
 
         // woah is that a state machine
@@ -326,6 +329,17 @@ impl<C: Connection> Client<C> {
             }
 
             CurrentGUI::Chat(gui) => {
+                let mouse_scroll = update_context.mouse.scroll_delta.y;
+                if mouse_scroll != 0.0 {
+                    let old = gui.scroll as isize;
+                    let new = old + mouse_scroll.signum() as isize * 2;
+                    let lines: Vec<TextComponent> =
+                        chat_messages.iter().flat_map(|msg| msg.lines()).collect();
+                    if new > 0 && new + 10 < lines.len() as isize {
+                        gui.scroll = new as usize;
+                    }
+                }
+
                 let input = &update_context.keyboard.text_input;
                 if input.len() > 0 {
                     if let Some(ghost_idx) = gui.ghost.take() {

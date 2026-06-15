@@ -258,13 +258,19 @@ impl SinglePlayer {
     }
 
     fn get_recent_messages(&self) -> Vec<TextComponent> {
-        self.client
+        let scroll = self.client.gui.chat().map(|v| v.scroll).unwrap_or_default();
+        let lines: Vec<TextComponent> = self
+            .client
             .messages
-            .iter() // All messages
-            .rev() // Reversed
-            .take(10) // Take the first (last) 10 messages
-            .rev() // Reverse back
-            .cloned() // Clone the messages so we can own them
+            .iter()
+            .flat_map(|msg| msg.lines())
+            .collect();
+        lines
+            .into_iter()
+            .rev()
+            .skip(scroll)
+            .take(10)
+            .rev()
             .collect()
     }
 
