@@ -1,3 +1,5 @@
+//! Implementation of the /setblock command
+
 use crate::{
     block::{Block, BlockState},
     command::{

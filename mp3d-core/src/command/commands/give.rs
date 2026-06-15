@@ -1,3 +1,5 @@
+//! Implementation of the /give command
+
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext, parser::Word},
     entity::PlayerEntity,

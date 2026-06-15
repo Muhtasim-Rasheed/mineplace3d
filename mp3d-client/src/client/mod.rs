@@ -4,7 +4,7 @@
 //! connection, it directly calls the server's message handling functions. Remote connections are
 //! not implemented yet.
 //!
-//! The module also provides a `Connection` trait and a `LocalConnection` struct that implements
+//! The module also provides a [`Connection`] trait and a [`LocalConnection`] struct that implements
 //! this trait for local server interactions.
 
 pub mod chunk;
@@ -278,6 +278,17 @@ impl<C: Connection> Client<C> {
                         self.player.inventory.borrow_mut().slot = i;
                         break;
                     }
+                }
+
+                let mouse_scroll = update_context.mouse.scroll_delta.y;
+
+                if mouse_scroll != 0.0 {
+                    let old = self.player.inventory.borrow().slot;
+                    let new = old
+                        .saturating_add_signed(mouse_scroll.signum() as isize)
+                        .min(8);
+                    self.connection.send(C2SMessage::HotbarChange { idx: new });
+                    self.player.inventory.borrow_mut().slot = new;
                 }
             }
 

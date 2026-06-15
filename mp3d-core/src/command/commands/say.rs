@@ -1,3 +1,5 @@
+//! Implementation of the /say command
+
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext, parser::GreedyString},
     server::PlayerSession,

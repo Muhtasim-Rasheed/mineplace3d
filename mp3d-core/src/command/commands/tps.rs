@@ -1,3 +1,5 @@
+//! Implementation of the /tps command
+
 use crate::{
     command::{ArgStream, Command, CommandContext},
     textcomponent::TextComponent,

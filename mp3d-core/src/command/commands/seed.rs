@@ -1,3 +1,5 @@
+//! Implementation of the /seed command
+
 use crate::{
     command::{ArgStream, Command, CommandContext},
     textcomponent::TextComponent,

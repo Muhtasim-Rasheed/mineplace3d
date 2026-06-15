@@ -1,3 +1,5 @@
+//! Implementation of the /clear command
+
 use crate::{
     command::{ArgStream, Command, CommandContext},
     entity::PlayerEntity,

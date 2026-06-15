@@ -1,3 +1,5 @@
+//! Implementation of the /help command
+
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext},
     textcomponent::TextComponent,
