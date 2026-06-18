@@ -263,7 +263,7 @@ impl World {
         false
     }
 
-    fn try_place_block(
+    pub fn try_place_block(
         &mut self,
         player_entity_id: u64,
         pos: IVec3,
@@ -312,96 +312,29 @@ impl World {
             None => return,
         };
 
-        match self.get_block_at(block_pos).map(|(b, s)| (b, *s)) {
-            Some((id, _)) if id == *blocks::GLUNGUS => {
-                self.interact_glungus(block_pos);
-                return;
-            }
-            Some((id, state))
-                if state == BlockState::slab(0) && face == Direction::Up
-                    || state == BlockState::slab(1) && face == Direction::Down =>
-            {
-                if item_count == 0 {
-                    return;
+        if let Some((id, state)) = self.get_block_at(block_pos).map(|(b, s)| (b, *s)) {
+            let def = block_registry().get(id).unwrap();
+            if let Some(on_click) = def.on_click {
+                if on_click(id, self, player_entity_id, block_pos, state, face) {
+                    return; // hook fully handled the interaction
                 }
-
-                if let Some(block) = place_block
-                    && **block == id
-                {
-                    self.try_place_block(player_entity_id, block_pos, **block, BlockState::slab(2));
-                }
-                return;
             }
-            _ => {}
         }
 
-        // Normal block placement logic
         let place_pos = block_pos + face;
-
         if item_count == 0 {
             return;
         }
-
         if let Some(block) = place_block {
-            let block_def = block_registry().get(**block).unwrap();
-            let player_fwd = self
-                .get_entity::<PlayerEntity>(player_entity_id)
-                .unwrap()
-                .forward()
-                .with_y(0.0)
-                .normalize_or_zero();
-            let player_dir = if player_fwd.x.abs() > player_fwd.z.abs() {
-                if player_fwd.x > 0.0 {
-                    Direction::East
-                } else {
-                    Direction::West
-                }
+            let def = block_registry().get(**block).unwrap();
+            let state = if let Some(on_place) = def.on_place {
+                (on_place)(**block, self, player_entity_id, place_pos, face)
+            } else if let Some(bs) = BlockState::default_state(def.state_type) {
+                bs
             } else {
-                if player_fwd.z > 0.0 {
-                    Direction::South
-                } else {
-                    Direction::North
-                }
+                return;
             };
-
-            if block_def.state_type == BlockState::SLAB_TYPE && face == Direction::Down {
-                self.try_place_block(player_entity_id, place_pos, **block, BlockState::slab(1));
-            } else if block_def.state_type == BlockState::STAIR_TYPE {
-                self.try_place_block(
-                    player_entity_id,
-                    place_pos,
-                    **block,
-                    BlockState::stairs(player_dir),
-                );
-            } else if block_def.state_type == BlockState::FACING_TYPE {
-                self.try_place_block(
-                    player_entity_id,
-                    place_pos,
-                    **block,
-                    BlockState::facing(player_dir),
-                );
-            } else if let Some(state) = BlockState::default_state(block_def.state_type) {
-                self.try_place_block(player_entity_id, place_pos, **block, state);
-            }
-        }
-    }
-
-    fn interact_glungus(&mut self, block_pos: IVec3) {
-        let radius_sq = 8 * 8;
-        for x in -8..=8 {
-            for y in -8..=8 {
-                for z in -8..=8 {
-                    if x * x + y * y + z * z <= radius_sq {
-                        let pos = block_pos + IVec3::new(x, y, z);
-                        self.normal_set_block_at(
-                            pos,
-                            *blocks::AIR,
-                            BlockState::none(),
-                            BlockUpdateKind::Interaction,
-                        );
-                    }
-                }
-            }
+            self.try_place_block(player_entity_id, place_pos, **block, state);
         }
     }
 
@@ -410,6 +343,11 @@ impl World {
             Some((b, s)) => (b, *s),
             None => return,
         };
+
+        let block_def = block_registry().get(block).unwrap();
+        if let Some(on_break) = block_def.on_break {
+            on_break(block, self, player_entity_id, block_pos, state);
+        }
 
         let Some(loot_table_entry) = self.game_data.get_block_drops(block) else {
             return;
@@ -450,7 +388,7 @@ impl World {
                     log::warn!(
                         "Unknown item '{}' in loot table for block '{}'",
                         item,
-                        block_registry().get(block).unwrap().ident
+                        block_def.ident
                     );
                     continue;
                 }

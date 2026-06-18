@@ -19,12 +19,22 @@ impl DefId for BlockId {
     }
 }
 
+pub type OnClickHandler =
+    fn(BlockId, &mut crate::world::World, u64, IVec3, BlockState, Direction) -> bool;
+pub type OnPlaceHandler =
+    fn(BlockId, &mut crate::world::World, u64, IVec3, Direction) -> BlockState;
+pub type OnBreakHandler = fn(BlockId, &mut crate::world::World, u64, IVec3, BlockState);
+
 pub struct BlockDef {
     pub visible: bool,
     pub collision_shape: CollisionShape,
     pub interact_shape: Option<CollisionShape>,
     pub ident: &'static str,
     pub state_type: u16,
+
+    pub on_click: Option<OnClickHandler>,
+    pub on_place: Option<OnPlaceHandler>,
+    pub on_break: Option<OnBreakHandler>,
 }
 
 impl Def for BlockDef {
@@ -81,6 +91,9 @@ macro_rules! define_blocks {
                 $(, collision_shape: $collision_shape:expr)?
                 $(, interact_shape: $interact_shape:expr)?
                 $(, state_type: $state_type:expr)?
+                $(, on_click: $on_click:expr)?
+                $(, on_place: $on_place:expr)?
+                $(, on_break: $on_break:expr)?
                 $(,)?
             }
         ),* $(,)?
@@ -99,6 +112,9 @@ macro_rules! define_blocks {
                             interact_shape: define_blocks!(@interact_shape $( $interact_shape )?),
                             ident: $ident,
                             state_type: define_blocks!(@state_type $( $state_type )?),
+                            on_click: define_blocks!(@on_click $( $on_click )?),
+                            on_place: define_blocks!(@on_place $( $on_place )?),
+                            on_break: define_blocks!(@on_break $( $on_break )?),
                         },
                         id_slot: &$name,
                     }
@@ -118,6 +134,15 @@ macro_rules! define_blocks {
 
     (@state_type $state_type:expr) => { $state_type };
     (@state_type) => { BlockState::NONE_TYPE };
+
+    (@on_click $on_click:expr) => { Some($on_click) };
+    (@on_click) => { None };
+
+    (@on_place $on_place:expr) => { Some($on_place) };
+    (@on_place) => { None };
+
+    (@on_break $on_break:expr) => { Some($on_break) };
+    (@on_break) => { None };
 }
 
 impl BlockDef {
