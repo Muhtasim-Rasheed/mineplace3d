@@ -1,7 +1,7 @@
 use glam::IVec3;
 
 use crate::{
-    block::{Block, BlockState},
+    block::{BlockState, blocks},
     world::{
         chunk::{CHUNK_SIZE, Chunk},
         generation::structure::{Structure, StructureData},
@@ -70,16 +70,16 @@ impl Generator {
                             global_z as f32 * 12.0 + 100.0,
                         ) > 0.5;
                         if granite {
-                            chunk.set_block(local, Block::GRANITE, BlockState::none());
+                            chunk.set_block(local, *blocks::GRANITE, BlockState::none());
                         } else {
-                            chunk.set_block(local, Block::STONE, BlockState::none());
+                            chunk.set_block(local, *blocks::STONE, BlockState::none());
                         }
                     } else if global_y < height - 1 {
-                        chunk.set_block(local, Block::DIRT, BlockState::none());
+                        chunk.set_block(local, *blocks::DIRT, BlockState::none());
                     } else if global_y < height {
-                        chunk.set_block(local, Block::GRASS, BlockState::none());
+                        chunk.set_block(local, *blocks::GRASS, BlockState::none());
                     } else if global_y == height && should_spawn_short_grass {
-                        chunk.set_block(local, Block::SHORT_GRASS, BlockState::none());
+                        chunk.set_block(local, *blocks::SHORT_GRASS, BlockState::none());
                     }
                 }
             }

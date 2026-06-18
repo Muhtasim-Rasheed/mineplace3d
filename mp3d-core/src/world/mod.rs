@@ -12,10 +12,11 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
-    block::{Block, BlockState},
+    block::{BlockId, BlockState, block_registry, blocks},
     datapack::GameData,
     direction::Direction,
     entity::{Entity, EntityType, PlayerEntity},
+    item::{item_registry, items},
     protocol::{BlockUpdate, BlockUpdateKind},
     saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
     uniquequeue::UniqueQueue,
@@ -43,7 +44,7 @@ pub struct World {
     /// A map of chunk positions to a map of local block positions to the new block and block
     /// state. This is used to track changes to chunks that have been modified by the player or
     /// other entities.
-    changes: HashMap<IVec3, HashMap<IVec3, (Block, BlockState)>>,
+    changes: HashMap<IVec3, HashMap<IVec3, (BlockId, BlockState)>>,
 
     game_data: GameData,
 }
@@ -66,7 +67,7 @@ impl World {
     }
 
     /// Gets a block at the given world position.
-    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(&Block, &BlockState)> {
+    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(BlockId, &BlockState)> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -77,7 +78,7 @@ impl World {
 
     /// Gets a block at the given world position, or generates a new chunk and returns the block if
     /// it doesn't exist.
-    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> Option<(&Block, &BlockState)> {
+    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> Option<(BlockId, &BlockState)> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -91,7 +92,7 @@ impl World {
     pub fn urgent_set_block_at(
         &mut self,
         world_pos: IVec3,
-        block: Block,
+        block: BlockId,
         state: BlockState,
         kind: BlockUpdateKind,
     ) {
@@ -120,7 +121,7 @@ impl World {
     pub fn normal_set_block_at(
         &mut self,
         world_pos: IVec3,
-        block: Block,
+        block: BlockId,
         state: BlockState,
         kind: BlockUpdateKind,
     ) {
@@ -245,6 +246,7 @@ impl World {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
                     if let Some((block, block_state)) = self.get_block_at(block_pos)
+                        && let Some(block) = block_registry().get(block)
                         && block.collides_with_player(
                             entity_width,
                             entity_height,
@@ -265,7 +267,7 @@ impl World {
         &mut self,
         player_entity_id: u64,
         pos: IVec3,
-        block: Block,
+        block: BlockId,
         state: BlockState,
     ) -> bool {
         let player_pos = match self.get_entity::<PlayerEntity>(player_entity_id) {
@@ -273,10 +275,10 @@ impl World {
             None => return false,
         };
 
-        let old_block = *self
+        let old_block = self
             .get_block_at(pos)
             .map(|(b, _)| b)
-            .unwrap_or(&Block::AIR);
+            .unwrap_or(*blocks::AIR);
 
         self.urgent_set_block_at(pos, block, state, BlockUpdateKind::Placed);
 
@@ -290,7 +292,7 @@ impl World {
             let slot = inv.hotbar_slot_mut(player.hotbar_index);
             slot.count -= 1;
             if slot.count == 0 {
-                slot.item = crate::item::Item::AIR;
+                slot.item = *items::AIR;
             }
             inv.dirty = true;
         }
@@ -301,32 +303,32 @@ impl World {
     /// Handles a block interaction at the given world position and face index. If the block is not
     /// interactive, this will attempt to place a block on the face that was clicked.
     pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: Direction) {
-        match self.get_block_at(block_pos).map(|(b, s)| (b.ident, *s)) {
-            Some(("glungus", _)) => {
+        let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
+            Some(p) => {
+                let stack = p.inventory.hotbar_slot(p.hotbar_index);
+                let assoc_block = item_registry().get(stack.item).unwrap().assoc_block;
+                (stack.count, assoc_block)
+            }
+            None => return,
+        };
+
+        match self.get_block_at(block_pos).map(|(b, s)| (b, *s)) {
+            Some((id, _)) if id == *blocks::GLUNGUS => {
                 self.interact_glungus(block_pos);
                 return;
             }
-            Some((ident, state))
+            Some((id, state))
                 if state == BlockState::slab(0) && face == Direction::Up
                     || state == BlockState::slab(1) && face == Direction::Down =>
             {
-                let (item_count, place_block) =
-                    match self.get_entity::<PlayerEntity>(player_entity_id) {
-                        Some(p) => (
-                            p.inventory.hotbar_slot(p.hotbar_index).count,
-                            p.inventory.hotbar_slot(p.hotbar_index).item.assoc_block,
-                        ),
-                        None => return,
-                    };
-
                 if item_count == 0 {
                     return;
                 }
 
                 if let Some(block) = place_block
-                    && block.ident == ident
+                    && **block == id
                 {
-                    self.try_place_block(player_entity_id, block_pos, *block, BlockState::slab(2));
+                    self.try_place_block(player_entity_id, block_pos, **block, BlockState::slab(2));
                 }
                 return;
             }
@@ -336,19 +338,12 @@ impl World {
         // Normal block placement logic
         let place_pos = block_pos + face;
 
-        let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
-            Some(p) => (
-                p.inventory.hotbar_slot(p.hotbar_index).count,
-                p.inventory.hotbar_slot(p.hotbar_index).item.assoc_block,
-            ),
-            None => return,
-        };
-
         if item_count == 0 {
             return;
         }
 
         if let Some(block) = place_block {
+            let block_def = block_registry().get(**block).unwrap();
             let player_fwd = self
                 .get_entity::<PlayerEntity>(player_entity_id)
                 .unwrap()
@@ -369,24 +364,24 @@ impl World {
                 }
             };
 
-            if block.state_type == BlockState::SLAB_TYPE && face == Direction::Down {
-                self.try_place_block(player_entity_id, place_pos, *block, BlockState::slab(1));
-            } else if block.state_type == BlockState::STAIR_TYPE {
+            if block_def.state_type == BlockState::SLAB_TYPE && face == Direction::Down {
+                self.try_place_block(player_entity_id, place_pos, **block, BlockState::slab(1));
+            } else if block_def.state_type == BlockState::STAIR_TYPE {
                 self.try_place_block(
                     player_entity_id,
                     place_pos,
-                    *block,
+                    **block,
                     BlockState::stairs(player_dir),
                 );
-            } else if block.state_type == BlockState::FACING_TYPE {
+            } else if block_def.state_type == BlockState::FACING_TYPE {
                 self.try_place_block(
                     player_entity_id,
                     place_pos,
-                    *block,
+                    **block,
                     BlockState::facing(player_dir),
                 );
-            } else if let Some(state) = BlockState::default_state(block.state_type) {
-                self.try_place_block(player_entity_id, place_pos, *block, state);
+            } else if let Some(state) = BlockState::default_state(block_def.state_type) {
+                self.try_place_block(player_entity_id, place_pos, **block, state);
             }
         }
     }
@@ -400,7 +395,7 @@ impl World {
                         let pos = block_pos + IVec3::new(x, y, z);
                         self.normal_set_block_at(
                             pos,
-                            Block::AIR,
+                            *blocks::AIR,
                             BlockState::none(),
                             BlockUpdateKind::Interaction,
                         );
@@ -412,11 +407,11 @@ impl World {
 
     pub fn break_block(&mut self, player_entity_id: u64, block_pos: IVec3) {
         let (block, state) = match self.get_block_at(block_pos) {
-            Some((b, s)) => (*b, *s),
+            Some((b, s)) => (b, *s),
             None => return,
         };
 
-        let Some(loot_table_entry) = self.game_data.get_block_drops(block.ident) else {
+        let Some(loot_table_entry) = self.game_data.get_block_drops(block) else {
             return;
         };
         let drops = &loot_table_entry.drops;
@@ -424,7 +419,7 @@ impl World {
 
         self.urgent_set_block_at(
             block_pos,
-            crate::block::Block::AIR,
+            *blocks::AIR,
             crate::block::BlockState::none(),
             crate::protocol::BlockUpdateKind::Removed,
         );
@@ -449,13 +444,13 @@ impl World {
                 }
             };
 
-            let item = match crate::item::Item::from_ident(&item) {
+            let item = match item_registry().get_id(&item) {
                 Some(i) => i,
                 None => {
                     log::warn!(
                         "Unknown item '{}' in loot table for block '{}'",
                         item,
-                        block.ident
+                        block_registry().get(block).unwrap().ident
                     );
                     continue;
                 }
@@ -463,7 +458,7 @@ impl World {
 
             // TODO: implement item entities, for now just add the items directly to the player's
             // inventory
-            player.inventory.add_stack(*item, count as u16);
+            player.inventory.add_stack(item, count as u16);
         }
     }
 }
@@ -471,7 +466,7 @@ impl World {
 /// Position-less and priority-less version of [`BlockUpdate`]
 #[derive(Clone, Debug)]
 pub struct BlockChangeKey {
-    pub block: Block,
+    pub block: BlockId,
     pub block_state: BlockState,
     pub kind: BlockUpdateKind,
 }
@@ -566,13 +561,9 @@ impl World {
     /// - 2 bytes: number of changes in the chunk (N)
     /// - N times
     ///   - 3 bytes: local block position (x, y, z) within the chunk (0-15)
-    ///   - 1 byte: whether the block is visible (0 or 1)
     ///   - 1 byte: length of the block identifier (M)
     ///   - M bytes: block identifier (UTF-8 string)
-    ///   - 1 byte: collision shape
-    ///   - 2 bytes: block state type (u16)
     ///   - 4 bytes: block state data (u32)
-    /// - actual chunk data defined by [`Chunk::save`]
     ///
     /// # save.bin
     /// - 1 byte: save format version (u8)
@@ -604,15 +595,10 @@ impl World {
 
         std::fs::create_dir_all(path.join("chunks"))?;
         for (chunk_pos, changes) in &self.changes {
-            let mut chunk = self.generator.generate_chunk(*chunk_pos);
-            for (local_pos, (block, state)) in changes {
-                chunk.set_block(*local_pos, *block, *state);
-            }
             let chunk_path = path.join("chunks").join(format!(
                 "chunk_{}_{}_{}.bin",
                 chunk_pos.x, chunk_pos.y, chunk_pos.z
             ));
-            let chunk_data = chunk.save();
             let mut chunk_file = std::fs::File::create(chunk_path)?;
             let change_count = changes.len() as u16;
             std::io::Write::write_all(&mut chunk_file, &change_count.to_le_bytes())?;
@@ -624,7 +610,6 @@ impl World {
                 let data = (*block, *state).save();
                 std::io::Write::write_all(&mut chunk_file, data.as_slice())?;
             }
-            std::io::Write::write_all(&mut chunk_file, &chunk_data)?;
         }
 
         log::info!("Saved chunks");
@@ -681,7 +666,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 5 => load_v0_to_v5(path, &mut save_iter, version),
+            Some(version) if version <= 0x06 => load_v0_to_v6(path, &mut save_iter, version),
             Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
                 "Unsupported save version: {}",
                 version
@@ -693,7 +678,7 @@ impl World {
     }
 }
 
-fn load_v0_to_v5(
+fn load_v0_to_v6(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,
@@ -750,15 +735,16 @@ fn load_v0_to_v5(
         let change_count = read_u16(&mut chunk_iter, "Chunk change count")?;
         for _ in 0..change_count {
             let local_pos = read_u8vec3(&mut chunk_iter, "Chunk change local position")?.as_ivec3();
-            let block_and_state = <(Block, BlockState)>::load(&mut chunk_iter, version)?;
+            let block_and_state = <(BlockId, BlockState)>::load(&mut chunk_iter, version)?;
             world
                 .changes
                 .entry(chunk_pos)
                 .or_default()
                 .insert(local_pos, block_and_state);
         }
-        let chunk = Chunk::load(&mut chunk_iter, version)?;
-        world.chunks.insert(chunk_pos, chunk);
+
+        // In 0x06 the redundant chunk data was removed. We don't handle loading the many many bytes
+        // for versions before 0x06 simply because there was nothing else after the chunk data.
     }
 
     // ENTITIES

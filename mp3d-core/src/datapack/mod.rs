@@ -2,7 +2,10 @@
 
 use fxhash::FxHashMap;
 
-use crate::datapack::files::DataSources;
+use crate::{
+    block::{BlockId, block_registry},
+    datapack::files::DataSources,
+};
 
 pub mod files;
 
@@ -74,7 +77,7 @@ impl TryFrom<RawLootTableEntry> for LootTableEntry {
 }
 
 pub struct LootTable {
-    block_entries: FxHashMap<String, LootTableEntry>,
+    block_entries: FxHashMap<BlockId, LootTableEntry>,
 }
 
 pub struct GameData {
@@ -98,19 +101,21 @@ impl GameData {
         }
     }
 
-    pub fn get_block_drops(&mut self, ident: &'static str) -> Option<&LootTableEntry> {
-        if self.loot_table.block_entries.contains_key(ident) {
-            return self.loot_table.block_entries.get(ident);
+    pub fn get_block_drops(&mut self, id: BlockId) -> Option<&LootTableEntry> {
+        if self.loot_table.block_entries.contains_key(&id) {
+            return self.loot_table.block_entries.get(&id);
         }
 
-        let path = std::path::PathBuf::from(format!("loot_table/blocks/{}.json", ident));
+        let str_id = block_registry().get(id).unwrap().ident;
+
+        let path = std::path::PathBuf::from(format!("loot_table/blocks/{}.json", str_id));
 
         let contents = self.sources.read_utf8(&path)?;
 
         let parsed_raw = match serde_json::from_str::<RawLootTableEntry>(&contents) {
             Ok(r) => r,
             Err(e) => {
-                log::error!("Failed to read block loot table {}: {}", ident, e);
+                log::error!("Failed to read block loot table {}: {}", str_id, e);
                 return None;
             }
         };
@@ -118,15 +123,13 @@ impl GameData {
         let parsed = match LootTableEntry::try_from(parsed_raw) {
             Ok(p) => p,
             Err(e) => {
-                log::error!("Failed to convert loot table {}: {:?}", ident, e);
+                log::error!("Failed to convert loot table {}: {:?}", str_id, e);
                 return None;
             }
         };
 
-        self.loot_table
-            .block_entries
-            .insert(ident.to_string(), parsed);
+        self.loot_table.block_entries.insert(id, parsed);
 
-        self.loot_table.block_entries.get(ident)
+        self.loot_table.block_entries.get(&id)
     }
 }

@@ -3,9 +3,8 @@
 use glam::IVec3;
 
 use crate::{
-    block::{Block, BlockState, CollisionShape},
+    block::{BlockId, BlockState, CollisionShape, block_registry, blocks},
     direction::Direction,
-    saving::{Saveable, WorldLoadError, io::*},
 };
 
 pub const CHUNK_SIZE: usize = 16;
@@ -13,7 +12,7 @@ pub const CHUNK_SIZE: usize = 16;
 /// A 16x16x16 chunk of blocks.
 #[derive(Clone, Debug)]
 pub struct Chunk {
-    block_palette: Vec<Block>,
+    block_palette: Vec<BlockId>,
     blocks: [u16; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
     block_states: [BlockState; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
 }
@@ -22,25 +21,25 @@ impl Chunk {
     /// Creates a new empty chunk.
     pub fn new() -> Self {
         Chunk {
-            block_palette: vec![Block::AIR],
+            block_palette: vec![*blocks::AIR],
             blocks: [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
             block_states: [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
         }
     }
 
     /// Gets a reference to the block and block state at the given local position within the chunk.
-    pub fn get_block(&self, local_pos: IVec3) -> Option<(&Block, &BlockState)> {
+    pub fn get_block(&self, local_pos: IVec3) -> Option<(BlockId, &BlockState)> {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         let palette_index = *self.blocks.get(index)? as usize;
         Some((
-            self.block_palette.get(palette_index)?,
+            self.block_palette.get(palette_index).copied()?,
             self.block_states.get(index)?,
         ))
     }
 
     /// Sets the block at the given local position within the chunk.
-    pub fn set_block(&mut self, local_pos: IVec3, block: Block, state: BlockState) {
+    pub fn set_block(&mut self, local_pos: IVec3, block: BlockId, state: BlockState) {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         if let Some(palette_index) = self.block_palette.iter().position(|b| *b == block) {
@@ -58,7 +57,7 @@ impl Chunk {
         n: usize,
         chunks: &fxhash::FxHashMap<IVec3, Chunk>,
         chunk_pos: IVec3,
-    ) -> Vec<(IVec3, Block, BlockState)> {
+    ) -> Vec<(IVec3, BlockId, BlockState)> {
         let neighbors = [
             IVec3::new(-1, -1, -1), // Y -1 Z -1
             IVec3::new(0, -1, -1),
@@ -95,7 +94,7 @@ impl Chunk {
             neighbors: [Option<&'a Chunk>; 26],
             global_pos: IVec3,
             chunk_pos: IVec3,
-        ) -> Option<(&'a Block, &'a BlockState)> {
+        ) -> Option<(BlockId, &'a BlockState)> {
             let get_chunk_pos = IVec3::new(
                 global_pos.x.div_euclid(CHUNK_SIZE as i32),
                 global_pos.y.div_euclid(CHUNK_SIZE as i32),
@@ -160,24 +159,25 @@ impl Chunk {
             let palette_index = self.blocks[index] as usize;
             let block = &self.block_palette[palette_index];
             let above_global_pos = global_pos + Direction::Up;
-            let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos);
+            let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos)
+                .and_then(|(id, bs)| block_registry().get(id).map(|v| (v, bs)));
             let below_global_pos = global_pos + Direction::Down;
             let below_block = get_block_global(self, neighbors, below_global_pos, chunk_pos);
-            if block == &Block::DIRT
+            if block == &*blocks::DIRT
                 && let Some((above_block, _)) = above_block
                 && above_block.collision_shape == CollisionShape::None
             {
                 // DIRT -> GRASS if above cannot be collided with (e.g. AIR)
-                updates.push((global_pos, Block::GRASS, BlockState::none()));
+                updates.push((global_pos, *blocks::GRASS, BlockState::none()));
             }
-            if block == &Block::GRASS
+            if block == &*blocks::GRASS
                 && let Some((above_block, _)) = above_block
                 && above_block.collision_shape != CollisionShape::None
             {
                 // GRASS -> DIRT if above can be collided with (e.g. GRASS or LOG)
-                updates.push((global_pos, Block::DIRT, BlockState::none()));
+                updates.push((global_pos, *blocks::DIRT, BlockState::none()));
             }
-            if block == &Block::LEAVES {
+            if block == &*blocks::LEAVES {
                 // LEAVES -> AIR if no LOG in radius of 6 blocks
                 let mut should_become_air = true;
                 for dx in -6..=6 {
@@ -190,7 +190,7 @@ impl Chunk {
                             let pos = global_pos + delta;
                             let block = get_block_global(self, neighbors, pos, chunk_pos);
                             if let Some((block, _)) = block
-                                && block == &Block::LOG
+                                && block == *blocks::LOG
                             {
                                 should_become_air = false;
                             }
@@ -198,15 +198,15 @@ impl Chunk {
                     }
                 }
                 if should_become_air {
-                    updates.push((global_pos, Block::AIR, BlockState::none()));
+                    updates.push((global_pos, *blocks::AIR, BlockState::none()));
                 }
             }
-            if block == &Block::SHORT_GRASS
+            if block == &*blocks::SHORT_GRASS
                 && let Some((below_block, _)) = below_block
-                && below_block != &Block::GRASS
+                && below_block != *blocks::GRASS
             {
                 // SHORT_GRASS -> AIR if below is not GRASS
-                updates.push((global_pos, Block::AIR, BlockState::none()));
+                updates.push((global_pos, *blocks::AIR, BlockState::none()));
             }
         }
         updates
@@ -216,63 +216,5 @@ impl Chunk {
 impl Default for Chunk {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Saveable for Chunk {
-    /// Serializes the chunk.
-    ///
-    /// The chunk format is as follows:
-    /// - 1 byte: number of blocks in the palette (N)
-    /// - N times
-    ///   - 1 byte: whether the block is visible (0 or 1)
-    ///   - 1 byte: length of the block identifier (M)
-    ///   - M bytes: block identifier (UTF-8 string)
-    ///   - 1 byte: collision shape
-    ///   - 2 bytes: block state type (u16)
-    /// - 4096 * 2 bytes: block indices (u16) for each block in the chunk
-    /// - 4096 * 4 bytes: block states (u32) for each block in the chunk
-    fn save(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-        data.push(self.block_palette.len() as u8);
-        for block in &self.block_palette {
-            let block_data = block.save();
-            data.extend_from_slice(&block_data);
-        }
-        for block_index in &self.blocks {
-            data.extend_from_slice(&block_index.to_le_bytes());
-        }
-        for block_state in &self.block_states {
-            data.extend_from_slice(&block_state.save());
-        }
-        data
-    }
-
-    /// Loads a chunk from the given data.
-    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
-        let palette_len = read_u8(data, "Chunk palette length")? as usize;
-        let mut block_palette = Vec::with_capacity(palette_len);
-        for _ in 0..palette_len {
-            let block = Block::load(data, version)?;
-            block_palette.push(block);
-        }
-        let mut blocks = [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        for block in &mut blocks {
-            *block = read_u16(data, "Chunk blocks")?;
-        }
-        let mut block_states = [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        // Even though BlockState::load returns BlockState::none() and doesn't consume any data for
-        // version 0, this makes it faster to load version 0 chunks since we don't have to read any
-        // data for block states.
-        if version > 0 {
-            for block_state in &mut block_states {
-                *block_state = BlockState::load(data, version)?;
-            }
-        }
-        Ok(Chunk {
-            block_palette,
-            blocks,
-            block_states,
-        })
     }
 }

@@ -3,77 +3,48 @@ use crate::saving::Saveable;
 use crate::saving::WorldLoadError;
 use crate::saving::io::*;
 
-impl Saveable for Block {
+impl Saveable for BlockId {
     fn save(&self) -> Vec<u8> {
         let mut data = Vec::new();
-        data.push(self.visible as u8);
 
-        let ident_bytes = self.ident.as_bytes();
+        let ident = block_registry().get(*self).unwrap().ident;
+
+        let ident_bytes = ident.as_bytes();
         data.push(ident_bytes.len() as u8);
         data.extend(ident_bytes);
-
-        data.push(self.collision_shape as u8);
-        data.push(self.interact_shape.unwrap_or(self.collision_shape) as u8);
-        data.extend(&self.state_type.to_le_bytes());
 
         data
     }
 
-    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
-        let visible = read_u8(data, "Block::visible")? != 0;
-        let ident_len = read_u8(data, "Block::ident_len")? as usize;
-        let ident_str = read_string(data, ident_len, "Block::ident")?;
-        let ident = get_block_ident(&ident_str).ok_or_else(|| {
-            WorldLoadError::InvalidSaveFormat(format!("Unknown block identifier: {}", ident_str))
-        })?;
-        let collision_shape_byte = read_u8(data, "Block::collision_shape")?;
-        let collision_shape = match collision_shape_byte {
-            0 => CollisionShape::None,
-            1 => CollisionShape::FullBlock,
-            2 => CollisionShape::Slab,
-            3 => CollisionShape::Stairs,
-            4 => CollisionShape::VSlab,
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Invalid collision shape: {}",
-                    collision_shape_byte
-                )));
-            }
-        };
-        let interact_shape = if version >= 4 {
-            let interact_shape_byte = read_u8(data, "Block::interact_shape")?;
-            if interact_shape_byte == collision_shape_byte {
-                None
-            } else {
-                Some(match interact_shape_byte {
-                    0 => CollisionShape::None,
-                    1 => CollisionShape::FullBlock,
-                    2 => CollisionShape::Slab,
-                    3 => CollisionShape::Stairs,
-                    4 => CollisionShape::VSlab,
-                    _ => {
-                        return Err(WorldLoadError::InvalidSaveFormat(format!(
-                            "Invalid interact shape: {}",
-                            interact_shape_byte
-                        )));
-                    }
-                })
-            }
+    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError>
+    where
+        Self: Sized,
+    {
+        let ident_str = if version >= 0x06 {
+            let ident_len = read_u8(data, "Block::ident_len")? as usize;
+            let ident_str = read_string(data, ident_len, "Block::ident")?;
+            ident_str
         } else {
-            None
+            read_u8(data, "Block::visible")?;
+            let ident_len = read_u8(data, "Block::ident_len")? as usize;
+            let ident_str = read_string(data, ident_len, "Block::ident")?;
+            read_u8(data, "Block::collision_shape")?;
+            if version >= 4 {
+                read_u8(data, "Block::interact_shape")?;
+            }
+            if version >= 1 {
+                read_u16(data, "Block::state_type")?;
+            }
+            ident_str
         };
-        let state_type = if version < 1 {
-            0
+
+        if let Some(id) = block_registry().get_id(&ident_str) {
+            Ok(id)
         } else {
-            read_u16(data, "Block::state_type")?
-        };
-        Ok(Block {
-            visible,
-            collision_shape,
-            interact_shape,
-            ident,
-            state_type,
-        })
+            Err(WorldLoadError::InvalidSaveFormat(format!(
+                "Unknown block identifier: {ident_str}"
+            )))
+        }
     }
 }
 
@@ -91,7 +62,7 @@ impl Saveable for BlockState {
     }
 }
 
-impl Saveable for (Block, BlockState) {
+impl Saveable for (BlockId, BlockState) {
     fn save(&self) -> Vec<u8> {
         let mut data = self.0.save();
         data.extend(self.1.save());
@@ -99,34 +70,8 @@ impl Saveable for (Block, BlockState) {
     }
 
     fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
-        let block = Block::load(data, version)?;
+        let block = BlockId::load(data, version)?;
         let block_state = BlockState::load(data, version)?;
         Ok((block, block_state))
-    }
-}
-
-static BLOCK_IDENTS: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
-    std::sync::OnceLock::new();
-
-fn get_block_idents() -> &'static std::collections::HashSet<&'static str> {
-    BLOCK_IDENTS.get_or_init(|| {
-        let mut set = std::collections::HashSet::new();
-        for block in Block::ALL_BLOCKS {
-            set.insert(block.ident);
-        }
-        set
-    })
-}
-
-/// Nice little helper for the module to convert from a `&str` to a `&'static str`, which is needed
-/// for block identifiers as `Block` needs to be `Copy` and thus cannot contain owned `String`s.
-/// This function will return `None` if the given identifier is not a valid block identifier, and
-/// `Some(&'static str)` if it is.
-fn get_block_ident(ident: &str) -> Option<&'static str> {
-    let idents = get_block_idents();
-    if let Some(&ident) = idents.get(ident) {
-        Some(ident)
-    } else {
-        None
     }
 }

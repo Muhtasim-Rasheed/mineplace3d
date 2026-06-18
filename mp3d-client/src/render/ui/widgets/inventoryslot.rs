@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use glam::{Mat4, UVec2, UVec4, Vec2, Vec4};
-use mp3d_core::item::*;
+use mp3d_core::{block::block_registry, item::*};
 
 use crate::{
     client::player::ClientInventory,
@@ -47,13 +47,15 @@ impl InventorySlot {
     ) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
         let item = stack.item;
-        if let Some(block) = item.assoc_block {
-            if block.visible {
+        if let Some(block) = item_registry().get(item).unwrap().assoc_block {
+            let block = **block;
+            let block_def = block_registry().get(block).unwrap();
+            if block_def.visible {
                 let item_block_state =
-                    mp3d_core::block::BlockState::default_state(block.state_type).unwrap();
+                    mp3d_core::block::BlockState::default_state(block_def.state_type).unwrap();
                 let item_block_model = assets
                     .block_models
-                    .get(&(block.ident, item_block_state.data()))
+                    .get(&(block, item_block_state.data()))
                     .unwrap();
                 commands.extend(item_block_model.draw_commands(
                     &ui.gl,

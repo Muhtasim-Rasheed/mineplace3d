@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use glam::{Mat4, Vec3, Vec4};
 use mp3d_core::{
+    block::block_registry,
     entity::{Entity, GROUND_EPSILON, PlayerEntity},
     item::Inventory,
     protocol::MoveInstructions,
@@ -81,8 +82,9 @@ impl ClientPlayer {
             if let Some((block, state)) = world.get_block_at(block_pos) {
                 let local = pos - block_pos.as_vec3();
 
-                if block.visible
-                    && let Some(normal) = block.ray_intersect(local, backward, *state)
+                let block_def = block_registry().get(block).unwrap();
+                if block_def.visible
+                    && let Some(normal) = block_def.ray_intersect(local, backward, *state)
                 {
                     let hit_normal = normal.as_vec3();
                     return pos + hit_normal * padding;

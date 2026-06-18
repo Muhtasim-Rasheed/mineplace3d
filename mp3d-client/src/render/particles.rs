@@ -2,7 +2,7 @@
 
 use glam::{IVec3, Mat4, Vec2, Vec3};
 use glow::HasContext;
-use mp3d_core::block::{Block, BlockState};
+use mp3d_core::block::{BlockId, BlockState, block_registry};
 
 use crate::{
     abs::{InstanceData, Mesh, ShaderProgram},
@@ -13,7 +13,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParticleSprite {
     Block {
-        block: &'static str,
+        block: BlockId,
         state: u16,
     },
     #[allow(dead_code)]
@@ -70,8 +70,8 @@ impl ParticleSystem {
         self.particles.push(particle);
     }
 
-    pub fn block_break(&mut self, position: IVec3, block: &Block, block_state: &BlockState) {
-        if !block.visible {
+    pub fn block_break(&mut self, position: IVec3, block: BlockId, block_state: &BlockState) {
+        if !block_registry().get(block).unwrap().visible {
             return;
         }
         let state_data = block_state.data();
@@ -97,7 +97,7 @@ impl ParticleSystem {
                 size,
                 has_gravity: true,
                 sprite: ParticleSprite::Block {
-                    block: block.ident,
+                    block,
                     state: state_data,
                 },
             });
@@ -178,7 +178,7 @@ impl ParticleInstance {
                 else {
                     log::warn!(
                         "Failed to get UV coordinates for block '{}', state '{}'",
-                        block,
+                        block_registry().get(block).unwrap().ident,
                         state
                     );
                     return None;

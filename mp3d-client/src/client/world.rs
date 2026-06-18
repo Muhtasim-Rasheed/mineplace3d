@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
-    block::{Block, BlockState},
+    block::{BlockId, BlockState, block_registry},
     uniquequeue::UniqueQueue,
     world::chunk::CHUNK_SIZE,
 };
@@ -23,7 +23,7 @@ pub struct ClientWorld {
     pub chunks: HashMap<IVec3, ClientChunk>,
     /// Changes done to the world that haven't been sent to the server yet.
     #[allow(unused)]
-    pub pending_changes: Vec<(IVec3, (Block, BlockState))>,
+    pub pending_changes: Vec<(IVec3, (BlockId, BlockState))>,
     /// Queue of chunks that need to be remeshed.
     pub remesh_queue: RemeshQueue,
 }
@@ -39,7 +39,7 @@ impl ClientWorld {
     }
 
     /// Gets a block at the given world position.
-    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(&Block, &BlockState)> {
+    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(BlockId, &BlockState)> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -52,7 +52,7 @@ impl ClientWorld {
     pub fn set_block_at(
         &mut self,
         world_pos: IVec3,
-        block: Block,
+        block: BlockId,
         state: BlockState,
         urgent: bool,
     ) {
@@ -175,7 +175,7 @@ impl ClientWorld {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
                     if let Some((block, block_state)) = self.get_block_at(block_pos)
-                        && block.collides_with_player(
+                        && block_registry().get(block).unwrap().collides_with_player(
                             entity_width,
                             entity_height,
                             entity_pos - block_pos.as_vec3(),

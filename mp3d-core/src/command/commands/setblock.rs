@@ -1,7 +1,7 @@
 //! Implementation of the /setblock command
 
 use crate::{
-    block::{Block, BlockState},
+    block::{BlockState, block_registry},
     command::{
         ArgStream, Command, CommandArg, CommandContext,
         parser::{Coord3, Word},
@@ -47,19 +47,21 @@ impl Command for SetBlockCommand {
         let state_data = <Option<u16>>::parse(&mut args)?;
         args.ensure_empty()?;
 
-        let block = *Block::from_ident(&ident.0).ok_or("Unknown block identifier")?;
+        let reg = block_registry();
+        let block = reg.get_id(&ident.0).ok_or("Unknown block identifier")?;
+        let block_def = reg.get(block).unwrap();
         let ivec3 = coord3.as_ivec3(sender.position(), sender.forward());
         let state = if let Some(state_data) = state_data {
-            if BlockState::possible_data_values(block.state_type)
+            if BlockState::possible_data_values(block_def.state_type)
                 .unwrap()
                 .contains(&state_data)
             {
-                BlockState::new(block.state_type, state_data)
+                BlockState::new(block_def.state_type, state_data)
             } else {
                 return Err("Invalid block state data for this block".to_string());
             }
         } else {
-            BlockState::default_state(block.state_type).unwrap()
+            BlockState::default_state(block_def.state_type).unwrap()
         };
 
         ctx.world.urgent_set_block_at(
@@ -70,7 +72,7 @@ impl Command for SetBlockCommand {
         );
         Ok(format!(
             "%b7FSet block at {}, {}, {} to {}%r",
-            ivec3.x, ivec3.y, ivec3.z, block.ident
+            ivec3.x, ivec3.y, ivec3.z, block_def.ident
         )
         .parse()
         .unwrap())

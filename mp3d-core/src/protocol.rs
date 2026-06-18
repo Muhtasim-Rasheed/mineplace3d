@@ -6,7 +6,7 @@
 use glam::{IVec3, Vec3};
 
 use crate::{
-    block::{Block, BlockState},
+    block::{BlockId, BlockState},
     direction::Direction,
     textcomponent::TextComponent,
     world::chunk::Chunk,
@@ -49,7 +49,7 @@ pub enum BlockUpdateKind {
 #[derive(Clone, Debug)]
 pub struct BlockUpdate {
     pub position: IVec3,
-    pub block: Block,
+    pub block: BlockId,
     pub block_state: BlockState,
     pub urgent: bool,
     pub kind: BlockUpdateKind,

@@ -3,7 +3,7 @@
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext, parser::Word},
     entity::PlayerEntity,
-    item::Item,
+    item::item_registry,
     textcomponent::TextComponent,
 };
 
@@ -44,11 +44,13 @@ impl Command for GiveCommand {
         let count = <Option<u16>>::parse(&mut args)?.unwrap_or(1);
         args.ensure_empty()?;
 
-        let item = Item::from_ident(&ident.0).ok_or("Unknown item identifier")?;
+        let reg = item_registry();
+        let item = reg.get_id(&ident.0).ok_or("Unknown item identifier")?;
+        let item_def = reg.get(item).unwrap();
         if let Some(player) = sender.as_any_mut().downcast_mut::<PlayerEntity>() {
-            player.inventory.add_stack(*item, count);
+            player.inventory.add_stack(item, count);
 
-            Ok(format!("%b7FGave you {} x {}%r", count, item.ident)
+            Ok(format!("%b7FGave you {} x {}%r", count, item_def.ident)
                 .parse()
                 .unwrap())
         } else {

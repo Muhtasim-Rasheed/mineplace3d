@@ -6,7 +6,7 @@
 use glam::IVec3;
 
 use crate::{
-    block::{Block, BlockState},
+    block::{BlockId, BlockState, blocks},
     saving::{Saveable, io::*},
     world::{
         chunk::{CHUNK_SIZE, Chunk},
@@ -105,7 +105,7 @@ impl Generator {
         let chunk_min = chunk_pos * CHUNK_SIZE as i32;
         let chunk_max = chunk_min + IVec3::splat(CHUNK_SIZE as i32);
 
-        let mut try_place = |pos: IVec3, block: Block| {
+        let mut try_place = |pos: IVec3, block: BlockId| {
             if pos.x >= chunk_min.x
                 && pos.x < chunk_max.x
                 && pos.y >= chunk_min.y
@@ -125,7 +125,7 @@ impl Generator {
             for dy in -2..0 {
                 for dz in -2..=2 {
                     let p = top + IVec3::new(dx, dy, dz);
-                    try_place(p, Block::LEAVES);
+                    try_place(p, *blocks::LEAVES);
                 }
             }
         }
@@ -133,7 +133,7 @@ impl Generator {
             for dy in 0..2 {
                 for dz in -1..=1 {
                     let p = top + IVec3::new(dx, dy, dz);
-                    try_place(p, Block::LEAVES);
+                    try_place(p, *blocks::LEAVES);
                 }
             }
         }
@@ -141,7 +141,7 @@ impl Generator {
         // Trunk
         for i in 0..trunk_height {
             let p = origin + IVec3::new(0, i as i32, 0);
-            try_place(p, Block::LOG);
+            try_place(p, *blocks::LOG);
         }
     }
 }

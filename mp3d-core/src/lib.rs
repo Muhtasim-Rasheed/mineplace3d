@@ -10,11 +10,17 @@ pub mod direction;
 pub mod entity;
 pub mod item;
 pub mod protocol;
+pub mod registry;
 pub mod saving;
 pub mod server;
 pub mod textcomponent;
 pub mod uniquequeue;
 pub mod world;
+
+pub fn init() {
+    block::init_block_registry();
+    item::init_item_registry();
+}
 
 pub(crate) fn aabb_overlap(a_min: Vec3, a_max: Vec3, b_min: Vec3, b_max: Vec3) -> bool {
     !(a_max.x <= b_min.x

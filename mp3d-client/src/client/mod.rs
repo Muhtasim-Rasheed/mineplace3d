@@ -16,6 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
+    block::block_registry,
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
     textcomponent::TextComponent,
@@ -591,8 +592,9 @@ pub fn cast_ray(
 
         let local = pos - block_pos.as_vec3();
 
-        if block.visible {
-            let ray_intersection = block.ray_intersect(local, direction, *state);
+        let block_def = block_registry().get(block).unwrap();
+        if block_def.visible {
+            let ray_intersection = block_def.ray_intersect(local, direction, *state);
             if let Some(normal) = ray_intersection {
                 return Some((block_pos, normal));
             }

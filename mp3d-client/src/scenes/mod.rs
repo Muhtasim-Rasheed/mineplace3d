@@ -10,7 +10,7 @@ use std::{
 
 use glow::HasContext;
 use image::GenericImageView;
-use mp3d_core::block::BlockState;
+use mp3d_core::block::{BlockId, BlockState, block_registry};
 
 use crate::{
     render::{
@@ -73,7 +73,7 @@ pub type SceneActionResult = Result<(), SceneActionError>;
 /// as block textures and models.
 pub struct Assets {
     pub block_textures: TextureAtlas,
-    pub block_models: HashMap<(&'static str, u16), BlockModel>,
+    pub block_models: HashMap<(BlockId, u16), BlockModel>,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
 }
@@ -92,7 +92,7 @@ impl Assets {
         let resource_manager = ResourceManager::new(config.resource_packs());
         let mut block_textures = TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
-        for block in mp3d_core::block::Block::ALL_BLOCKS {
+        for (block_id, block) in block_registry().iter_enumerate() {
             let mut possible_state_data_values = BlockState::possible_data_values(block.state_type)
                 .unwrap()
                 .iter()
@@ -145,7 +145,7 @@ impl Assets {
                     );
                 }
                 possible_state_data_values.remove(&state_data);
-                block_models.insert((block.ident, state_data), model);
+                block_models.insert((block_id, state_data), model);
             }
 
             if !possible_state_data_values.is_empty() {
@@ -163,7 +163,7 @@ impl Assets {
             "Loaded {} block textures and {} block models for {} blocks",
             block_textures.texture_count(),
             block_models.len(),
-            mp3d_core::block::Block::ALL_BLOCKS.len()
+            block_registry().len()
         );
         let font = Font::new(
             crate::abs::Texture::new(

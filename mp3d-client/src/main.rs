@@ -90,6 +90,8 @@ pub fn get_config_path() -> PathBuf {
 }
 
 fn main() {
+    mp3d_core::init();
+
     let log_file_path = get_game_dir().join("game.log");
 
     if log_file_path.exists() {

@@ -1,100 +1,31 @@
 //! Items for a voxel engine.
 
-use crate::block::Block;
+pub use crate::item::registration::*;
+use crate::{block::*, define_items};
 
+pub mod registration;
 mod save_impls;
 
-/// A struct used for declaring different types of items on the fly. Mineplace provides some
-/// already defined items and an array of the already defined items.
-#[derive(Clone, Copy, Debug)]
-pub struct Item {
-    pub ident: &'static str,
-    pub assoc_block: Option<&'static Block>,
-    pub max_stack: u16,
-}
-
-impl Default for Item {
+impl Default for ItemId {
     fn default() -> Self {
-        Item::AIR
+        *items::AIR
     }
 }
 
-macro_rules! items {
-    (
-        $(
-            $const_ident:ident => {
-                $ident:literal $(x $stack:expr)?
-                $(, block: $block:expr)?
-            }
-        ),* $(,)?
-    ) => {
-        impl Item {
-            $(
-                items!(@item $const_ident, $ident, $($stack)?, $($block)?);
-            )*
-
-            pub const ALL_ITEMS: &[Item] = &[
-                $(Item::$const_ident),*
-            ];
-
-            pub fn from_ident(ident: &str) -> Option<&'static Item> {
-                match ident {
-                    $(
-                        $ident => Some(&Item::$const_ident),
-                    )*
-                    _ => None,
-                }
-            }
-        }
-    };
-
-    (@item $const_ident:ident, $ident:literal, $stack:expr, $block:expr) => {
-        pub const $const_ident: Item = Item {
-            ident: $ident,
-            assoc_block: $block,
-            max_stack: $stack,
-        };
-    };
-
-    (@item $const_ident:ident, $ident:literal, $stack:expr,) => {
-        pub const $const_ident: Item = Item {
-            ident: $ident,
-            assoc_block: None,
-            max_stack: $stack,
-        };
-    };
-
-    (@item $const_ident:ident, $ident:literal,, $block:expr) => {
-        pub const $const_ident: Item = Item {
-            ident: $ident,
-            assoc_block: $block,
-            max_stack: 64,
-        };
-    };
-
-    (@item $const_ident:ident, $ident:literal,,) => {
-        pub const $const_ident: Item = Item {
-            ident: $ident,
-            assoc_block: None,
-            max_stack: 64,
-        };
-    };
-}
-
-items!(
-    AIR => { "air", block: Some(&Block::AIR) },
-    GRASS_BLOCK => { "grass_block", block: Some(&Block::GRASS) },
-    DIRT => { "dirt", block: Some(&Block::DIRT) },
-    STONE => { "stone", block: Some(&Block::STONE) },
-    COBBLESTONE => { "cobblestone", block: Some(&Block::COBBLESTONE) },
-    GRANITE => { "granite", block: Some(&Block::GRANITE) },
-    LOG => { "log", block: Some(&Block::LOG) },
-    LEAVES => { "leaves", block: Some(&Block::LEAVES) },
-    GLUNGUS_BLOCK => { "glungus_block", block: Some(&Block::GLUNGUS) },
-    STONE_SLAB => { "stone_slab", block: Some(&Block::STONE_SLAB) },
-    STONE_STAIRS => { "stone_stairs", block: Some(&Block::STONE_STAIRS) },
-    STONE_VSLAB => { "stone_vslab", block: Some(&Block::STONE_VSLAB) },
-    SHORT_GRASS => { "short_grass", block: Some(&Block::SHORT_GRASS) },
+define_items!(
+    AIR => { ident: "air", block: blocks::AIR },
+    GRASS_BLOCK => { ident: "grass_block", block: blocks::GRASS },
+    DIRT => { ident: "dirt", block: blocks::DIRT },
+    STONE => { ident: "stone", block: blocks::STONE },
+    COBBLESTONE => { ident: "cobblestone", block: blocks::COBBLESTONE },
+    GRANITE => { ident: "granite", block: blocks::GRANITE },
+    LOG => { ident: "log", block: blocks::LOG },
+    LEAVES => { ident: "leaves", block: blocks::LEAVES },
+    GLUNGUS_BLOCK => { ident: "glungus_block", block: blocks::GLUNGUS },
+    STONE_SLAB => { ident: "stone_slab", block: blocks::STONE_SLAB },
+    STONE_STAIRS => { ident: "stone_stairs", block: blocks::STONE_STAIRS },
+    STONE_VSLAB => { ident: "stone_vslab", block: blocks::STONE_VSLAB },
+    SHORT_GRASS => { ident: "short_grass", block: blocks::SHORT_GRASS },
 );
 
 /// A struct representing a stack of items, containing a the item and the count of how many of
@@ -102,24 +33,22 @@ items!(
 /// stack is represented by an item of AIR and a count of 0.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ItemStack {
-    pub item: Item,
+    pub item: ItemId,
     pub count: u16,
 }
 
 impl ItemStack {
-    pub fn new(item: Item, count: u16) -> Self {
+    pub fn new(item: ItemId, count: u16) -> Self {
+        let item_def = item_registry().get(item).unwrap();
         Self {
             item,
-            count: count.min(item.max_stack),
+            count: count.min(item_def.max_stack),
         }
     }
 
     /// Creates an empty item stack with the item set to AIR and count set to 0.
     pub fn empty() -> Self {
-        Self {
-            item: Item::AIR,
-            count: 0,
-        }
+        Self::default()
     }
 
     /// Checks if the item stack is empty by checking if the count is 0. The item can be AIR or any
@@ -132,7 +61,8 @@ impl ItemStack {
     /// the max stack size of the item. The method returns the remainder item stack that couldn't
     /// be added if the count exceeds the max stack size.
     pub fn add(&mut self, count: u16) -> ItemStack {
-        let available_space = self.item.max_stack - self.count;
+        let item_def = item_registry().get(self.item).unwrap();
+        let available_space = item_def.max_stack - self.count;
         let to_add = count.min(available_space);
         self.count += to_add;
         let rem = count - to_add;
@@ -163,7 +93,7 @@ impl ItemStack {
             self.item = other.item;
         }
 
-        if self.item.ident != other.item.ident {
+        if self.item != other.item {
             return *other;
         }
 
@@ -189,7 +119,7 @@ impl ItemStack {
         };
 
         if self.count == 0 {
-            self.item = Item::AIR;
+            self.item = *items::AIR;
         }
 
         removed_stack
@@ -216,7 +146,7 @@ impl ItemStack {
     /// method does not check if the total count of the merged stacks would exceed the max stack
     /// size of the item, it only checks if the items are compatible for merging.
     pub fn can_merge(&self, other: &ItemStack) -> bool {
-        self.item.ident == other.item.ident || self.is_empty() || other.is_empty()
+        self.item == other.item || self.is_empty() || other.is_empty()
     }
 }
 
@@ -334,10 +264,11 @@ impl Inventory {
 
     /// Adds a specified count of items of a given item to the inventory, splitting it into
     /// multiple stacks if necessary.
-    pub fn add_stack(&mut self, item: Item, mut count: u16) {
-        let n_stacks = count.div_ceil(item.max_stack);
+    pub fn add_stack(&mut self, item: ItemId, mut count: u16) {
+        let item_def = item_registry().get(item).unwrap();
+        let n_stacks = count.div_ceil(item_def.max_stack);
         for _ in 0..n_stacks {
-            let stack_count = count.min(item.max_stack);
+            let stack_count = count.min(item_def.max_stack);
             self.add_stack_single(ItemStack::new(item, stack_count));
             count -= stack_count;
         }
