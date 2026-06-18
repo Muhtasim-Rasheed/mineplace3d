@@ -136,13 +136,13 @@ macro_rules! define_blocks {
     (@state_type $state_type:expr) => { $state_type };
     (@state_type) => { BlockState::NONE_TYPE };
 
-    (@on_click $on_click:expr) => { Some(Box::new($on_click)) };
+    (@on_click $on_click:expr) => { Some($on_click) };
     (@on_click) => { None };
 
-    (@on_place $on_place:expr) => { Some(Box::new($on_place)) };
+    (@on_place $on_place:expr) => { Some($on_place) };
     (@on_place) => { None };
 
-    (@on_break $on_break:expr) => { Some(Box::new($on_break)) };
+    (@on_break $on_break:expr) => { Some($on_break) };
     (@on_break) => { None };
 }
 

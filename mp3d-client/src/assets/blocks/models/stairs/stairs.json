@@ -13,12 +13,12 @@
 		{
 			"from": [0, 8, 0],
 			"to": [16, 16, 8],
-			"n": {"uv": [0, 0, 16, 8], "texture": "$n", "occludes": false},
-			"s": {"uv": [0, 0, 16, 8], "texture": "$s", "occludes": false, "cullable": false},
-			"e": {"uv": [0, 0, 8, 8], "texture": "$e", "occludes": false},
-			"w": {"uv": [0, 0, 8, 8], "texture": "$w", "occludes": false},
-			"u": {"uv": [0, 0, 16, 8], "texture": "$u", "occludes": false},
-			"d": {"uv": [0, 0, 16, 8], "texture": "$d", "occludes": false}
+			"n": {"uv": [0, -8, 16, 16], "texture": "$n", "occludes": false},
+			"s": {"uv": [0, -8, 16, 16], "texture": "$s", "occludes": false, "cullable": false},
+			"e": {"uv": [0, -8, 8, 16], "texture": "$e", "occludes": false},
+			"w": {"uv": [0, -8, 8, 16], "texture": "$w", "occludes": false},
+			"u": {"uv": [0, -8, 16, 16], "texture": "$u", "occludes": false},
+			"d": {"uv": [0, -8, 16, 16], "texture": "$d", "occludes": false}
 		}
 	]
 }

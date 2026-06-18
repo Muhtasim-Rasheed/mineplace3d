@@ -4,6 +4,7 @@ use crate::{
     world::World,
 };
 
+pub mod and_then;
 pub mod explode;
 pub mod facing;
 pub mod slab;

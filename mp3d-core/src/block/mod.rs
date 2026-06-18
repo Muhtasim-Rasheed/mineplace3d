@@ -1,5 +1,6 @@
 //! Blocks for a voxel engine.
 
+use behaviors::*;
 pub use blockstate::BlockState;
 pub use registration::*;
 
@@ -25,25 +26,49 @@ define_blocks! {
     GRANITE => { ident: "granite" },
     LOG => { ident: "log" },
     LEAVES => { ident: "leaves" },
-    GLUNGUS => { ident: "glungus", on_click: behaviors::explode::on_click },
+    GLUNGUS => { ident: "glungus", on_click: Box::new(explode::on_click) },
+    GLUNGUS_SLAB => {
+        ident: "glungus_slab",
+        collision_shape: CollisionShape::Slab,
+        state_type: BlockState::SLAB_TYPE,
+        on_click: and_then::on_click(
+            slab::on_click,
+            explode::on_click,
+        ),
+        on_place: Box::new(slab::on_place),
+    },
+    GLUNGUS_STAIRS => {
+        ident: "glungus_stairs",
+        collision_shape: CollisionShape::Stairs,
+        state_type: BlockState::STAIR_TYPE,
+        on_click: Box::new(explode::on_click),
+        on_place: Box::new(stairs::on_place),
+    },
+    GLUNGUS_VSLAB => {
+        ident: "glungus_vslab",
+        collision_shape: CollisionShape::VSlab,
+        state_type: BlockState::FACING_TYPE,
+        on_click: Box::new(explode::on_click),
+        on_place: Box::new(facing::on_place),
+    },
     STONE_SLAB => {
         ident: "stone_slab",
         collision_shape: CollisionShape::Slab,
         state_type: BlockState::SLAB_TYPE,
-        on_click: behaviors::slab::on_click,
-        on_place: behaviors::slab::on_place,
+        on_click: Box::new(slab::on_click),
+        on_place: Box::new(slab::on_place),
     },
     STONE_STAIRS => {
         ident: "stone_stairs",
         collision_shape: CollisionShape::Stairs,
         state_type: BlockState::STAIR_TYPE,
-        on_place: behaviors::stairs::on_place,
+        on_place: Box::new(stairs::on_place),
     },
     STONE_VSLAB => {
         ident: "stone_vslab",
         collision_shape: CollisionShape::VSlab,
         state_type: BlockState::FACING_TYPE,
-        on_place: behaviors::facing::on_place,
+        on_place: Box::new(facing::on_place),
     },
     SHORT_GRASS => {
         ident: "short_grass",

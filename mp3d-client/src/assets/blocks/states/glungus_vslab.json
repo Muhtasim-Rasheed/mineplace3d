@@ -1,0 +1,17 @@
+{
+	"states": {
+		"0000": { "model": "glungus_vslab" },
+		"0001": {
+			"model": "glungus_vslab",
+			"transform": { "rotation": [0, 180, 0] }
+		},
+		"0002": {
+			"model": "glungus_vslab",
+			"transform": { "rotation": [0, -90, 0] }
+		},
+		"0003": {
+			"model": "glungus_vslab",
+			"transform": { "rotation": [0, 90, 0] }
+		}
+	}
+}

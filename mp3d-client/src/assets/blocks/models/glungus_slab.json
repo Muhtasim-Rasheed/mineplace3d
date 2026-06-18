@@ -1,0 +1,6 @@
+{
+	"parent": "slab/all",
+	"textures": {
+		"$a": "glungus"
+	}
+}

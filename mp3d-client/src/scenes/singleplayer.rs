@@ -549,13 +549,21 @@ impl super::Scene for SinglePlayer {
 
         {
             let tick_time = 1.0f32 / self.tick_rate;
-            self.tick_acc = (self.tick_acc + ctx.delta_time).min(tick_time * 5.0);
+            self.tick_acc += ctx.delta_time;
 
             let _p = self.renderer.profiler.start_scope("server_update");
 
-            while self.tick_acc >= tick_time {
+            let max_ticks_per_frame = 2;
+            let mut ticks_run = 0;
+
+            while self.tick_acc >= tick_time && ticks_run < max_ticks_per_frame {
                 self.client.connection.tick(self.tick_rate as u8);
                 self.tick_acc -= tick_time;
+                ticks_run += 1;
+            }
+
+            if self.tick_acc >= tick_time {
+                self.tick_acc = self.tick_acc % tick_time;
             }
         }
 

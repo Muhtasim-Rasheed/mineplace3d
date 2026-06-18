@@ -1,0 +1,17 @@
+{
+	"states": {
+		"0000": { "model": "glungus_stairs" },
+		"0001": {
+			"model": "glungus_stairs",
+			"transform": { "rotation": [0, 180, 0] }
+		},
+		"0002": {
+			"model": "glungus_stairs",
+			"transform": { "rotation": [0, -90, 0] }
+		},
+		"0003": {
+			"model": "glungus_stairs",
+			"transform": { "rotation": [0, 90, 0] }
+		}
+	}
+}
