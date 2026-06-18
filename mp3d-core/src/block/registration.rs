@@ -4,6 +4,7 @@ use crate::{
     block::{BlockState, CollisionShape},
     direction::Direction,
     registry::{Def, DefId, LazyId, Registry, RegistryToken},
+    world::World,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,11 +20,11 @@ impl DefId for BlockId {
     }
 }
 
-pub type OnClickHandler =
-    fn(BlockId, &mut crate::world::World, u64, IVec3, BlockState, Direction) -> bool;
-pub type OnPlaceHandler =
-    fn(BlockId, &mut crate::world::World, u64, IVec3, Direction) -> BlockState;
-pub type OnBreakHandler = fn(BlockId, &mut crate::world::World, u64, IVec3, BlockState);
+pub type OnClick =
+    Box<dyn Fn(BlockId, &mut World, u64, IVec3, BlockState, Direction) -> bool + Send + Sync>;
+pub type OnPlace =
+    Box<dyn Fn(BlockId, &mut World, u64, IVec3, Direction) -> BlockState + Send + Sync>;
+pub type OnBreak = Box<dyn Fn(BlockId, &mut World, u64, IVec3, BlockState) + Send + Sync>;
 
 pub struct BlockDef {
     pub visible: bool,
@@ -32,9 +33,9 @@ pub struct BlockDef {
     pub ident: &'static str,
     pub state_type: u16,
 
-    pub on_click: Option<OnClickHandler>,
-    pub on_place: Option<OnPlaceHandler>,
-    pub on_break: Option<OnBreakHandler>,
+    pub on_click: Option<OnClick>,
+    pub on_place: Option<OnPlace>,
+    pub on_break: Option<OnBreak>,
 }
 
 impl Def for BlockDef {
@@ -135,13 +136,13 @@ macro_rules! define_blocks {
     (@state_type $state_type:expr) => { $state_type };
     (@state_type) => { BlockState::NONE_TYPE };
 
-    (@on_click $on_click:expr) => { Some($on_click) };
+    (@on_click $on_click:expr) => { Some(Box::new($on_click)) };
     (@on_click) => { None };
 
-    (@on_place $on_place:expr) => { Some($on_place) };
+    (@on_place $on_place:expr) => { Some(Box::new($on_place)) };
     (@on_place) => { None };
 
-    (@on_break $on_break:expr) => { Some($on_break) };
+    (@on_break $on_break:expr) => { Some(Box::new($on_break)) };
     (@on_break) => { None };
 }
 

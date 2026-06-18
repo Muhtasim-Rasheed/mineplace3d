@@ -314,7 +314,7 @@ impl World {
 
         if let Some((id, state)) = self.get_block_at(block_pos).map(|(b, s)| (b, *s)) {
             let def = block_registry().get(id).unwrap();
-            if let Some(on_click) = def.on_click {
+            if let Some(on_click) = &def.on_click {
                 if on_click(id, self, player_entity_id, block_pos, state, face) {
                     return; // hook fully handled the interaction
                 }
@@ -327,7 +327,7 @@ impl World {
         }
         if let Some(block) = place_block {
             let def = block_registry().get(**block).unwrap();
-            let state = if let Some(on_place) = def.on_place {
+            let state = if let Some(on_place) = &def.on_place {
                 (on_place)(**block, self, player_entity_id, place_pos, face)
             } else if let Some(bs) = BlockState::default_state(def.state_type) {
                 bs
@@ -345,7 +345,7 @@ impl World {
         };
 
         let block_def = block_registry().get(block).unwrap();
-        if let Some(on_break) = block_def.on_break {
+        if let Some(on_break) = &block_def.on_break {
             on_break(block, self, player_entity_id, block_pos, state);
         }
 
