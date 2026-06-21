@@ -6,6 +6,7 @@ use mp3d_core::{
     entity::{Entity, GROUND_EPSILON, PlayerEntity},
     item::Inventory,
     protocol::MoveInstructions,
+    world::chunk::CHUNK_SIZE,
 };
 
 use crate::client::world::ClientWorld;
@@ -264,6 +265,13 @@ impl ClientPlayer {
     }
 
     pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
+        if !world
+            .chunks
+            .contains_key(&(self.position.as_ivec3() / CHUNK_SIZE as i32))
+        {
+            return;
+        }
+
         let yaw_rad = self.input.yaw.to_radians();
         let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
         let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());

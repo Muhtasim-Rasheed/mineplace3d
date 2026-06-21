@@ -173,6 +173,7 @@ impl Server {
                         } else {
                             PlayerEntity::new(username.clone(), Vec3::new(0.0, 25.0, 0.0))
                         };
+                        self.world.load_around(entity.position().as_ivec3());
                         let inventory = entity.inventory.clone();
                         let entity_id = self.world.add_entity(Box::new(entity));
                         self.sessions.insert(

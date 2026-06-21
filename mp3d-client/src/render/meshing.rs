@@ -427,15 +427,16 @@ fn mesh_chunk(
                     let neighbor_model = neighbor_block
                         .and_then(|b| neighbor_state.map(|s| ident(b, s)))
                         .and_then(|ident| block_models.get(&ident));
-                    if neighbor_block.is_none()
-                        || !should_occlude(
-                            block,
-                            neighbor_block.unwrap(),
-                            dir,
-                            model,
-                            neighbor_model.unwrap(),
-                        )
-                    {
+                    if neighbor_block.is_none() {
+                        continue;
+                    }
+                    if !should_occlude(
+                        block,
+                        neighbor_block.unwrap(),
+                        dir,
+                        model,
+                        neighbor_model.unwrap(),
+                    ) {
                         for el in &model.elements {
                             // The elements' faces are ordered as NSEWUD and we are using a
                             // right handed coordinate system with +X = east, +Y = up, +Z =

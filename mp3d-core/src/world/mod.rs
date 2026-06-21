@@ -9,6 +9,7 @@ pub mod generation;
 
 use std::collections::HashMap;
 
+use fxhash::{FxHashMap, hash64};
 use glam::{IVec3, Vec3};
 
 use crate::{
@@ -28,8 +29,8 @@ use crate::{
 
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {
-    pub chunks: fxhash::FxHashMap<IVec3, Chunk>,
-    pub entities: fxhash::FxHashMap<u64, Box<dyn Entity>>,
+    pub chunks: FxHashMap<IVec3, Chunk>,
+    pub entities: FxHashMap<u64, Box<dyn Entity>>,
     pub generator: Generator,
     pub time: u64,
 
@@ -44,7 +45,7 @@ pub struct World {
     /// A map of chunk positions to a map of local block positions to the new block and block
     /// state. This is used to track changes to chunks that have been modified by the player or
     /// other entities.
-    changes: HashMap<IVec3, HashMap<IVec3, (BlockId, BlockState)>>,
+    changes: FxHashMap<IVec3, FxHashMap<IVec3, (BlockId, BlockState)>>,
 
     game_data: GameData,
 }
@@ -53,15 +54,15 @@ impl World {
     /// Creates a new empty world.
     pub fn new(seed: i32) -> Self {
         let generator = Generator::new(GENERATOR_VERSION, seed).unwrap();
-        let chunks = fxhash::FxHashMap::default();
+        let chunks = FxHashMap::default();
         World {
             chunks,
-            entities: fxhash::FxHashMap::default(),
+            entities: FxHashMap::default(),
             generator,
             time: 0,
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
-            changes: HashMap::new(),
+            changes: FxHashMap::default(),
             game_data: GameData::new(),
         }
     }
@@ -143,31 +144,34 @@ impl World {
         chunk.set_block(local_pos, block, state);
     }
 
+    /// Creates a new chunk at the specified coordinates in chunk space, applying all changes done
+    /// to the chunk. Note that this function doesnt automatically insert the new chunk into the
+    /// world.
+    pub fn load_chunk(
+        generator: &Generator,
+        changes: &FxHashMap<IVec3, FxHashMap<IVec3, (BlockId, BlockState)>>,
+        chunk_pos: IVec3,
+    ) -> Chunk {
+        let mut chunk = generator.generate_chunk(chunk_pos);
+        if let Some(changes) = changes.get(&chunk_pos) {
+            for (local_pos, (block, state)) in changes {
+                chunk.set_block(*local_pos, *block, *state);
+            }
+        }
+        chunk
+    }
+
     /// Gets a reference to a chunk at the given chunk position, or loads it if it doesn't exist.
     pub fn get_chunk_or_new(&mut self, chunk_pos: IVec3) -> &Chunk {
-        self.chunks.entry(chunk_pos).or_insert_with(|| {
-            let mut chunk = self.generator.generate_chunk(chunk_pos);
-            if let Some(changes) = self.changes.get(&chunk_pos) {
-                for (local_pos, (block, state)) in changes {
-                    chunk.set_block(*local_pos, *block, *state);
-                }
-            }
-            chunk
-        })
+        self.get_chunk_mut_or_new(chunk_pos)
     }
 
     /// Gets a mutable reference to a chunk at the given chunk position, or loads it if it doesn't
     /// exist.
     pub fn get_chunk_mut_or_new(&mut self, chunk_pos: IVec3) -> &mut Chunk {
-        self.chunks.entry(chunk_pos).or_insert_with(|| {
-            let mut chunk = self.generator.generate_chunk(chunk_pos);
-            if let Some(changes) = self.changes.get(&chunk_pos) {
-                for (local_pos, (block, state)) in changes {
-                    chunk.set_block(*local_pos, *block, *state);
-                }
-            }
-            chunk
-        })
+        self.chunks
+            .entry(chunk_pos)
+            .or_insert_with(|| Self::load_chunk(&self.generator, &self.changes, chunk_pos))
     }
 
     /// Gets the ID of the next available entity.
@@ -177,6 +181,20 @@ impl World {
             id += 1;
         }
         id
+    }
+
+    /// Loads around specified coordinates in world space.
+    pub fn load_around(&mut self, pos: IVec3) {
+        let cpos = pos / CHUNK_SIZE as i32;
+
+        for dx in -1..=-1 {
+            for dy in -1..=-1 {
+                for dz in -1..=-1 {
+                    let cpos = cpos + IVec3::new(dx, dy, dz);
+                    self.get_chunk_or_new(cpos);
+                }
+            }
+        }
     }
 
     /// Adds an entity to the world, assigning it a unique ID.
@@ -565,7 +583,7 @@ impl World {
             if entity_type == EntityType::Player as u8 {
                 let player = entity.as_any().downcast_ref::<PlayerEntity>().unwrap();
                 let player_data = player.save();
-                let hashed_username = fxhash::hash64(player.username.as_bytes());
+                let hashed_username = hash64(player.username.as_bytes());
                 let player_path = path
                     .join("players")
                     .join(format!("{}.bin", hashed_username));
@@ -584,7 +602,7 @@ impl World {
 
         for cached in self.player_cache.values() {
             let player_data = cached.save();
-            let hashed_username = fxhash::hash64(cached.username.as_bytes());
+            let hashed_username = hash64(cached.username.as_bytes());
             let player_path = path
                 .join("players")
                 .join(format!("{}.bin", hashed_username));
@@ -635,13 +653,13 @@ fn load_v0_to_v6(
     };
 
     let mut world = World {
-        chunks: fxhash::FxHashMap::default(),
-        entities: fxhash::FxHashMap::default(),
+        chunks: FxHashMap::default(),
+        entities: FxHashMap::default(),
         generator,
         time,
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
-        changes: HashMap::new(),
+        changes: FxHashMap::default(),
         game_data: GameData::new(),
     };
 
