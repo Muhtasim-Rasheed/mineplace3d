@@ -180,11 +180,11 @@ impl Chunk {
             if block == &*blocks::LEAVES {
                 // LEAVES -> AIR if no LOG in radius of 6 blocks
                 let mut should_become_air = true;
-                for dx in -6..=6 {
-                    for dy in -6..=6 {
-                        for dz in -6..=6 {
+                for dx in -3..=3 {
+                    for dy in -3..=3 {
+                        for dz in -3..=3 {
                             let delta = IVec3::new(dx, dy, dz);
-                            if delta.length_squared() > 36 {
+                            if delta.length_squared() > 9 {
                                 continue;
                             }
                             let pos = global_pos + delta;
@@ -193,6 +193,7 @@ impl Chunk {
                                 && block == *blocks::LOG
                             {
                                 should_become_air = false;
+                                break;
                             }
                         }
                     }

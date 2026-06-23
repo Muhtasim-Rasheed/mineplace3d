@@ -33,10 +33,12 @@ impl<Id: DefId> LazyId<Id> {
 impl<Id: DefId> std::ops::Deref for LazyId<Id> {
     type Target = Id;
     fn deref(&self) -> &Self::Target {
-        self.0.get().expect(&format!(
-            "ID of type {} was not initialized",
-            std::any::type_name::<Id>()
-        ))
+        self.0.get().unwrap_or_else(|| {
+            panic!(
+                "ID of type {} was not initialized",
+                std::any::type_name::<Id>()
+            )
+        })
     }
 }
 
@@ -74,12 +76,12 @@ impl<Entry: Def> Registry<Entry> {
         Ok(id)
     }
 
-    #[inline]
+    // #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, Entry> {
         self.entries.iter()
     }
 
-    #[inline]
+    // #[inline]
     pub fn iter_enumerate(&self) -> impl Iterator<Item = (Entry::Id, &Entry)> {
         self.entries
             .iter()
@@ -87,22 +89,22 @@ impl<Entry: Def> Registry<Entry> {
             .map(|(i, entry)| (Entry::Id::new(i, RegistryToken::new()), entry))
     }
 
-    #[inline]
+    // #[inline]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    #[inline]
+    // #[inline]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
-    #[inline]
+    // #[inline]
     pub fn get_id(&self, str_id: &str) -> Option<Entry::Id> {
         self.str_to_id.get(str_id).copied()
     }
 
-    #[inline]
+    // #[inline]
     pub fn get(&self, id: Entry::Id) -> Option<&Entry> {
         self.entries.get(id.get())
     }

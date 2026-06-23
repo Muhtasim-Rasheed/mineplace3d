@@ -45,9 +45,7 @@ pub fn on_click(
 pub fn on_place(_: BlockId, _: &mut World, _: u64, _: IVec3, face: Direction) -> BlockState {
     if face == Direction::Down {
         BlockState::slab(1)
-    } else if face == Direction::Up {
-        BlockState::slab(0)
     } else {
-        unreachable!()
+        BlockState::slab(0)
     }
 }
