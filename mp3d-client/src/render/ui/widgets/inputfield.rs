@@ -2,14 +2,17 @@
 
 use glam::{Vec2, Vec4};
 
-use crate::render::ui::widgets::{ColorlessTextParams, Label, NineSlice, Stack, Widget};
+use crate::render::ui::{
+    font::ColorlessTextParams,
+    widgets::{Label, NineSlice, Stack, Widget},
+};
 
 pub struct InputField {
-    pub position: Vec2,
+    position: Vec2,
     pub size: Vec2,
     pub text: String,
-    pub label_color: Vec4,
-    pub label_font_size: f32,
+    pub color: Vec4,
+    pub font_size: f32,
     pub cursor_pos: usize,
     pub placeholder: String,
     pub sanitize: Option<String>,
@@ -20,23 +23,17 @@ pub struct InputField {
 }
 
 impl InputField {
-    pub fn new(
-        placeholder: &str,
-        label_color: Vec4,
-        label_font_size: f32,
-        size: Vec2,
-        sanitize: Option<&str>,
-    ) -> Self {
+    pub fn new(placeholder: &str) -> Self {
         let stack = Stack::new(super::Alignment::Start, super::Alignment::Center, 0.0);
         let mut inputfield = Self {
             position: Vec2::ZERO,
-            size,
+            size: Vec2::new(1010.0, 80.0),
             text: String::new(),
-            label_color,
-            label_font_size,
+            color: Vec4::ONE,
+            font_size: 24.0,
             cursor_pos: 0,
             placeholder: placeholder.to_string(),
-            sanitize: sanitize.map(|s| s.to_string()),
+            sanitize: None,
             hovered: false,
             hover_last: false,
             focused: false,
@@ -48,33 +45,56 @@ impl InputField {
         inputfield
     }
 
+    pub fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn color(mut self, color: Vec4) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
+    pub fn sanitize(mut self, sanitize: &str) -> Self {
+        self.sanitize = Some(sanitize.to_string());
+        self
+    }
+
+    pub fn text(mut self, text: &str) -> Self {
+        self.text = text.to_string();
+        self.cursor_pos = text.len();
+        self
+    }
+
     fn setup_stack(&mut self) {
-        self.stack = Stack::new(super::Alignment::Start, super::Alignment::Center, 0.0);
-        self.stack.add_widget(NineSlice::new(
-            [glam::uvec2(32, 0), glam::uvec2(16, 16)],
-            self.size,
-            glam::uvec4(6, 6, 4, 4),
-            4,
-            0,
-            if self.hovered && !self.focused {
-                Vec4::new(1.2, 1.2, 1.2, 1.0)
-            } else {
-                Vec4::ONE
-            },
-        ));
-        if self.text.is_empty() && !self.focused {
-            self.stack.add_widget(Label::new(
-                &format!("  {}", self.placeholder),
-                self.label_font_size,
-                self.label_color * Vec4::new(1.0, 1.0, 1.0, 0.5),
-            ));
+        let text = if self.text.is_empty() && !self.focused {
+            &self.placeholder
         } else {
-            self.stack.add_widget(Label::new(
-                &format!("  {}", self.text),
-                self.label_font_size,
-                self.label_color,
-            ));
-        }
+            &self.text
+        };
+        self.stack = Stack::new(super::Alignment::Start, super::Alignment::Center, 0.0)
+            .with(NineSlice::new(
+                [glam::uvec2(32, 0), glam::uvec2(16, 16)],
+                self.size,
+                glam::uvec4(6, 6, 4, 4),
+                4,
+                0,
+                if self.hovered && !self.focused {
+                    Vec4::new(1.2, 1.2, 1.2, 1.0)
+                } else {
+                    Vec4::ONE
+                },
+            ))
+            .with(
+                Label::new(&format!("  {}", text))
+                    .font_size(self.font_size)
+                    .color(self.color * Vec4::new(1.0, 1.0, 1.0, 0.5)),
+            );
     }
 
     fn update_stack(&mut self) {
@@ -92,12 +112,12 @@ impl InputField {
         if let Some(label) = self.stack.get_widget_mut::<Label>(1) {
             if self.text.is_empty() && !self.focused {
                 label.text = format!("  {}", self.placeholder);
-                label.color = self.label_color * Vec4::new(1.0, 1.0, 1.0, 0.5);
+                label.color = self.color * Vec4::new(1.0, 1.0, 1.0, 0.5);
             } else {
                 label.text = format!("  {}", self.text);
-                label.color = self.label_color;
+                label.color = self.color;
             }
-            label.font_size = self.label_font_size;
+            label.font_size = self.font_size;
         } else {
             self.setup_stack();
         }
@@ -201,16 +221,16 @@ impl Widget for InputField {
                     .measure_text(
                         &format!("  {}", &self.text[..self.cursor_pos]),
                         ColorlessTextParams {
-                            font_size: self.label_font_size,
+                            font_size: self.font_size,
                             ..Default::default()
                         },
                     )
                     .x;
-            let cursor_y = self.position.y + (self.size.y - self.label_font_size) / 2.0;
+            let cursor_y = self.position.y + (self.size.y - self.font_size) / 2.0;
             ui_renderer.add_command(crate::render::ui::uirenderer::DrawCommand::Quad {
                 rect: [
                     Vec2::new(cursor_x, cursor_y),
-                    Vec2::new(cursor_x + 2.0, cursor_y + self.label_font_size),
+                    Vec2::new(cursor_x + 2.0, cursor_y + self.font_size),
                 ],
                 uv_rect: [Vec2::ZERO, Vec2::ONE],
                 mode: crate::render::ui::uirenderer::UIRenderMode::Color(Vec4::ONE),

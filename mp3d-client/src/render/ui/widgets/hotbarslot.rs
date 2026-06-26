@@ -6,8 +6,9 @@ use mp3d_core::{block::block_registry, item::*};
 use crate::{
     client::player::ClientInventory,
     render::ui::{
+        font::{ColorlessTextParams, Font, TextParams},
         uirenderer::DrawCommand,
-        widgets::{ColorlessTextParams, Font, NineSlice, TextParams, Widget},
+        widgets::{NineSlice, Widget},
     },
 };
 

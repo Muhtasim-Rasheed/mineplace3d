@@ -8,12 +8,12 @@ use crate::render::ui::widgets::{Label, NineSlice, Stack, Widget};
 const KNOB_ASP_RATIO: f32 = 2.0 / 5.0;
 
 pub struct Slider {
-    pub position: Vec2,
+    position: Vec2,
     pub size: Vec2,
     pub value: f32,
-    pub label: String,
-    pub label_color: Vec4,
-    pub label_font_size: f32,
+    pub text: String,
+    pub color: Vec4,
+    pub font_size: f32,
     pub min_value: f32,
     pub max_value: f32,
     is_dragging: bool,
@@ -23,13 +23,7 @@ pub struct Slider {
 }
 
 impl Slider {
-    pub fn new(
-        label: &str,
-        label_color: Vec4,
-        label_font_size: f32,
-        size: Vec2,
-        range: std::ops::RangeInclusive<f32>,
-    ) -> Self {
+    pub fn new(text: &str, size: Vec2, range: std::ops::RangeInclusive<f32>) -> Self {
         let stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
         let knob_size_y = size.y * 1.2;
         let knob = NineSlice::new(
@@ -44,9 +38,9 @@ impl Slider {
             position: Vec2::ZERO,
             size,
             value: 0.0,
-            label: label.to_string(),
-            label_color,
-            label_font_size,
+            text: text.to_string(),
+            color: Vec4::ONE,
+            font_size: 24.0,
             min_value: *range.start(),
             max_value: *range.end(),
             is_dragging: false,
@@ -60,12 +54,27 @@ impl Slider {
         slider
     }
 
+    pub fn value(mut self, value: f32) -> Self {
+        self.value = value;
+        self
+    }
+
+    pub fn color(mut self, color: Vec4) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
     fn value_normalized(&self) -> f32 {
         (self.value - self.min_value) / (self.max_value - self.min_value)
     }
 
-    fn label_text(&self) -> String {
-        format!("{}: {:.0}%", self.label, self.value * 100.0)
+    fn text(&self) -> String {
+        format!("{}: {:.0}%", self.text, self.value * 100.0)
     }
 
     fn knob_position(&self) -> Vec2 {
@@ -78,28 +87,29 @@ impl Slider {
     }
 
     fn setup_widgets(&mut self) {
-        self.stack.add_widget(NineSlice::new(
-            [glam::uvec2(32, 0), glam::uvec2(16, 16)],
-            self.size,
-            glam::uvec4(6, 6, 4, 4),
-            4,
-            0,
-            if self.hovered && !self.is_dragging {
-                Vec4::new(1.2, 1.2, 1.2, 1.0)
-            } else {
-                Vec4::ONE
-            },
-        ));
-        self.stack.add_widget(Label::new(
-            &self.label_text(),
-            self.label_font_size,
-            self.label_color,
-        ));
+        self.stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0)
+            .with(NineSlice::new(
+                [glam::uvec2(32, 0), glam::uvec2(16, 16)],
+                self.size,
+                glam::uvec4(6, 6, 4, 4),
+                4,
+                0,
+                if self.hovered && !self.is_dragging {
+                    Vec4::new(1.2, 1.2, 1.2, 1.0)
+                } else {
+                    Vec4::ONE
+                },
+            ))
+            .with(
+                Label::new(&self.text())
+                    .font_size(self.font_size)
+                    .color(self.color),
+            );
         self.knob.position = self.knob_position();
     }
 
     fn update_widgets(&mut self) {
-        self.stack.get_widget_mut::<Label>(1).unwrap().text = self.label_text();
+        self.stack.get_widget_mut::<Label>(1).unwrap().text = self.text();
         self.knob.position = self.knob_position();
     }
 }

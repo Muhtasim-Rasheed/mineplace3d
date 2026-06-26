@@ -5,11 +5,11 @@ use glam::{Vec2, Vec4};
 use crate::render::ui::widgets::{Label, NineSlice, Stack, Widget};
 
 pub struct Button {
-    pub position: Vec2,
+    position: Vec2,
     pub size: Vec2,
-    pub label: String,
-    pub label_color: Vec4,
-    pub label_font_size: f32,
+    pub text: String,
+    pub color: Vec4,
+    pub font_size: f32,
     pub always_hovered: bool,
     pub disabled: bool,
     is_down: bool,
@@ -20,14 +20,14 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(label: &str, label_color: Vec4, label_font_size: f32, size: Vec2) -> Self {
+    pub fn new(text: &str) -> Self {
         let stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
         let mut button = Self {
             position: Vec2::ZERO,
-            size,
-            label: label.to_string(),
-            label_color,
-            label_font_size,
+            size: Vec2::new(500.0, 80.0),
+            text: text.to_string(),
+            color: Vec4::ONE,
+            font_size: 24.0,
             always_hovered: false,
             disabled: false,
             is_down: false,
@@ -42,36 +42,61 @@ impl Button {
         button
     }
 
+    pub fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn color(mut self, color: Vec4) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
+    pub fn always_hovered(mut self, always_hovered: bool) -> Self {
+        self.always_hovered = always_hovered;
+        self
+    }
+
+    pub fn disabled(mut self) -> Self {
+        self.disabled = true;
+        self
+    }
+
     fn setup_stack(&mut self) {
-        self.stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0);
-        self.stack.add_widget(NineSlice::new(
-            [
+        self.stack = Stack::new(super::Alignment::Center, super::Alignment::Center, 0.0)
+            .with(NineSlice::new(
+                [
+                    if self.is_down {
+                        glam::uvec2(16, 0)
+                    } else {
+                        glam::uvec2(0, 0)
+                    },
+                    glam::uvec2(16, 16),
+                ],
+                self.size,
                 if self.is_down {
-                    glam::uvec2(16, 0)
+                    glam::uvec4(5, 5, 6, 4)
                 } else {
-                    glam::uvec2(0, 0)
+                    glam::uvec4(5, 5, 4, 6)
                 },
-                glam::uvec2(16, 16),
-            ],
-            self.size,
-            if self.is_down {
-                glam::uvec4(5, 5, 6, 4)
-            } else {
-                glam::uvec4(5, 5, 4, 6)
-            },
-            4,
-            0,
-            if (self.hovered || self.always_hovered) && !self.is_down {
-                Vec4::ONE * 1.3
-            } else {
-                Vec4::ONE
-            },
-        ));
-        self.stack.add_widget(Label::new(
-            &self.label,
-            self.label_font_size,
-            self.label_color,
-        ));
+                4,
+                0,
+                if (self.hovered || self.always_hovered) && !self.is_down {
+                    Vec4::ONE * 1.3
+                } else {
+                    Vec4::ONE
+                },
+            ))
+            .with(
+                Label::new(&self.text)
+                    .font_size(self.font_size)
+                    .color(self.color),
+            );
     }
 
     fn update_stack(&mut self) {
@@ -98,9 +123,9 @@ impl Button {
             self.setup_stack();
         }
         if let Some(label) = self.stack.get_widget_mut::<Label>(1) {
-            label.text = self.label.clone();
-            label.color = self.label_color;
-            label.font_size = self.label_font_size;
+            label.text = self.text.clone();
+            label.color = self.color;
+            label.font_size = self.font_size;
         } else {
             self.setup_stack();
         }

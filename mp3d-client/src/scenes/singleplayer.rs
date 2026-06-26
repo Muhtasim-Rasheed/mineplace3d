@@ -19,6 +19,7 @@ use crate::{
         particles::ParticleSystem,
         profiler::Profiler,
         ui::{
+            font::{ColorlessTextParams, Font, TextParams},
             uirenderer::{DrawCommand, UIRenderMode, UIRenderer},
             widgets::*,
         },
@@ -134,64 +135,39 @@ impl SinglePlayer {
             assets,
         };
 
-        let mut inventory_grid = Grid::new(
-            9,
-            8.0,
-            crate::render::ui::widgets::Alignment::Center,
-            Vec4::ZERO,
-        );
-        for i in 0..36 {
-            inventory_grid.add_widget(InventorySlot::new(&client.player.inventory, i));
-        }
-        let mut inventory_col = Column::new(
-            8.0,
-            crate::render::ui::widgets::Alignment::Start,
-            Vec4::splat(16.0),
-            crate::render::ui::widgets::Justification::Start,
-            None,
-        );
-        inventory_col.add_widget(Label::new("Inventory", 36.0, Vec4::ONE));
-        inventory_col.add_widget(inventory_grid);
-        let mut inventory_stack = Stack::new(
-            crate::render::ui::widgets::Alignment::Center,
-            crate::render::ui::widgets::Alignment::Center,
-            0.0,
-        );
-        inventory_stack.add_widget(crate::render::ui::widgets::NineSlice::new(
-            [UVec2::new(0, 16), UVec2::new(16, 16)],
-            inventory_col.size_hint(&layout_ctx),
-            UVec4::new(4, 4, 3, 3),
-            4,
-            0,
-            Vec4::ONE,
-        ));
-        inventory_stack.add_widget(inventory_col);
+        let inventory_col = Column::new(8.0)
+            .alignment(Alignment::Start)
+            .padding(Vec4::splat(16.0))
+            .with(Label::new("Inventory").font_size(36.0))
+            .with(
+                Grid::new(
+                    9,
+                    8.0,
+                    crate::render::ui::widgets::Alignment::Center,
+                    Vec4::ZERO,
+                )
+                .with_many((0..36).map(|i| InventorySlot::new(&client.player.inventory, i))),
+            );
+        let inventory_stack = Stack::new(Alignment::Center, Alignment::Center, 0.0)
+            .with(NineSlice::new(
+                [UVec2::new(0, 16), UVec2::new(16, 16)],
+                inventory_col.size_hint(&layout_ctx),
+                UVec4::new(4, 4, 3, 3),
+                4,
+                0,
+                Vec4::ONE,
+            ))
+            .with(inventory_col);
 
-        let mut hotbar_row = Row::new(
-            4.0,
-            crate::render::ui::widgets::Alignment::Center,
-            Vec4::ZERO,
-            crate::render::ui::widgets::Justification::Center,
-        );
+        let hotbar_row = Row::new(4.0)
+            .justification(Justification::Center)
+            .with_many((0..9).map(|i| HotbarSlot::new(&client.player.inventory, i + 3 * 9)));
 
-        for i in 0..9 {
-            hotbar_row.add_widget(HotbarSlot::new(&client.player.inventory, i + 3 * 9));
-        }
-
-        let return_to_game = Button::new("Return to Game", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-        let save = Button::new("Save and Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-        let quit = Button::new("Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut pause_screen = Column::new(
-            20.0,
-            crate::render::ui::widgets::Alignment::Center,
-            Vec4::ZERO,
-            crate::render::ui::widgets::Justification::Center,
-            None,
-        );
-        pause_screen.add_widget(return_to_game);
-        pause_screen.add_widget(save);
-        pause_screen.add_widget(quit);
+        let pause_screen = Column::new(20.0)
+            .justification(Justification::Center)
+            .with(Button::new("Return to Game"))
+            .with(Button::new("Save and Quit"))
+            .with(Button::new("Quit"));
 
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
@@ -237,7 +213,7 @@ impl SinglePlayer {
             tick_acc: 0.0,
             tick_rate: 48.0,
             ui: SinglePlayerUI {
-                chat_input_label: Label::new("", 24.0, Vec4::ONE),
+                chat_input_label: Label::new(""),
                 pause_screen,
                 inventory: inventory_stack,
                 hotbar: hotbar_row,

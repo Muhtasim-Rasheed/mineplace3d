@@ -41,25 +41,54 @@ pub struct Column {
 impl Column {
     /// Creates a new `Column` container with the specified spacing, alignment, padding, and
     /// justification.
-    pub fn new(
-        spacing: f32,
-        alignment: Alignment,
-        padding: Vec4,
-        justification: Justification,
-        viewport_height: Option<f32>,
-    ) -> Self {
+    pub fn new(spacing: f32) -> Self {
         Self {
             widgets: Vec::new(),
             spacing,
-            alignment,
-            padding,
-            justification,
+            alignment: Alignment::Center,
+            padding: Vec4::ZERO,
+            justification: Justification::Start,
             min_size: Vec2::ZERO,
             scroll_offset: 0.0,
-            viewport_height,
+            viewport_height: None,
             scroll_vel: 0.0,
             last_height: 0.0,
         }
+    }
+
+    pub fn alignment(mut self, alignment: Alignment) -> Self {
+        self.alignment = alignment;
+        self
+    }
+
+    pub fn padding(mut self, padding: Vec4) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    pub fn justification(mut self, justification: Justification) -> Self {
+        self.justification = justification;
+        self
+    }
+
+    pub fn viewport_height(mut self, viewport_height: f32) -> Self {
+        self.viewport_height = Some(viewport_height);
+        self
+    }
+
+    pub fn with<T: Widget + 'static>(mut self, widget: T) -> Self {
+        self.widgets.push(Box::new(widget));
+        self
+    }
+
+    pub fn with_many<I, W>(mut self, widgets: I) -> Self
+    where
+        I: Iterator<Item = W>,
+        W: Widget + 'static,
+    {
+        self.widgets
+            .extend(widgets.map(|v| Box::new(v) as Box<dyn Widget>));
+        self
     }
 
     /// Adds a widget to the column.
@@ -268,20 +297,45 @@ pub struct Row {
 impl Row {
     /// Creates a new `Row` container with the specified spacing, alignment, padding, and
     /// justification.
-    pub fn new(
-        spacing: f32,
-        alignment: Alignment,
-        padding: Vec4,
-        justification: Justification,
-    ) -> Self {
+    pub fn new(spacing: f32) -> Self {
         Self {
             widgets: Vec::new(),
             spacing,
-            alignment,
-            padding,
-            justification,
+            alignment: Alignment::Center,
+            padding: Vec4::ZERO,
+            justification: Justification::Start,
             min_size: Vec2::ZERO,
         }
+    }
+
+    pub fn alignment(mut self, alignment: Alignment) -> Self {
+        self.alignment = alignment;
+        self
+    }
+
+    pub fn padding(mut self, padding: Vec4) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    pub fn justification(mut self, justification: Justification) -> Self {
+        self.justification = justification;
+        self
+    }
+
+    pub fn with<T: Widget + 'static>(mut self, widget: T) -> Self {
+        self.widgets.push(Box::new(widget));
+        self
+    }
+
+    pub fn with_many<I, W>(mut self, widgets: I) -> Self
+    where
+        I: Iterator<Item = W>,
+        W: Widget + 'static,
+    {
+        self.widgets
+            .extend(widgets.map(|v| Box::new(v) as Box<dyn Widget>));
+        self
     }
 
     /// Adds a widget to the row.
@@ -474,6 +528,21 @@ impl Stack {
         }
     }
 
+    pub fn with<T: Widget + 'static>(mut self, widget: T) -> Self {
+        self.widgets.push(Box::new(widget));
+        self
+    }
+
+    pub fn with_many<I, W>(mut self, widgets: I) -> Self
+    where
+        I: Iterator<Item = W>,
+        W: Widget + 'static,
+    {
+        self.widgets
+            .extend(widgets.map(|v| Box::new(v) as Box<dyn Widget>));
+        self
+    }
+
     /// Adds a widget to the stack.
     pub fn add_widget<T: Widget + 'static>(&mut self, widget: T) {
         self.widgets.push(Box::new(widget));
@@ -643,6 +712,21 @@ impl Grid {
             alignment,
             padding,
         }
+    }
+
+    pub fn with<T: Widget + 'static>(mut self, widget: T) -> Self {
+        self.widgets.push(Box::new(widget));
+        self
+    }
+
+    pub fn with_many<I, W>(mut self, widgets: I) -> Self
+    where
+        I: Iterator<Item = W>,
+        W: Widget + 'static,
+    {
+        self.widgets
+            .extend(widgets.map(|v| Box::new(v) as Box<dyn Widget>));
+        self
     }
 
     /// Adds a widget to the grid.

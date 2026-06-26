@@ -16,76 +16,33 @@ pub struct WorldSelection {
 
 impl WorldSelection {
     pub fn new(assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
-        let header = Label::new("Select World", 48.0, Vec4::ONE);
-
-        let create_button =
-            Button::new("Create New World", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut join_button = Button::new("Join World", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut delete_button = Button::new(
-            "Delete World",
-            Vec4::new(1.0, 0.5, 0.5, 1.0),
-            24.0,
-            Vec2::new(500.0, 80.0),
-        );
-
-        join_button.disabled = true;
-        delete_button.disabled = true;
-
-        let back_button = Button::new("Back", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut buttons = Column::new(
-            5.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        buttons.add_widget(create_button);
-        buttons.add_widget(join_button);
-        buttons.add_widget(delete_button);
-        buttons.add_widget(back_button);
-
-        let mut panel = Column::new(
-            30.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        panel.add_widget(header);
-        panel.add_widget(buttons);
-
-        let mut world_list = Column::new(
-            5.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        for world in Self::get_worlds() {
-            let world_button = Button::new(&world, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-            world_list.add_widget(world_button);
-        }
-
-        let mut column = Column::new(
-            40.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            Some(window_size.1 as f32 - 200.0),
-        );
-        column.add_widget(world_list);
-
-        let mut container = Row::new(
-            20.0,
-            Alignment::Start,
-            Vec4::new(0.0, 0.0, 60.0, 40.0),
-            Justification::Center,
-        );
-        container.add_widget(panel);
-        container.add_widget(column);
+        let mut container = Row::new(20.0)
+            .alignment(Alignment::Start)
+            .justification(Justification::Center)
+            .padding(Vec4::new(0.0, 0.0, 60.0, 40.0))
+            .with(
+                Column::new(30.0)
+                    .with(Label::new("Select World").font_size(48.0))
+                    .with(
+                        Column::new(5.0)
+                            .with(Button::new("Create New World"))
+                            .with(Button::new("Join World").disabled())
+                            .with(
+                                Button::new("Delete World")
+                                    .color(Vec4::new(1.0, 0.5, 0.5, 1.0))
+                                    .disabled(),
+                            )
+                            .with(Button::new("Back")),
+                    ),
+            )
+            .with(
+                Column::new(40.0)
+                    .viewport_height(window_size.1 as f32 - 200.0)
+                    .with(
+                        Column::new(5.0)
+                            .with_many(Self::get_worlds().into_iter().map(|v| Button::new(&v))),
+                    ),
+            );
 
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
@@ -153,7 +110,7 @@ impl super::Scene for WorldSelection {
             let world_list = self.container.find_widget_mut::<Column>(&[1, 0]).unwrap();
             world_list.widgets.clear();
             for world in &self.previous_worlds {
-                let world_button = Button::new(world, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+                let world_button = Button::new(world);
                 world_list.add_widget(world_button);
             }
         }

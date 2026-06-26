@@ -47,93 +47,43 @@ pub struct TitleScreen {
 impl TitleScreen {
     /// Creates a new [`TitleScreen`] instance.
     pub fn new(assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
-        let header = Label::new("Mineplace3D ", 72.0, Vec4::ONE);
         let (splash_text, splash_color) = get_random_splash();
-        let splash = Label::new(splash_text, 24.0, splash_color);
-        let mut header_container = Column::new(
-            5.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        header_container.add_widget(header);
-        header_container.add_widget(splash);
 
-        let play;
-        let options;
-        let quit;
-        if window_size.0 >= 1050 {
-            play = Button::new("Singleplayer", Vec4::ONE, 24.0, Vec2::new(1010.0, 80.0));
-
-            options = Button::new("Options", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-            quit = Button::new("Quit", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+        let (button_size, half_button_size) = if window_size.0 >= 1050 {
+            (Vec2::new(1010.0, 80.0), Vec2::new(500.0, 80.0))
         } else {
-            play = Button::new(
-                "Start Game",
-                Vec4::ONE,
-                24.0,
+            (
                 Vec2::new(window_size.0 as f32 - 40.0, 80.0),
-            );
-
-            options = Button::new(
-                "Options",
-                Vec4::ONE,
-                24.0,
                 Vec2::new((window_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0),
+            )
+        };
+
+        let mut container = Column::new(50.0)
+            .justification(Justification::SpaceBetween)
+            .padding(Vec4::new(20.0, 20.0, 60.0, 20.0))
+            .with(
+                Column::new(5.0)
+                    .with(Label::new("Mineplace3D").font_size(72.0))
+                    .with(Label::new(splash_text).color(splash_color)),
+            )
+            .with(
+                Column::new(10.0)
+                    .with(Button::new("Singleplayer").size(button_size))
+                    .with(
+                        Row::new(10.0)
+                            .with(Button::new("Options").size(half_button_size))
+                            .with(Button::new("Quit").size(half_button_size)),
+                    ),
+            )
+            .with(
+                Row::new(5.0)
+                    .justification(Justification::SpaceBetween)
+                    .with(
+                        Label::new(format!("Version {}", env!("CARGO_PKG_VERSION")).as_str())
+                            .color(Vec4::new(1.0, 1.0, 1.0, 0.5)),
+                    )
+                    .with(Label::new("MIT License").color(Vec4::new(1.0, 1.0, 1.0, 0.5))),
             );
-
-            quit = Button::new(
-                "Quit",
-                Vec4::ONE,
-                24.0,
-                Vec2::new((window_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0),
-            );
-        }
-
-        let mut buttons_inner = Row::new(10.0, Alignment::Center, Vec4::ZERO, Justification::Start);
-        buttons_inner.add_widget(options);
-        buttons_inner.add_widget(quit);
-
-        let mut buttons = Column::new(
-            10.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        buttons.add_widget(play);
-        buttons.add_widget(buttons_inner);
-
-        let version = Label::new(
-            format!("Version {}", env!("CARGO_PKG_VERSION")).as_str(),
-            24.0,
-            Vec4::new(1.0, 1.0, 1.0, 0.5),
-        );
-
-        let license = Label::new("MIT License", 24.0, Vec4::new(1.0, 1.0, 1.0, 0.5));
-
-        let mut footer = Row::new(
-            5.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::SpaceBetween,
-        );
-        footer.add_widget(version);
-        footer.add_widget(license);
-
-        let mut container = Column::new(
-            50.0,
-            Alignment::Center,
-            Vec4::new(20.0, 20.0, 60.0, 20.0),
-            Justification::SpaceBetween,
-            None,
-        );
-
-        container.add_widget(header_container);
-        container.add_widget(buttons);
-        container.add_widget(footer);
 
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),

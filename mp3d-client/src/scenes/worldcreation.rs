@@ -17,60 +17,26 @@ impl WorldCreation {
     pub fn new(assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
         let world_path = crate::get_saves_dir().join("New_World");
 
-        let header = Label::new("Create New World", 48.0, Vec4::ONE);
-
-        let mut name_input = InputField::new(
-            "World Name",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(1010.0, 80.0),
-            Some("/\\?%*:|\"<> "),
-        );
-        name_input.text = "New_World".to_string();
-        name_input.cursor_pos = name_input.text.len();
-
-        let seed_input = InputField::new(
-            "Seed (optional)",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(1010.0, 80.0),
-            None,
-        );
-
-        let path_label = Label::new(
-            &world_path.display().to_string(),
-            24.0,
-            Vec4::new(0.8, 0.8, 0.8, 1.0),
-        );
-
-        let mut world_options = Column::new(
-            20.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        world_options.add_widget(name_input);
-        world_options.add_widget(path_label);
-        world_options.add_widget(seed_input);
-
-        let cancel_button = Button::new("Cancel", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-        let create_button = Button::new("Create", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut buttons = Row::new(60.0, Alignment::Center, Vec4::ZERO, Justification::Start);
-        buttons.add_widget(cancel_button);
-        buttons.add_widget(create_button);
-
-        let mut container = Column::new(
-            20.0,
-            Alignment::Center,
-            Vec4::new(0.0, 0.0, 40.0, 60.0),
-            Justification::SpaceBetween,
-            None,
-        );
-        container.add_widget(header);
-        container.add_widget(world_options);
-        container.add_widget(buttons);
+        let mut container = Column::new(20.0)
+            .with(Label::new("Create New World").font_size(48.0))
+            .with(
+                Column::new(20.0)
+                    .with(
+                        InputField::new("World Name")
+                            .sanitize("/\\?%*:|\"<> ")
+                            .text("New_World"),
+                    )
+                    .with(
+                        Label::new(&world_path.display().to_string())
+                            .color(Vec4::new(0.8, 0.8, 0.8, 1.0)),
+                    )
+                    .with(InputField::new("Seed (optional)")),
+            )
+            .with(
+                Row::new(60.0)
+                    .with(Button::new("Cancel"))
+                    .with(Button::new("Create")),
+            );
 
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),

@@ -17,73 +17,32 @@ pub struct PackSelection {
 
 impl PackSelection {
     pub fn new(loaded_packs: &[String], assets: &Arc<Assets>, window_size: (u32, u32)) -> Self {
-        let header = Label::new("Resource Packs", 48.0, Vec4::ONE);
-
-        let mut available_column = Column::new(
-            10.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            Some(window_size.1 as f32 - 200.0),
-        );
-
-        for pack in Self::get_packs() {
-            let label = Button::new(&pack, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-            available_column.add_widget(label);
-        }
-
-        let mut using_column = Column::new(
-            10.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            Some(window_size.1 as f32 - 200.0),
-        );
-
-        let mut base_button = Button::new("Base Game", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-        base_button.disabled = true;
-        using_column.add_widget(base_button);
-
-        for pack in loaded_packs {
-            let label = Button::new(pack, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-            using_column.add_widget(label);
-        }
-
-        let add_button = Button::new("Add >", Vec4::ONE, 24.0, Vec2::new(250.0, 70.0));
-        let remove_button = Button::new("< Remove", Vec4::ONE, 24.0, Vec2::new(250.0, 70.0));
-        let up_button = Button::new("Move Up", Vec4::ONE, 24.0, Vec2::new(250.0, 70.0));
-        let down_button = Button::new("Move Down", Vec4::ONE, 24.0, Vec2::new(250.0, 70.0));
-
-        let mut buttons = Column::new(
-            10.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-        buttons.add_widget(add_button);
-        buttons.add_widget(remove_button);
-        buttons.add_widget(up_button);
-        buttons.add_widget(down_button);
-
-        let mut lists_container =
-            Row::new(20.0, Alignment::Start, Vec4::ZERO, Justification::Start);
-        lists_container.add_widget(available_column);
-        lists_container.add_widget(buttons);
-        lists_container.add_widget(using_column);
-
-        let done_button = Button::new("Done", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut container = Column::new(
-            30.0,
-            Alignment::Center,
-            Vec4::new(0.0, 0.0, 40.0, 60.0),
-            Justification::Start,
-            None,
-        );
-        container.add_widget(header);
-        container.add_widget(lists_container);
-        container.add_widget(done_button);
+        let mut container = Column::new(30.0)
+            .padding(Vec4::new(0.0, 0.0, 40.0, 60.0))
+            .with(Label::new("Resource Packs").font_size(48.0))
+            .with(
+                Row::new(20.0)
+                    .alignment(Alignment::Start)
+                    .with(
+                        Column::new(10.0)
+                            .viewport_height(window_size.1 as f32 - 200.0)
+                            .with_many(Self::get_packs().into_iter().map(|v| Button::new(&v))),
+                    )
+                    .with(
+                        Column::new(10.0)
+                            .with(Button::new("Add >").size(Vec2::new(250.0, 70.0)))
+                            .with(Button::new("< Remove").size(Vec2::new(250.0, 70.0)))
+                            .with(Button::new("Move Up").size(Vec2::new(250.0, 70.0)))
+                            .with(Button::new("Move Down").size(Vec2::new(250.0, 70.0))),
+                    )
+                    .with(
+                        Column::new(10.0)
+                            .viewport_height(window_size.1 as f32 - 200.0)
+                            .with(Button::new("Base Game").disabled())
+                            .with_many(loaded_packs.into_iter().map(|v| Button::new(&v))),
+                    ),
+            )
+            .with(Button::new("Done").size(Vec2::new(250.0, 70.0)));
 
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
@@ -133,7 +92,7 @@ impl super::Scene for PackSelection {
             let available_column = self.container.find_widget_mut::<Column>(&[1, 0]).unwrap();
             available_column.widgets.clear();
             for pack in &self.available_packs {
-                let label = Button::new(pack, Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
+                let label = Button::new(pack);
                 available_column.add_widget(label);
             }
         }
@@ -163,7 +122,7 @@ impl super::Scene for PackSelection {
                 .unwrap()
                 .resource_packs
                 .as_ref()
-                .is_some_and(|packs| packs.contains(&button.label));
+                .is_some_and(|packs| packs.contains(&button.text));
 
             if button.is_released() {
                 self.available_selected = Some(i);
@@ -222,7 +181,7 @@ impl super::Scene for PackSelection {
                 .container
                 .find_widget_mut::<Button>(&[1, 0, selected])
                 .unwrap();
-            let pack_name = button.label.clone();
+            let pack_name = button.text.clone();
             let mut guard = config.write().unwrap();
             let resource_packs = guard.resource_packs.get_or_insert_default();
             if !resource_packs.contains(&pack_name) {
@@ -230,12 +189,7 @@ impl super::Scene for PackSelection {
                 self.container
                     .find_widget_mut::<Column>(&[1, 2])
                     .unwrap()
-                    .add_widget(Button::new(
-                        &pack_name,
-                        Vec4::ONE,
-                        24.0,
-                        Vec2::new(500.0, 80.0),
-                    ));
+                    .add_widget(Button::new(&pack_name));
                 self.available_selected = None;
             }
         }
@@ -251,7 +205,7 @@ impl super::Scene for PackSelection {
                 .container
                 .find_widget_mut::<Button>(&[1, 2, selected])
                 .unwrap();
-            let pack_name = button.label.clone();
+            let pack_name = button.text.clone();
             let mut guard = config.write().unwrap();
             if let Some(resource_packs) = guard.resource_packs.as_mut()
                 && let Some(pos) = resource_packs.iter().position(|x| x == &pack_name)

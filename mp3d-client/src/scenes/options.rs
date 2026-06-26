@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use glam::{Vec2, Vec4};
+use glam::Vec2;
 use glow::HasContext;
 
 use crate::{
@@ -69,72 +69,32 @@ impl Options {
         window_size: (u32, u32),
         config: &Arc<RwLock<ClientConfig>>,
     ) -> Self {
-        let header = Label::new("Options", 48.0, Vec4::ONE);
-
-        let mut options_container = Column::new(
-            20.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Start,
-            None,
-        );
-
-        let mut username_input = InputField::new(
-            "Username",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(1010.0, 80.0),
-            Some("/\\?%*:|\"<> "),
-        );
-        username_input.text = config.read().unwrap().username.clone();
-        username_input.cursor_pos = username_input.text.len();
-
-        let fullscreen_button = Button::new(
-            &format!(
-                "Fullscreen: {}",
-                if config.read().unwrap().fullscreen() {
-                    "On"
-                } else {
-                    "Off"
-                }
-            ),
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-        );
-
-        let clear_logs_button = Button::new("Clear Logs", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let mut sensitivity_slider = Slider::new(
-            "Mouse Sensitivity",
-            Vec4::ONE,
-            24.0,
-            Vec2::new(500.0, 80.0),
-            0.1..=2.0,
-        );
-        sensitivity_slider.value = config.read().unwrap().sensitivity();
-
-        let resource_pack_button =
-            Button::new("Resource Packs", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        let back_button = Button::new("Back", Vec4::ONE, 24.0, Vec2::new(500.0, 80.0));
-
-        options_container.add_widget(username_input);
-        options_container.add_widget(fullscreen_button);
-        options_container.add_widget(clear_logs_button);
-        options_container.add_widget(sensitivity_slider);
-        options_container.add_widget(resource_pack_button);
-        options_container.add_widget(back_button);
-
-        let mut container = Column::new(
-            40.0,
-            Alignment::Center,
-            Vec4::ZERO,
-            Justification::Center,
-            None,
-        );
-        container.add_widget(header);
-        container.add_widget(options_container);
+        let mut container = Column::new(40.0)
+            .justification(Justification::Center)
+            .with(Label::new("Options").font_size(48.0))
+            .with(
+                Column::new(20.0)
+                    .with(
+                        InputField::new("Username")
+                            .sanitize("/\\?%*:|\"<> ")
+                            .text(&config.read().unwrap().username),
+                    )
+                    .with(Button::new(&format!(
+                        "Fullscreen: {}",
+                        if config.read().unwrap().fullscreen() {
+                            "On"
+                        } else {
+                            "Off"
+                        }
+                    )))
+                    .with(Button::new("Clear Logs"))
+                    .with(
+                        Slider::new("Mouse Sensitivity", Vec2::new(500.0, 80.0), 0.1..=2.0)
+                            .value(config.read().unwrap().sensitivity()),
+                    )
+                    .with(Button::new("Resource Packs"))
+                    .with(Button::new("Back")),
+            );
 
         container.layout(&LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
@@ -170,7 +130,7 @@ impl super::Scene for Options {
         self.container
             .find_widget_mut::<Button>(&[1, 1])
             .unwrap()
-            .label = format!(
+            .text = format!(
             "Fullscreen: {}",
             if config.read().unwrap().fullscreen() {
                 "On"

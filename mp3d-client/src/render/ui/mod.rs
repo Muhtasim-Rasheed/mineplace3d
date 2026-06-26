@@ -48,5 +48,6 @@ impl Vertex for UIVertex {
     }
 }
 
+pub mod font;
 pub mod uirenderer;
 pub mod widgets;

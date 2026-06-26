@@ -15,7 +15,7 @@ use mp3d_core::block::{BlockId, BlockState, block_registry};
 use crate::{
     render::{
         dialog::draw_dialog,
-        ui::{uirenderer::UIRenderer, widgets::Font},
+        ui::{font::Font, uirenderer::UIRenderer},
     },
     resource::{
         ResourceManager,

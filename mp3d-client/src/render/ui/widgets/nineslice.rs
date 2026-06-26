@@ -5,7 +5,7 @@ use crate::render::ui::widgets::Widget;
 pub struct NineSlice {
     pub uv_top_left: UVec2,
     pub uv_size: UVec2,
-    pub position: Vec2,
+    pub(super) position: Vec2,
     pub size: Vec2,
     pub border: UVec4,
     /// Scales the borders without changing the overall size of the nine-slice and the UVs.
