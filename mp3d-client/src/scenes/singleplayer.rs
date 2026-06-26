@@ -760,6 +760,28 @@ impl super::Scene for SinglePlayer {
 
             self.draw_chat(ui, &layout_ctx, assets);
 
+            // INVENTORY & HOTBAR
+
+            if self.client.gui.inventory() {
+                self.ui.inventory.draw(ui, assets);
+
+                let temp_stack = &self.client.player.inventory.borrow().inner.temp;
+                if !temp_stack.is_empty() {
+                    // Draw the temp stack at the mouse position
+                    let temp_stack_commands = InventorySlot::draw_stack(
+                        *temp_stack,
+                        assets,
+                        self.mouse_pos,
+                        ui,
+                        &assets.font,
+                    );
+                    for cmd in temp_stack_commands {
+                        ui.add_command(cmd);
+                    }
+                }
+            }
+            self.ui.hotbar.draw(ui, assets);
+
             // DEBUG - TEXT & GRAPHS
 
             if self.ui.debug_opened {
@@ -910,28 +932,6 @@ Chunk local: X: {} Y: {} Z: {}"#,
 
                 self.ui.pause_screen.draw(ui, assets);
             }
-
-            // INVENTORY & HOTBAR
-
-            if self.client.gui.inventory() {
-                self.ui.inventory.draw(ui, assets);
-
-                let temp_stack = &self.client.player.inventory.borrow().inner.temp;
-                if !temp_stack.is_empty() {
-                    // Draw the temp stack at the mouse position
-                    let temp_stack_commands = InventorySlot::draw_stack(
-                        *temp_stack,
-                        assets,
-                        self.mouse_pos,
-                        ui,
-                        &assets.font,
-                    );
-                    for cmd in temp_stack_commands {
-                        ui.add_command(cmd);
-                    }
-                }
-            }
-            self.ui.hotbar.draw(ui, assets);
         }
 
         self.renderer.profiler.end_frame();
