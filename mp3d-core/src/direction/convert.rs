@@ -1,6 +1,6 @@
 use glam::{IVec3, Vec3};
 
-use crate::direction::Direction;
+use crate::{axis::Axis, direction::Direction};
 
 impl TryFrom<IVec3> for Direction {
     type Error = ();
@@ -21,12 +21,12 @@ impl TryFrom<IVec3> for Direction {
 impl From<Direction> for IVec3 {
     fn from(dir: Direction) -> Self {
         match dir {
-            Direction::North => IVec3::new(0, 0, -1),
-            Direction::South => IVec3::new(0, 0, 1),
-            Direction::East => IVec3::new(1, 0, 0),
-            Direction::West => IVec3::new(-1, 0, 0),
-            Direction::Up => IVec3::new(0, 1, 0),
-            Direction::Down => IVec3::new(0, -1, 0),
+            Direction::North => IVec3::NEG_Z,
+            Direction::South => IVec3::Z,
+            Direction::East => IVec3::X,
+            Direction::West => IVec3::NEG_X,
+            Direction::Up => IVec3::Y,
+            Direction::Down => IVec3::NEG_Y,
         }
     }
 }
@@ -74,6 +74,12 @@ impl TryFrom<u8> for Direction {
 impl From<Direction> for u8 {
     fn from(dir: Direction) -> Self {
         dir as u8
+    }
+}
+
+impl From<Direction> for Axis {
+    fn from(dir: Direction) -> Self {
+        dir.as_axis()
     }
 }
 

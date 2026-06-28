@@ -3,6 +3,7 @@
 //! such as world management, entity handling, etc.
 
 use glam::{IVec3, Vec3};
+pub mod axis;
 pub mod block;
 pub mod command;
 pub mod datapack;

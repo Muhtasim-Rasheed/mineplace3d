@@ -5,6 +5,8 @@
 //! direction, converting between directions and vectors, and performing arithmetic operations with
 //! directions.
 
+use crate::axis::Axis;
+
 mod arith;
 mod convert;
 
@@ -41,7 +43,18 @@ impl Direction {
         }
     }
 
-    pub fn opposite(self) -> Self {
+    pub const fn as_axis(self) -> Axis {
+        match self {
+            Direction::North => Axis::Z,
+            Direction::South => Axis::Z,
+            Direction::East => Axis::X,
+            Direction::West => Axis::X,
+            Direction::Up => Axis::Y,
+            Direction::Down => Axis::Y,
+        }
+    }
+
+    pub const fn opposite(self) -> Self {
         // No branches in the final compiled binary because of optimization
 
         match (self as u8) ^ 1 {
