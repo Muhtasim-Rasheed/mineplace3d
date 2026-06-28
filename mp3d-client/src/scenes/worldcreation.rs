@@ -18,6 +18,8 @@ impl WorldCreation {
         let world_path = crate::get_saves_dir().join("New_World");
 
         let mut container = Column::new(20.0)
+            .padding(Vec4::new(0.0, 0.0, 40.0, 60.0))
+            .justification(Justification::SpaceBetween)
             .with(Label::new("Create New World").font_size(48.0))
             .with(
                 Column::new(20.0)
