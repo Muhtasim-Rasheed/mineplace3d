@@ -3,8 +3,9 @@ use std::{cell::RefCell, rc::Rc};
 use glam::{Mat4, Vec3, Vec4};
 use mp3d_core::{
     block::block_registry,
-    entity::{Entity, GROUND_EPSILON, PlayerEntity},
+    entity::{Entity, PlayerEntity},
     item::Inventory,
+    physics::{self, PhysicsState},
     protocol::MoveInstructions,
     world::chunk::CHUNK_SIZE,
 };
@@ -195,75 +196,6 @@ impl ClientPlayer {
         self.flying = read_u8(&mut snapshot, "ClientPlayer reading flying").unwrap() != 0;
     }
 
-    fn collision_check(&mut self, dt: f32, world: &ClientWorld) {
-        let dx = self.velocity.x * dt;
-
-        let new_pos = self.position.with_x(self.position.x + dx);
-
-        if !world.collides(new_pos, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.x = new_pos.x;
-        } else if !self.flying {
-            let stepped = self
-                .position
-                .with_y(self.position.y + mp3d_core::entity::player::STEP_HEIGHT)
-                .with_x(self.position.x + dx);
-
-            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height())
-                && self.on_ground
-            {
-                self.position = stepped;
-                self.velocity.y = 0.0;
-                self.on_ground = false;
-            } else {
-                self.velocity.x = 0.0;
-            }
-        }
-
-        let new_pos_y = self.position.with_y(self.position.y + self.velocity.y * dt);
-        if !world.collides(new_pos_y, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.y = new_pos_y.y;
-            if self.velocity.y <= 0.0 {
-                self.on_ground = world.collides(
-                    Vec3::new(
-                        self.position.x,
-                        self.position.y - GROUND_EPSILON,
-                        self.position.z,
-                    ),
-                    PlayerEntity::width(),
-                    PlayerEntity::height(),
-                );
-            }
-        } else {
-            if self.velocity.y < 0.0 {
-                self.on_ground = true;
-            }
-            self.velocity.y = 0.0;
-        }
-
-        let dz = self.velocity.z * dt;
-
-        let new_pos = self.position.with_z(self.position.z + dz);
-
-        if !world.collides(new_pos, PlayerEntity::width(), PlayerEntity::height()) {
-            self.position.z = new_pos.z;
-        } else if !self.flying {
-            let stepped = self
-                .position
-                .with_y(self.position.y + mp3d_core::entity::player::STEP_HEIGHT)
-                .with_z(self.position.z + dz);
-
-            if !world.collides(stepped, PlayerEntity::width(), PlayerEntity::height())
-                && self.on_ground
-            {
-                self.position = stepped;
-                self.velocity.y = 0.0;
-                self.on_ground = false;
-            } else {
-                self.velocity.z = 0.0;
-            }
-        }
-    }
-
     pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
         if !world
             .chunks
@@ -272,47 +204,28 @@ impl ClientPlayer {
             return;
         }
 
-        let yaw_rad = self.input.yaw.to_radians();
-        let forward_vec = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
-        let right_vec = Vec3::new(yaw_rad.cos(), 0.0, -yaw_rad.sin());
-        let mut movement = Vec3::ZERO;
-        match self.input.forward {
-            2 => movement += forward_vec * 1.5,
-            1 => movement += forward_vec,
-            -1 => movement -= forward_vec,
-            _ => {}
+        self.pitch = self.pitch.clamp(-89.9, 89.9);
+        self.yaw = self.yaw.rem_euclid(360.0);
+
+        let state = PhysicsState {
+            position: self.position,
+            velocity: self.velocity,
+            on_ground: self.on_ground,
+            flying: self.flying,
         };
-        match self.input.strafe {
-            1 => movement += right_vec,
-            -1 => movement -= right_vec,
-            _ => {}
-        };
-        if self.input.jump {
-            if self.flying {
-                movement.y += 0.8;
-            } else if self.on_ground {
-                self.velocity.y += mp3d_core::entity::player::JUMP;
-                self.on_ground = false;
-            }
-        }
-        if self.input.sneak && self.flying {
-            movement.y -= 0.8;
-        }
-        self.velocity += movement * dt * 50.0;
 
-        if !self.flying {
-            self.velocity.y -= mp3d_core::entity::player::GRAVITY * dt;
-        }
+        let new_state = physics::step(
+            state,
+            self.input.into(),
+            self.yaw,
+            PlayerEntity::width(),
+            PlayerEntity::height(),
+            world,
+            dt,
+        );
 
-        self.collision_check(dt, world);
-
-        if self.velocity.length_squared() > 10000.0 {
-            log::warn!("High velocity: {}", self.velocity);
-        }
-        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
-
-        let d = 0.75_f32.powf(dt * 50.0);
-        self.velocity.x *= d;
-        self.velocity.z *= d;
+        self.position = new_state.position;
+        self.velocity = new_state.velocity;
+        self.on_ground = new_state.on_ground;
     }
 }

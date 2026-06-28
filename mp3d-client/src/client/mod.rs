@@ -179,7 +179,7 @@ impl<C: Connection> Client<C> {
         Self {
             connection,
             player: player::ClientPlayer {
-                position: Vec3::ZERO,
+                position: Vec3::new(0.0, 100.0, 0.0),
                 velocity: Vec3::ZERO,
                 yaw: 0.0,
                 delta_yaw: 0.0,

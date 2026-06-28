@@ -41,6 +41,36 @@ pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
     fn tick(&mut self, world: &mut World, tps: u8);
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MoveInput {
+    pub forward: f32,
+    pub strafe: f32,
+    pub jump: bool,
+    pub sneak: bool,
+}
+
+impl From<crate::protocol::MoveInstructions> for MoveInput {
+    fn from(instr: crate::protocol::MoveInstructions) -> Self {
+        Self {
+            forward: match instr.forward {
+                -1 => -1.0,
+                0 => 0.0,
+                1 => 1.0,
+                2 => 1.5,
+                _ => 0.0,
+            },
+            strafe: match instr.strafe {
+                -1 => -1.0,
+                0 => 0.0,
+                1 => 1.0,
+                _ => 0.0,
+            },
+            jump: instr.jump,
+            sneak: instr.sneak,
+        }
+    }
+}
+
 pub mod player;
 
 pub use player::*;

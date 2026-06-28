@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use glam::{IVec3, Vec3};
 use mp3d_core::{
     block::{BlockId, BlockState, block_registry},
+    physics::CollisionWorld,
     uniquequeue::UniqueQueue,
     world::chunk::CHUNK_SIZE,
 };
@@ -157,11 +158,10 @@ impl ClientWorld {
 
         to_remove
     }
+}
 
-    /// Checks for collisions between an entity (using its position, width, and height) and the
-    /// blocks in the world. This is used for player movement and other entity interactions with
-    /// the world.
-    pub fn collides(&self, entity_pos: Vec3, entity_width: f32, entity_height: f32) -> bool {
+impl CollisionWorld for ClientWorld {
+    fn collides(&self, entity_pos: Vec3, entity_width: f32, entity_height: f32) -> bool {
         let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0))
             .floor()
             .as_ivec3();

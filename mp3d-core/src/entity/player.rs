@@ -5,44 +5,10 @@ use glam::Vec3;
 use crate::{
     entity::*,
     item::Inventory,
+    physics::{self, PhysicsState},
     saving::{Saveable, WorldLoadError, io::*},
     world::World,
 };
-
-pub const GRAVITY: f32 = 45.0;
-pub const JUMP: f32 = 11.0;
-pub const GROUND_EPSILON: f32 = 0.05;
-pub const STEP_HEIGHT: f32 = 0.5;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct MoveInput {
-    pub forward: f32,
-    pub strafe: f32,
-    pub jump: bool,
-    pub sneak: bool,
-}
-
-impl From<crate::protocol::MoveInstructions> for MoveInput {
-    fn from(instr: crate::protocol::MoveInstructions) -> Self {
-        Self {
-            forward: match instr.forward {
-                -1 => -1.0,
-                0 => 0.0,
-                1 => 1.0,
-                2 => 1.5,
-                _ => 0.0,
-            },
-            strafe: match instr.strafe {
-                -1 => -1.0,
-                0 => 0.0,
-                1 => 1.0,
-                _ => 0.0,
-            },
-            jump: instr.jump,
-            sneak: instr.sneak,
-        }
-    }
-}
 
 pub struct PlayerEntity {
     pub entity_id: u64,
@@ -200,114 +166,28 @@ impl Entity for PlayerEntity {
     }
 
     fn tick(&mut self, world: &mut World, tps: u8) {
-        let delta_time = 1.0 / tps as f32;
-
-        let forward_vec = Vec3::new(
-            self.yaw.to_radians().sin(),
-            0.0,
-            self.yaw.to_radians().cos(),
-        );
-        let right_vec = Vec3::new(
-            self.yaw.to_radians().cos(),
-            0.0,
-            -self.yaw.to_radians().sin(),
-        );
-        let mut movement = Vec3::ZERO;
-        movement += forward_vec * self.input.forward * 1.2;
-        movement += right_vec * self.input.strafe * 1.2;
-        if self.input.jump {
-            if self.flying {
-                movement.y += 0.8;
-            } else if self.on_ground {
-                self.velocity.y += JUMP;
-                self.on_ground = false;
-            }
-        }
-        if self.input.sneak && self.flying {
-            movement.y -= 0.8;
-        }
-        self.velocity += movement * delta_time * 50.0;
-
         self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw = self.yaw.rem_euclid(360.0);
 
-        if !self.flying {
-            self.velocity.y -= GRAVITY * delta_time;
-        }
+        let state = PhysicsState {
+            position: self.position,
+            velocity: self.velocity,
+            on_ground: self.on_ground,
+            flying: self.flying,
+        };
 
-        let dx = self.velocity.x * delta_time;
+        let new_state = physics::step(
+            state,
+            self.input,
+            self.yaw,
+            Self::width(),
+            Self::height(),
+            world,
+            1.0 / tps as f32,
+        );
 
-        let new_pos = self.position.with_x(self.position.x + dx);
-
-        if !world.collides(new_pos, Self::width(), Self::height()) {
-            self.position.x = new_pos.x;
-        } else if !self.flying {
-            // try stepping up
-            let stepped = self
-                .position
-                .with_y(self.position.y + STEP_HEIGHT)
-                .with_x(self.position.x + dx);
-
-            if !world.collides(stepped, Self::width(), Self::height()) && self.on_ground {
-                self.position = stepped;
-                self.velocity.y = 0.0;
-                self.on_ground = false;
-            } else {
-                self.velocity.x = 0.0;
-            }
-        }
-
-        let new_pos_y = self
-            .position
-            .with_y(self.position.y + self.velocity.y * delta_time);
-        if !world.collides(new_pos_y, Self::width(), Self::height()) {
-            self.position.y = new_pos_y.y;
-            if self.velocity.y <= 0.0 {
-                self.on_ground = world.collides(
-                    Vec3::new(
-                        self.position.x,
-                        self.position.y - GROUND_EPSILON,
-                        self.position.z,
-                    ),
-                    Self::width(),
-                    Self::height(),
-                );
-            }
-        } else {
-            if self.velocity.y < 0.0 {
-                self.on_ground = true;
-            }
-            self.velocity.y = 0.0;
-        }
-
-        let dz = self.velocity.z * delta_time;
-
-        let new_pos = self.position.with_z(self.position.z + dz);
-
-        if !world.collides(new_pos, Self::width(), Self::height()) {
-            self.position.z = new_pos.z;
-        } else if !self.flying {
-            let stepped = self
-                .position
-                .with_y(self.position.y + STEP_HEIGHT)
-                .with_z(self.position.z + dz);
-
-            if !world.collides(stepped, Self::width(), Self::height()) && self.on_ground {
-                self.position = stepped;
-                self.velocity.y = 0.0;
-                self.on_ground = false;
-            } else {
-                self.velocity.z = 0.0;
-            }
-        }
-
-        if self.velocity.length_squared() > 10000.0 {
-            log::warn!("High velocity: {}", self.velocity);
-        }
-        self.velocity.y = self.velocity.y.clamp(-100.0, 100.0);
-
-        let d = 0.75_f32.powf(delta_time * 50.0);
-        self.velocity.x *= d;
-        self.velocity.z *= d;
+        self.position = new_state.position;
+        self.velocity = new_state.velocity;
+        self.on_ground = new_state.on_ground;
     }
 }

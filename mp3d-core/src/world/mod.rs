@@ -18,6 +18,7 @@ use crate::{
     direction::Direction,
     entity::{Entity, EntityType, PlayerEntity},
     item::{item_registry, items},
+    physics::CollisionWorld,
     protocol::{BlockUpdate, BlockUpdateKind},
     saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
     uniquequeue::UniqueQueue,
@@ -247,40 +248,6 @@ impl World {
         self.time += 1;
     }
 
-    /// Checks for collisions between an entity (using its position, width, and height) and the
-    /// blocks in the world. This is used for player movement and other entity interactions with
-    /// the world.
-    pub fn collides(&self, entity_pos: Vec3, entity_width: f32, entity_height: f32) -> bool {
-        let min_block_pos = (entity_pos - Vec3::splat(entity_width / 2.0))
-            .floor()
-            .as_ivec3();
-        let max_block_pos = (entity_pos
-            + Vec3::new(entity_width / 2.0, entity_height, entity_width / 2.0))
-        .floor()
-        .as_ivec3();
-
-        for x in min_block_pos.x..=max_block_pos.x {
-            for y in min_block_pos.y..=max_block_pos.y {
-                for z in min_block_pos.z..=max_block_pos.z {
-                    let block_pos = IVec3::new(x, y, z);
-                    if let Some((block, block_state)) = self.get_block_at(block_pos)
-                        && let Some(block) = block_registry().get(block)
-                        && block.collides_with_player(
-                            entity_width,
-                            entity_height,
-                            entity_pos - block_pos.as_vec3(),
-                            *block_state,
-                        )
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        false
-    }
-
     pub fn try_place_block(
         &mut self,
         player_entity_id: u64,
@@ -416,6 +383,36 @@ impl World {
             // inventory
             player.inventory.add_stack(item, count as u16);
         }
+    }
+}
+
+impl CollisionWorld for World {
+    fn collides(&self, pos: Vec3, width: f32, height: f32) -> bool {
+        let min_block_pos = (pos - Vec3::splat(width / 2.0)).floor().as_ivec3();
+        let max_block_pos = (pos + Vec3::new(width / 2.0, height, width / 2.0))
+            .floor()
+            .as_ivec3();
+
+        for x in min_block_pos.x..=max_block_pos.x {
+            for y in min_block_pos.y..=max_block_pos.y {
+                for z in min_block_pos.z..=max_block_pos.z {
+                    let block_pos = IVec3::new(x, y, z);
+                    if let Some((block, block_state)) = self.get_block_at(block_pos)
+                        && let Some(block) = block_registry().get(block)
+                        && block.collides_with_player(
+                            width,
+                            height,
+                            pos - block_pos.as_vec3(),
+                            *block_state,
+                        )
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
     }
 }
 

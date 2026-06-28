@@ -10,6 +10,7 @@ pub mod datapack;
 pub mod direction;
 pub mod entity;
 pub mod item;
+pub mod physics;
 pub mod protocol;
 pub mod registry;
 pub mod saving;
