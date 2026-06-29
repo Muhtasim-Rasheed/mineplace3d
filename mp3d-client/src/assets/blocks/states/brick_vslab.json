@@ -1,0 +1,17 @@
+{
+	"states": {
+		"0000": { "model": "brick_vslab" },
+		"0001": {
+			"model": "brick_vslab",
+			"transform": { "rotation": [0, 180, 0] }
+		},
+		"0002": {
+			"model": "brick_vslab",
+			"transform": { "rotation": [0, -90, 0] }
+		},
+		"0003": {
+			"model": "brick_vslab",
+			"transform": { "rotation": [0, 90, 0] }
+		}
+	}
+}

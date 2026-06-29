@@ -1,6 +1,6 @@
 {
 	"parent": "cube/all_transparent",
 	"textures": {
-		"$a": "leaves"
+		"$a": "glass"
 	}
 }

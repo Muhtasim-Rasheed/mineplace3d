@@ -1,0 +1,6 @@
+{
+	"parent": "stairs/all",
+	"textures": {
+		"$a": "bricks"
+	}
+}

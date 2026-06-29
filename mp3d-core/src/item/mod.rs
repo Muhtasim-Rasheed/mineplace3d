@@ -17,6 +17,9 @@ define_items!(
     GRASS_BLOCK => { ident: "grass_block", block: blocks::GRASS },
     DIRT => { ident: "dirt", block: blocks::DIRT },
     STONE => { ident: "stone", block: blocks::STONE },
+    STONE_SLAB => { ident: "stone_slab", block: blocks::STONE_SLAB },
+    STONE_STAIRS => { ident: "stone_stairs", block: blocks::STONE_STAIRS },
+    STONE_VSLAB => { ident: "stone_vslab", block: blocks::STONE_VSLAB },
     COBBLESTONE => { ident: "cobblestone", block: blocks::COBBLESTONE },
     GRANITE => { ident: "granite", block: blocks::GRANITE },
     LOG => { ident: "log", block: blocks::LOG },
@@ -25,10 +28,14 @@ define_items!(
     GLUNGUS_SLAB => { ident: "glungus_slab", block: blocks::GLUNGUS_SLAB },
     GLUNGUS_STAIRS => { ident: "glungus_stairs", block: blocks::GLUNGUS_STAIRS },
     GLUNGUS_VSLAB => { ident: "glungus_vslab", block: blocks::GLUNGUS_VSLAB },
-    STONE_SLAB => { ident: "stone_slab", block: blocks::STONE_SLAB },
-    STONE_STAIRS => { ident: "stone_stairs", block: blocks::STONE_STAIRS },
-    STONE_VSLAB => { ident: "stone_vslab", block: blocks::STONE_VSLAB },
     SHORT_GRASS => { ident: "short_grass", block: blocks::SHORT_GRASS },
+    GLASS => { ident: "glass_block", block: blocks::GLASS },
+    BRICKS => { ident: "bricks", block: blocks::BRICKS },
+    BRICK_SLAB => { ident: "brick_slab", block: blocks::BRICK_SLAB },
+    BRICK_STAIRS => { ident: "brick_stairs", block: blocks::BRICK_STAIRS },
+    BRICK_VSLAB => { ident: "brick_vslab", block: blocks::BRICK_VSLAB },
+    GOLD_BLOCK => { ident: "gold_block", block: blocks::GOLD },
+    DIAMOND_BLOCK => { ident: "diamond_block", block: blocks::DIAMOND },
 );
 
 /// A struct representing a stack of items, containing a the item and the count of how many of

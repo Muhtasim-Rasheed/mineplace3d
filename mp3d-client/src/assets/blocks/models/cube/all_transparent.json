@@ -1,0 +1,12 @@
+{
+	"parent": "cube/transparent",
+	"textures": {
+		"$particle": "$a",
+		"$n": "$a",
+		"$s": "$a",
+		"$e": "$a",
+		"$w": "$a",
+		"$u": "$a",
+		"$d": "$a"
+	}
+}
