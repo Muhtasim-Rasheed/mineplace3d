@@ -89,6 +89,14 @@ pub fn get_config_path() -> PathBuf {
     get_game_dir().join("config.json")
 }
 
+pub fn get_dbg_dir() -> PathBuf {
+    let dbg_dir = get_game_dir().join("dbg");
+    if !dbg_dir.exists() {
+        std::fs::create_dir_all(&dbg_dir).expect("Failed to create debug directory");
+    }
+    dbg_dir
+}
+
 fn main() {
     mp3d_core::init();
 

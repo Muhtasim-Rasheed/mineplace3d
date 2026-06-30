@@ -164,12 +164,11 @@ impl TextureAtlas {
             .get_or_init(|| Texture::new(gl, &image::DynamicImage::ImageRgba8(self.image.clone())))
     }
 
-    /// Frees the CPU memory used by the atlas image. This should be called after uploading the
-    /// atlas to the GPU, as the image data is no longer needed on the CPU side.
-    pub fn free_cpu_memory(&mut self) {
-        if self.is_finished() {
-            self.image = image::RgbaImage::new(0, 0);
-        }
+    /// Takes the CPU atlas out, replacing it with a 0 by 0 image and returning it. This should be
+    /// called after calling [`TextureAtlas::upload`]. If it hasn't been uploaded to the GPU yet,
+    /// the function returns None.
+    pub fn take_atlas(&mut self) -> Option<image::RgbaImage> {
+        self.is_finished().then(|| std::mem::take(&mut self.image))
     }
 
     /// Checks if the atlas is finished, meaning that no more textures can be added and it has

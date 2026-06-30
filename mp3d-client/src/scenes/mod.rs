@@ -158,7 +158,18 @@ impl Assets {
             }
         }
         block_textures.upload(gl);
-        block_textures.free_cpu_memory();
+        if let Err(e) = block_textures
+            .take_atlas()
+            .unwrap()
+            .save(crate::get_dbg_dir().join("block_atlas.png"))
+        {
+            log::warn!("Couldn't save texture atlas for debugging: {e}");
+        } else {
+            log::info!(
+                "Exported block atlas to {}",
+                crate::get_dbg_dir().join("block_atlas.png").display()
+            );
+        }
         log::info!(
             "Loaded {} block textures and {} block models for {} blocks",
             block_textures.texture_count(),
