@@ -172,7 +172,7 @@ impl Widget for Slider {
         ui_renderer: &mut crate::render::ui::uirenderer::UIRenderer,
         assets: &crate::scenes::Assets,
     ) {
-        self.stack.draw(ui_renderer, assets);
         self.knob.draw(ui_renderer, assets);
+        self.stack.draw(ui_renderer, assets);
     }
 }
