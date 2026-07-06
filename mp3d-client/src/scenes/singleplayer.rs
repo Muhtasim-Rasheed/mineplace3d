@@ -166,8 +166,7 @@ impl SinglePlayer {
         let pause_screen = Column::new(20.0)
             .justification(Justification::Center)
             .with(Button::new("Return to Game"))
-            .with(Button::new("Save and Quit"))
-            .with(Button::new("Quit"));
+            .with(Button::new("Save and Quit"));
 
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
