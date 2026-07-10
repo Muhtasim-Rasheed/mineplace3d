@@ -1,6 +1,6 @@
 {
   "latest": {
-    "beta": "0.1.3-beta",
+    "beta": "0.1.4-beta",
     "alpha": "0.3.2-alpha"
   },
   "base": "https://github.com/Muhtasim-Rasheed/mineplace3d/releases/download/",
@@ -11,7 +11,7 @@
         "windows_x86_64": "mineplace3d-windows-x86_64.exe"
       },
       "uploaded_on": "2025-10-14T21:28:00+06:00",
-			"real_name": "0.2.2"
+      "real_name": "0.2.2"
     },
     "0.2.3-alpha": {
       "files": {
@@ -87,6 +87,14 @@
         "windows_x86_64": "mineplace3d-windows-x86_64.exe"
       },
       "uploaded_on": "2026-06-01T09:59:51Z"
+    },
+    "0.1.4-beta": {
+      "files": {
+        "linux_x86_64": "mineplace3d-linux-x86_64",
+        "windows_aarch64": "mineplace3d-windows-aarch64.exe",
+        "windows_x86_64": "mineplace3d-windows-x86_64.exe"
+      },
+      "uploaded_on": "2026-07-10T12:03:01Z"
     }
   }
 }
