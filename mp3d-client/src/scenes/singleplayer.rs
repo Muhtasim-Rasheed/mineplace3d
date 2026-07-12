@@ -152,7 +152,7 @@ impl SinglePlayer {
             .with(NineSlice::new(
                 [UVec2::new(0, 16), UVec2::new(16, 16)],
                 inventory_col.size_hint(&layout_ctx),
-                UVec4::new(4, 4, 3, 3),
+                UVec4::new(3, 3, 3, 3),
                 4,
                 0,
                 Vec4::ONE,
@@ -440,10 +440,6 @@ impl super::Scene for SinglePlayer {
         if self.ui.fps_timer > 0.5 {
             self.ui.fps = fps;
             self.ui.fps_timer = 0.0;
-        }
-
-        if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F6) {
-            return vec![SceneAction::ReloadAssets];
         }
 
         {
@@ -770,7 +766,7 @@ impl super::Scene for SinglePlayer {
 {} FPS
 
 X: {:.2} Y: {:.2} Z: {:.2}
-Yaw: {:.2} Pitch: {:.2}
+Yaw: {:.2} Pitch: {:.2} Dir: {}
 
 Block: X: {} Y: {} Z: {}
 Chunk: X: {} Y: {} Z: {}
@@ -782,6 +778,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     self.client.player.position.z,
                     self.client.player.yaw,
                     self.client.player.pitch,
+                    mp3d_core::direction::Direction::from(self.client.player.forward()),
                     block_pos.x,
                     block_pos.y,
                     block_pos.z,

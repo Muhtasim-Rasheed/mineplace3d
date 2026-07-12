@@ -29,7 +29,7 @@ impl Slider {
         let knob = NineSlice::new(
             [glam::uvec2(48, 0), glam::uvec2(8, 16)],
             Vec2::new(knob_size_y * KNOB_ASP_RATIO, knob_size_y),
-            glam::uvec4(2, 2, 2, 2),
+            glam::uvec4(3, 3, 3, 3),
             4,
             0,
             Vec4::ONE,
@@ -91,7 +91,7 @@ impl Slider {
             .with(NineSlice::new(
                 [glam::uvec2(32, 0), glam::uvec2(16, 16)],
                 self.size,
-                glam::uvec4(6, 6, 4, 4),
+                glam::uvec4(3, 3, 3, 3),
                 4,
                 0,
                 if self.hovered && !self.is_dragging {

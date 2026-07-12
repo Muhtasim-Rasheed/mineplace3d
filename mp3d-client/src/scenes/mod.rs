@@ -76,6 +76,7 @@ pub struct Assets {
     pub block_models: HashMap<(BlockId, u16), BlockModel>,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
+    pub window_icon: crate::abs::Texture,
 }
 
 impl Assets {
@@ -212,6 +213,7 @@ impl Assets {
             image::ImageFormat::Png,
         )
         .unwrap();
+        let window_icon_gpu = crate::abs::Texture::new(gl, &window_icon);
         let (icon_width, icon_height) = window_icon.dimensions();
         let mut icon_rgba = window_icon.into_rgba8().into_raw();
         let icon = sdl2::surface::Surface::from_data(
@@ -228,6 +230,7 @@ impl Assets {
             block_models,
             font,
             gui_tex,
+            window_icon: window_icon_gpu,
         })
     }
 }
@@ -297,6 +300,21 @@ impl SceneManager {
         }
     }
 
+    fn reload_assets(&mut self, gl: &Arc<glow::Context>, window: &mut sdl2::video::Window) {
+        log::info!("Reloading assets...");
+        match Assets::load(gl, window, &self.config.read().unwrap()) {
+            Ok(new_assets) => {
+                self.assets = Arc::new(new_assets);
+                log::info!("Assets reloaded successfully");
+                self.result = Ok(());
+            }
+            Err(e) => {
+                log::error!("Failed to reload assets: {}", e);
+                self.result = Err(SceneActionError::FailedReloadingAssets(e));
+            }
+        }
+    }
+
     /// Updates the current scene and manages scene transitions.
     pub fn update(
         &mut self,
@@ -314,6 +332,10 @@ impl SceneManager {
             self.result = Err(SceneActionError::Debug);
             self.last_err_time = self.timer;
             self.last_err = Some(SceneActionError::Debug);
+            return true;
+        }
+        if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F6) {
+            self.reload_assets(gl, window);
             return true;
         }
         if let Some(current_scene) = self.scenes.last_mut() {
@@ -351,20 +373,7 @@ impl SceneManager {
                         self.result = Ok(());
                         return false;
                     }
-                    SceneAction::ReloadAssets => {
-                        log::info!("Reloading assets...");
-                        match Assets::load(gl, window, &self.config.read().unwrap()) {
-                            Ok(new_assets) => {
-                                self.assets = Arc::new(new_assets);
-                                log::info!("Assets reloaded successfully");
-                                self.result = Ok(());
-                            }
-                            Err(e) => {
-                                log::error!("Failed to reload assets: {}", e);
-                                self.result = Err(SceneActionError::FailedReloadingAssets(e));
-                            }
-                        }
-                    }
+                    SceneAction::ReloadAssets => self.reload_assets(gl, window),
                     SceneAction::ShowError(e) => {
                         result_override = Some(Err(e));
                     }

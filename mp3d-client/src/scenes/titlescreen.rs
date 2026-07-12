@@ -63,7 +63,23 @@ impl TitleScreen {
             .padding(Vec4::new(20.0, 20.0, 60.0, 20.0))
             .with(
                 Column::new(5.0)
-                    .with(Label::new("Mineplace3D").font_size(72.0))
+                    .with(
+                        Row::new(10.0)
+                            .with(Image::new(
+                                [
+                                    glam::uvec2(0, 0),
+                                    glam::uvec2(
+                                        assets.window_icon.width(),
+                                        assets.window_icon.height(),
+                                    ),
+                                ],
+                                Vec2::new(96.0, 96.0),
+                                1,
+                                Vec4::ONE,
+                                assets.window_icon.handle(),
+                            ))
+                            .with(Label::new("Mineplace3D").font_size(72.0)),
+                    )
                     .with(Label::new(splash_text).color(splash_color)),
             )
             .with(
@@ -113,6 +129,10 @@ impl super::Scene for TitleScreen {
         let container_padding_left_right = self.container.padding.x + self.container.padding.y;
         self.container.get_widget_mut::<Row>(2).unwrap().min_size =
             Vec2::new(new_size.0 as f32 - container_padding_left_right, 0.0);
+        self.container
+            .find_widget_mut::<Image>(&[0, 0, 0])
+            .unwrap()
+            .tex_handle = assets.window_icon.handle();
 
         if new_size.0 >= 1050 {
             self.container

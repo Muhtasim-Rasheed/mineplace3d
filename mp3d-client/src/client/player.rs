@@ -53,6 +53,16 @@ pub struct ClientPlayer {
 }
 
 impl ClientPlayer {
+    pub fn forward(&self) -> Vec3 {
+        let yaw_rad = self.yaw.to_radians();
+        let pitch_rad = self.pitch.to_radians();
+        Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            -pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
+        )
+    }
+
     pub fn first_person_eye(&self) -> Vec3 {
         self.position + Vec3::new(0.0, 1.62, 0.0)
     }

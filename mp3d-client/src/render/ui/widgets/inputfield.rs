@@ -81,7 +81,7 @@ impl InputField {
             .with(NineSlice::new(
                 [glam::uvec2(32, 0), glam::uvec2(16, 16)],
                 self.size,
-                glam::uvec4(6, 6, 4, 4),
+                glam::uvec4(3, 3, 3, 3),
                 4,
                 0,
                 if self.hovered && !self.focused {

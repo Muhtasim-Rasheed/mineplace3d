@@ -73,6 +73,8 @@ impl Button {
                 [
                     if self.is_down {
                         glam::uvec2(16, 0)
+                    } else if self.hovered || self.always_hovered {
+                        glam::uvec2(64, 0)
                     } else {
                         glam::uvec2(0, 0)
                     },
@@ -80,17 +82,15 @@ impl Button {
                 ],
                 self.size,
                 if self.is_down {
-                    glam::uvec4(5, 5, 6, 4)
+                    glam::uvec4(2, 2, 3, 2)
+                } else if self.hovered || self.always_hovered {
+                    glam::uvec4(2, 2, 2, 4)
                 } else {
-                    glam::uvec4(5, 5, 4, 6)
+                    glam::uvec4(2, 2, 2, 3)
                 },
                 4,
                 0,
-                if (self.hovered || self.always_hovered) && !self.is_down {
-                    Vec4::ONE * 1.3
-                } else {
-                    Vec4::ONE
-                },
+                Vec4::ONE,
             ))
             .with(
                 Label::new(&self.text)
@@ -103,20 +103,18 @@ impl Button {
         if let Some(nine_slice) = self.stack.get_widget_mut::<NineSlice>(0) {
             nine_slice.uv_top_left = if self.is_down || self.disabled {
                 glam::uvec2(16, 0)
+            } else if self.hovered || self.always_hovered {
+                glam::uvec2(64, 0)
             } else {
                 glam::uvec2(0, 0)
             };
-            nine_slice.border = if self.is_down || self.disabled {
-                glam::uvec4(5, 5, 6, 4)
+            nine_slice.border = if self.is_down {
+                glam::uvec4(2, 2, 3, 2)
+            } else if self.hovered || self.always_hovered {
+                glam::uvec4(2, 2, 2, 4)
             } else {
-                glam::uvec4(5, 5, 4, 6)
+                glam::uvec4(2, 2, 2, 3)
             };
-            nine_slice.tint =
-                if (self.hovered || self.always_hovered) && !self.is_down && !self.disabled {
-                    Vec4::ONE * 1.3
-                } else {
-                    Vec4::ONE
-                };
             nine_slice.position = self.position;
             nine_slice.size = self.size;
         } else {
