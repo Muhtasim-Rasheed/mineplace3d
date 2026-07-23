@@ -22,6 +22,7 @@ pub mod world;
 pub fn init() {
     block::init_block_registry();
     item::init_item_registry();
+    entity::init_entity_registry();
 }
 
 pub(crate) fn aabb_overlap(a_min: Vec3, a_max: Vec3, b_min: Vec3, b_max: Vec3) -> bool {

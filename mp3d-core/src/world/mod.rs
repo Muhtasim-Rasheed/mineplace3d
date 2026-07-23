@@ -16,7 +16,7 @@ use crate::{
     block::{BlockId, BlockState, block_registry, blocks},
     datapack::GameData,
     direction::Direction,
-    entity::{Entity, EntityType, PlayerEntity},
+    entity::{Entity, PlayerEntity, entities, entity_registry},
     item::{item_registry, items},
     physics::CollisionWorld,
     protocol::{BlockUpdate, BlockUpdateKind},
@@ -572,12 +572,11 @@ impl World {
         let entity_count = self
             .entities
             .values()
-            .filter(|e| e.entity_type() != EntityType::Player)
+            .filter(|e| e.def_id() != *entities::PLAYER)
             .count() as u64;
         std::io::Write::write_all(&mut entities_file, &entity_count.to_le_bytes())?;
         for entity in self.entities.values() {
-            let entity_type = entity.entity_type() as u8;
-            if entity_type == EntityType::Player as u8 {
+            if entity.def_id() == *entities::PLAYER {
                 let player = entity.as_any().downcast_ref::<PlayerEntity>().unwrap();
                 let player_data = player.save();
                 let hashed_username = hash64(player.username.as_bytes());
@@ -587,9 +586,11 @@ impl World {
                 let mut player_file = std::fs::File::create(player_path)?;
                 std::io::Write::write_all(&mut player_file, &player_data)?;
             } else {
+                let entity_ident = entity_registry().get(entity.def_id()).unwrap().ident;
                 let entity_data = entity.save();
                 let entity_data_len = entity_data.len() as u32;
-                std::io::Write::write_all(&mut entities_file, &[entity_type])?;
+                std::io::Write::write_all(&mut entities_file, &[entity_ident.len() as u8])?;
+                std::io::Write::write_all(&mut entities_file, entity_ident.as_bytes())?;
                 std::io::Write::write_all(&mut entities_file, &entity_data_len.to_le_bytes())?;
                 std::io::Write::write_all(&mut entities_file, &entity_data)?;
             }
@@ -619,7 +620,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 0x06 => load_v0_to_v6(path, &mut save_iter, version),
+            Some(version) if version <= 0x07 => load_v0_to_v7(path, &mut save_iter, version),
             Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
                 "Unsupported save version: {}",
                 version
@@ -631,7 +632,7 @@ impl World {
     }
 }
 
-fn load_v0_to_v6(
+fn load_v0_to_v7(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,
@@ -708,25 +709,25 @@ fn load_v0_to_v6(
     let entities_data = std::fs::read(entities_path).unwrap();
     let mut entities_iter = entities_data.into_iter();
     let entity_count = read_u64(&mut entities_iter, "Entity count")?;
-    #[allow(clippy::never_loop)]
-    #[allow(unreachable_code, unused_variables)]
     for _ in 0..entity_count {
-        let entity_type = read_u8(&mut entities_iter, "Entity type")?;
+        let ident_str_len = read_u8(&mut entities_iter, "Entity ident length")? as usize;
+        let ident_str = read_string(&mut entities_iter, ident_str_len, "Entity ident")?;
         let entity_data_len = read_u32(&mut entities_iter, "Entity data length")?;
         let entity_data = take_exact(&mut entities_iter, entity_data_len as usize, "Entity data")?;
-        let entity: Box<dyn Entity> = match entity_type {
-            x if x == EntityType::Player as u8 => {
-                return Err(WorldLoadError::InvalidSaveFormat(
-                    "Player entities should be stored in the players folder".to_string(),
-                ));
-            }
-            _ => {
-                return Err(WorldLoadError::InvalidSaveFormat(format!(
-                    "Unknown entity type: {}",
-                    entity_type
-                )));
-            }
-        };
+
+        let def_id = entity_registry().get_id(&ident_str).ok_or_else(|| {
+            WorldLoadError::InvalidSaveFormat(format!("Unknown entity ident: {}", ident_str))
+        })?;
+        let def = entity_registry().get(def_id).unwrap();
+
+        let deserialize = def.deserialize.as_ref().ok_or_else(|| {
+            WorldLoadError::InvalidSaveFormat(format!(
+                "Entity type {} cannot be loaded from entities.bin",
+                ident_str
+            ))
+        })?;
+
+        let entity = deserialize(&mut entity_data.into_iter(), version)?;
         world.add_entity(entity);
     }
 

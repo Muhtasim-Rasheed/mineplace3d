@@ -2,15 +2,12 @@ use std::sync::OnceLock;
 
 use fxhash::FxHashMap;
 
-mod sealed {
-    pub struct RegistryToken(());
-    impl RegistryToken {
-        pub(crate) fn new() -> Self {
-            RegistryToken(())
-        }
+pub struct RegistryToken(());
+impl RegistryToken {
+    fn new() -> Self {
+        RegistryToken(())
     }
 }
-pub use sealed::RegistryToken;
 
 pub trait DefId: Copy + Eq + std::hash::Hash {
     fn new(v: usize, _token: RegistryToken) -> Self;

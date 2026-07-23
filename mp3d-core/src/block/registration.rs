@@ -49,7 +49,6 @@ pub type BlockRegistry = Registry<BlockDef>;
 
 static BLOCK_REGISTRY: std::sync::OnceLock<BlockRegistry> = std::sync::OnceLock::new();
 
-// #[inline]
 pub fn block_registry() -> &'static BlockRegistry {
     BLOCK_REGISTRY
         .get()

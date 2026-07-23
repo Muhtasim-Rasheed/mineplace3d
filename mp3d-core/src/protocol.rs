@@ -8,6 +8,7 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{BlockId, BlockState},
     direction::Direction,
+    entity::EntityDefId,
     textcomponent::TextComponent,
     world::chunk::Chunk,
 };
@@ -98,7 +99,7 @@ pub enum S2CMessage {
     /// An entity has spawned in the world.
     EntitySpawned {
         entity_id: u64,
-        entity_type: u8,
+        entity_def_id: EntityDefId,
         entity_snapshot: Vec<u8>,
     },
     /// Update of a player's position, yaw, and pitch.

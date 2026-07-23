@@ -462,10 +462,10 @@ impl<C: Connection> Client<C> {
                 }
                 S2CMessage::EntitySpawned {
                     entity_id: _,
-                    entity_type,
+                    entity_def_id,
                     entity_snapshot,
                 } => {
-                    if entity_type == mp3d_core::entity::EntityType::Player as u8 {
+                    if entity_def_id == *mp3d_core::entity::entities::PLAYER {
                         log::info!("Player snapshot received, {} bytes", entity_snapshot.len());
                         if u64::from_le_bytes(entity_snapshot[0..8].try_into().unwrap())
                             == self.entity_id.unwrap()

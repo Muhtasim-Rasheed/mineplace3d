@@ -98,8 +98,6 @@ pub fn get_dbg_dir() -> PathBuf {
 }
 
 fn main() {
-    mp3d_core::init();
-
     let log_file_path = get_game_dir().join("game.log");
 
     if log_file_path.exists() {
@@ -149,6 +147,8 @@ fn main() {
         log::error!("panic at {}: {}", location, payload);
         log::error!("backtrace:\n{}", std::backtrace::Backtrace::force_capture());
     }));
+
+    mp3d_core::init();
 
     log::info!("Mineplace3D {}", env!("CARGO_PKG_VERSION"));
 

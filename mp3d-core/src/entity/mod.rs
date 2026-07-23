@@ -4,13 +4,7 @@
 
 use glam::Vec3;
 
-use crate::{saving::Saveable, world::World};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum EntityType {
-    Player = 0,
-}
+use crate::{define_entities, saving::Saveable, world::World};
 
 /// Represents a game entity in the world.
 pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
@@ -20,7 +14,7 @@ pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
     fn name(&self) -> &'static str {
         std::any::type_name::<Self>().rsplit("::").next().unwrap()
     }
-    fn entity_type(&self) -> EntityType;
+    fn def_id(&self) -> EntityDefId;
     fn set_id(&mut self, id: u64);
     fn id(&self) -> u64;
     fn snapshot(&self) -> Vec<u8>;
@@ -71,6 +65,12 @@ impl From<crate::protocol::MoveInstructions> for MoveInput {
     }
 }
 
+define_entities! {
+    PLAYER => { ident: "player" }
+}
+
 pub mod player;
+pub mod registration;
 
 pub use player::*;
+pub use registration::*;

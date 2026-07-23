@@ -105,8 +105,8 @@ impl Entity for PlayerEntity {
         self
     }
 
-    fn entity_type(&self) -> EntityType {
-        EntityType::Player
+    fn def_id(&self) -> EntityDefId {
+        *super::entities::PLAYER
     }
 
     fn set_id(&mut self, id: u64) {

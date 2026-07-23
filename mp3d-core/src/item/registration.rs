@@ -33,7 +33,6 @@ pub type ItemRegistry = Registry<ItemDef>;
 
 static ITEM_REGISTRY: std::sync::OnceLock<ItemRegistry> = std::sync::OnceLock::new();
 
-// #[inline]
 pub fn item_registry() -> &'static ItemRegistry {
     ITEM_REGISTRY
         .get()

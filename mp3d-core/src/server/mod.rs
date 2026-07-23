@@ -196,7 +196,7 @@ impl Server {
                             None,
                             S2CMessage::EntitySpawned {
                                 entity_id,
-                                entity_type: crate::entity::EntityType::Player as u8,
+                                entity_def_id: *crate::entity::entities::PLAYER,
                                 entity_snapshot: self
                                     .world
                                     .get_entity::<PlayerEntity>(entity_id)
