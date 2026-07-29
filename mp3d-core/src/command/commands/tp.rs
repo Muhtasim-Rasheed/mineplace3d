@@ -1,7 +1,10 @@
 //! Implementation of the /tp command
 
+use glam::Vec3;
+
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext, parser::Coord3},
+    entity::components::{Position, Rotation},
     textcomponent::TextComponent,
 };
 
@@ -41,10 +44,29 @@ impl Command for TpCommand {
         let coord3 = Coord3::parse(&mut args)?;
         args.ensure_empty()?;
 
-        let pos = sender.position();
-        let fwd = sender.forward();
+        let Some((Position(pos), rot)) = ctx
+            .world
+            .ecs
+            .get_component_copied::<Position>(sender)
+            .and_then(|v| Some((v, ctx.world.ecs.get_component_copied::<Rotation>(sender)?)))
+        else {
+            return Err("You must have a position and rotation associated with you".to_string());
+        };
+
+        let yaw_rad = rot.yaw.to_radians();
+        let pitch_rad = rot.pitch.to_radians();
+        let fwd = Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
+        );
+
         let vec3 = coord3.as_vec3(pos, fwd);
-        *sender.position_mut() = vec3;
+        ctx.world
+            .ecs
+            .get_component_mut::<Position>(sender)
+            .unwrap()
+            .0 = vec3;
         ctx.world.load_around(pos.as_ivec3());
 
         Ok(

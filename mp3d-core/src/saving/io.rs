@@ -1,4 +1,5 @@
 //! Small utilities for reading and writing binary data.
+//! TODO: remove this module in favor of [`crate::serialize::write`]
 
 #![allow(dead_code)]
 

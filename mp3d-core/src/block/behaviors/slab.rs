@@ -3,26 +3,20 @@ use glam::IVec3;
 use crate::{
     block::{BlockId, BlockState},
     direction::Direction,
-    entity::PlayerEntity,
-    item::item_registry,
+    entity::EntityId,
     world::World,
 };
 
 pub fn on_click(
     id: BlockId,
     world: &mut World,
-    entity_id: u64,
+    entity_id: EntityId,
     block_pos: IVec3,
     state: BlockState,
     face: Direction,
 ) -> bool {
-    let (item_count, place_block) = match world.get_entity::<PlayerEntity>(entity_id) {
-        Some(p) => {
-            let stack = p.inventory.hotbar_slot(p.hotbar_index);
-            let assoc_block = item_registry().get(stack.item).unwrap().assoc_block;
-            (stack.count, assoc_block)
-        }
-        None => return false,
+    let Some((item_count, place_block)) = world.hotbar_stack_info(entity_id) else {
+        return false;
     };
     if state == BlockState::slab(0) && face == Direction::Up
         || state == BlockState::slab(1) && face == Direction::Down
@@ -42,7 +36,7 @@ pub fn on_click(
     }
 }
 
-pub fn on_place(_: BlockId, _: &mut World, _: u64, _: IVec3, face: Direction) -> BlockState {
+pub fn on_place(_: BlockId, _: &mut World, _: EntityId, _: IVec3, face: Direction) -> BlockState {
     if face == Direction::Down {
         BlockState::slab(1)
     } else {

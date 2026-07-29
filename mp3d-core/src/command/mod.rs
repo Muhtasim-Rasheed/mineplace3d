@@ -1,6 +1,6 @@
 use fxhash::FxHashMap;
 
-use crate::{entity::Entity, server::PlayerSession, textcomponent::TextComponent, world::World};
+use crate::{entity::EntityId, server::PlayerSession, textcomponent::TextComponent, world::World};
 
 pub mod commands;
 mod parser;
@@ -39,25 +39,14 @@ impl<'a> CommandContext<'a> {
         })
     }
 
-    pub fn get_sender(&mut self) -> Result<&mut dyn Entity, String> {
+    pub fn get_sender(&mut self) -> Result<EntityId, String> {
         let session_id = self.get_sender_session_id()?;
-        let entity_id = self
-            .sessions
+        self.sessions
             .get(&session_id)
             .map(|v| v.entity_id)
             .ok_or_else(|| {
                 format!(
                     "Session {} (Connection {}) doesn't have an associated entity id",
-                    session_id, self.connection_id,
-                )
-            })?;
-        self.world
-            .entities
-            .get_mut(&entity_id)
-            .map(|v| v.as_mut())
-            .ok_or_else(|| {
-                format!(
-                    "Session {} (Connection {}) doesn't have an associated entity",
                     session_id, self.connection_id,
                 )
             })

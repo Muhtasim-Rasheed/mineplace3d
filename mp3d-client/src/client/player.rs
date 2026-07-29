@@ -3,10 +3,11 @@ use std::{cell::RefCell, rc::Rc};
 use glam::{Mat4, Vec3, Vec4};
 use mp3d_core::{
     block::block_registry,
-    entity::{Entity, PlayerEntity},
+    entity::{EntityDetails, components::*},
     item::Inventory,
     physics::{self, PhysicsState},
     protocol::MoveInstructions,
+    serialize::read::ReadError,
     world::chunk::CHUNK_SIZE,
 };
 
@@ -48,6 +49,8 @@ pub struct ClientPlayer {
     pub flying: bool,
     pub on_ground: bool,
     pub input: MoveInstructions,
+    pub width: f32,
+    pub height: f32,
     pub inventory: Rc<RefCell<ClientInventory>>,
     pub third_person: bool,
 }
@@ -189,21 +192,38 @@ impl ClientPlayer {
         planes
     }
 
-    pub fn update_from_snapshot(&mut self, snapshot: &[u8]) {
-        use mp3d_core::saving::{Saveable, io::*};
-        let mut snapshot = snapshot.iter().cloned();
-        let _entity_id = read_u64(&mut snapshot, "ClientPlayer reading entity_id").unwrap();
-        self.position = read_vec3(&mut snapshot, "ClientPlayer reading position").unwrap();
+    pub fn update_from_snapshot(&mut self, snapshot: &[u8]) -> Result<(), ReadError> {
+        let details = EntityDetails::from_bytes(snapshot)?;
+
+        if let Some(Position(pos)) = details.get::<Position>() {
+            self.position = pos;
+        }
+
         let previous_yaw = self.yaw;
-        self.yaw = read_f32(&mut snapshot, "ClientPlayer reading yaw").unwrap();
+        if let Some(Rotation { yaw, pitch }) = details.get::<Rotation>() {
+            self.yaw = yaw;
+            self.pitch = pitch;
+        }
         self.delta_yaw = self.yaw - previous_yaw;
-        self.pitch = read_f32(&mut snapshot, "ClientPlayer reading pitch").unwrap();
-        self.inventory.borrow_mut().update_from_inventory(
-            Inventory::load(&mut snapshot, mp3d_core::saving::SAVE_VERSION).unwrap(),
-        );
-        self.inventory.borrow_mut().slot =
-            read_u8(&mut snapshot, "ClientPlayer reading inventory slot").unwrap() as usize;
-        self.flying = read_u8(&mut snapshot, "ClientPlayer reading flying").unwrap() != 0;
+
+        if let Some(inv) = details.get::<Inventory>() {
+            self.inventory.borrow_mut().update_from_inventory(inv);
+        }
+
+        if let Some(SelectedHotbarSlot(slot)) = details.get::<SelectedHotbarSlot>() {
+            self.inventory.borrow_mut().slot = slot;
+        }
+
+        if let Some(Flying(flying)) = details.get::<Flying>() {
+            self.flying = flying;
+        }
+
+        if let Some(hitbox) = details.get::<Hitbox>() {
+            self.width = hitbox.width;
+            self.height = hitbox.height;
+        }
+
+        Ok(())
     }
 
     pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
@@ -228,8 +248,8 @@ impl ClientPlayer {
             state,
             self.input.into(),
             self.yaw,
-            PlayerEntity::width(),
-            PlayerEntity::height(),
+            self.width,
+            self.height,
             world,
             dt,
         );

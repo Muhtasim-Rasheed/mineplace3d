@@ -3,6 +3,7 @@ use glam::IVec3;
 use crate::{
     block::{BlockId, BlockState, blocks},
     direction::Direction,
+    entity::EntityId,
     protocol::BlockUpdateKind,
     world::World,
 };
@@ -10,7 +11,7 @@ use crate::{
 pub fn on_click(
     _: BlockId,
     world: &mut World,
-    _: u64,
+    _: EntityId,
     block_pos: IVec3,
     _: BlockState,
     _: Direction,

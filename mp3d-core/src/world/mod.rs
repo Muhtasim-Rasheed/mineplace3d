@@ -9,17 +9,22 @@ pub mod generation;
 
 use std::collections::HashMap;
 
-use fxhash::{FxHashMap, hash64};
+use fxhash::{FxHashMap, FxHashSet, hash64};
 use glam::{IVec3, Vec3};
 
 use crate::{
     block::{BlockId, BlockState, block_registry, blocks},
     datapack::GameData,
     direction::Direction,
-    entity::{Entity, PlayerEntity, entities, entity_registry},
-    item::{item_registry, items},
+    entity::{
+        EntityDetails, EntityId, MoveInput,
+        components::*,
+        ecs::{ECS, Scheduler},
+    },
+    item::{Inventory, item_registry, items},
     physics::CollisionWorld,
     protocol::{BlockUpdate, BlockUpdateKind},
+    registry::LazyId,
     saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
     uniquequeue::UniqueQueue,
     world::{
@@ -31,13 +36,13 @@ use crate::{
 /// A world consisting of multiple chunks. Each chunk contains a 16x16x16 grid of blocks.
 pub struct World {
     pub chunks: FxHashMap<IVec3, Chunk>,
-    pub entities: FxHashMap<u64, Box<dyn Entity>>,
+    pub ecs: ECS,
     pub generator: Generator,
     pub time: u64,
 
     // Storage of player data, keyed by username. This is used to store player data when they are
-    // not currently in the world.
-    pub(super) player_cache: HashMap<String, PlayerEntity>,
+    // not currently in the world. It stores the data as bytes.
+    pub(super) player_cache: HashMap<String, EntityDetails>,
 
     /// Stores pending changes to blocks in the world. This is used to track changes that need to
     /// be sent to players.
@@ -58,7 +63,7 @@ impl World {
         let chunks = FxHashMap::default();
         World {
             chunks,
-            entities: FxHashMap::default(),
+            ecs: ECS::new(),
             generator,
             time: 0,
             player_cache: HashMap::new(),
@@ -175,15 +180,6 @@ impl World {
             .or_insert_with(|| Self::load_chunk(&self.generator, &self.changes, chunk_pos))
     }
 
-    /// Gets the ID of the next available entity.
-    fn next_entity_id(&self) -> u64 {
-        let mut id = 1;
-        while self.entities.contains_key(&id) {
-            id += 1;
-        }
-        id
-    }
-
     /// Loads around specified coordinates in world space.
     pub fn load_around(&mut self, pos: IVec3) {
         let cpos = pos / CHUNK_SIZE as i32;
@@ -198,35 +194,8 @@ impl World {
         }
     }
 
-    /// Adds an entity to the world, assigning it a unique ID.
-    pub fn add_entity(&mut self, mut entity: Box<dyn Entity>) -> u64 {
-        let entity_id = self.next_entity_id();
-        entity.set_id(entity_id);
-        self.entities.insert(entity_id, entity);
-        entity_id
-    }
-
-    /// Removes an entity from the world by its ID.
-    pub fn remove_entity(&mut self, entity_id: u64) -> Option<Box<dyn Entity>> {
-        self.entities.remove(&entity_id)
-    }
-
-    /// Gets a reference to an entity by its ID.
-    pub fn get_entity<E: Entity>(&self, entity_id: u64) -> Option<&E> {
-        self.entities
-            .get(&entity_id)
-            .and_then(|e| e.as_any().downcast_ref::<E>())
-    }
-
-    /// Gets a mutable reference to an entity by its ID.
-    pub fn get_entity_mut<E: Entity>(&mut self, entity_id: u64) -> Option<&mut E> {
-        self.entities
-            .get_mut(&entity_id)
-            .and_then(|e| e.as_any_mut().downcast_mut::<E>())
-    }
-
     /// Updates the world. The optimal TPS (Ticks Per Second) is 48.
-    pub fn tick(&mut self, tps: u8) {
+    pub fn tick(&mut self, scheduler: &mut Scheduler, tps: u8) {
         let mut updates = Vec::new();
         for (pos, chunk) in &self.chunks {
             updates.extend_from_slice(&chunk.random_tick(5, &self.chunks, *pos));
@@ -235,29 +204,27 @@ impl World {
             self.normal_set_block_at(update.0, update.1, update.2, BlockUpdateKind::RandomTick);
         }
 
-        let entity_ids: Vec<u64> = self.entities.keys().cloned().collect();
-        for entity_id in entity_ids {
-            if let Some(mut entity) = self.entities.remove(&entity_id) {
-                entity.tick(self, tps);
-
-                if !entity.requests_removal() {
-                    self.entities.insert(entity_id, entity);
-                }
-            }
-        }
+        scheduler.run(self, 1.0 / tps as f32);
         self.time += 1;
+    }
+
+    fn player_bounds(ecs: &ECS, entity: EntityId) -> Option<(Vec3, f32, f32)> {
+        let pos = ecs.get_component_copied::<Position>(entity)?.0;
+        let hb = ecs.get_component_copied::<Hitbox>(entity)?;
+        Some((pos, hb.width, hb.height))
     }
 
     pub fn try_place_block(
         &mut self,
-        player_entity_id: u64,
+        player_entity_id: EntityId,
         pos: IVec3,
         block: BlockId,
         state: BlockState,
     ) -> bool {
-        let player_pos = match self.get_entity::<PlayerEntity>(player_entity_id) {
-            Some(p) => p.position,
-            None => return false,
+        let Some((player_pos, player_width, player_height)) =
+            Self::player_bounds(&self.ecs, player_entity_id)
+        else {
+            return false;
         };
 
         let old_block = self
@@ -267,34 +234,42 @@ impl World {
 
         self.urgent_set_block_at(pos, block, state, BlockUpdateKind::Placed);
 
-        if self.collides(player_pos, PlayerEntity::width(), PlayerEntity::height()) {
+        if self.collides(player_pos, player_width, player_height) {
             self.urgent_set_block_at(pos, old_block, BlockState::none(), BlockUpdateKind::Removed);
             return false;
         }
 
-        if let Some(player) = self.get_entity_mut::<PlayerEntity>(player_entity_id) {
-            let inv = &mut player.inventory;
-            let slot = inv.hotbar_slot_mut(player.hotbar_index);
-            slot.count -= 1;
-            if slot.count == 0 {
-                slot.item = *items::AIR;
-            }
-            inv.dirty = true;
+        let Some(hotbar) = self
+            .ecs
+            .get_component_copied::<SelectedHotbarSlot>(player_entity_id)
+        else {
+            return false;
+        };
+
+        let Some(inv) = self.ecs.get_component_mut::<Inventory>(player_entity_id) else {
+            return false;
+        };
+
+        let slot = inv.hotbar_slot_mut(hotbar.0);
+        slot.count -= 1;
+        if slot.count == 0 {
+            slot.item = *items::AIR;
         }
+        inv.dirty = true;
 
         true
     }
 
     /// Handles a block interaction at the given world position and face index. If the block is not
     /// interactive, this will attempt to place a block on the face that was clicked.
-    pub fn block_interaction(&mut self, player_entity_id: u64, block_pos: IVec3, face: Direction) {
-        let (item_count, place_block) = match self.get_entity::<PlayerEntity>(player_entity_id) {
-            Some(p) => {
-                let stack = p.inventory.hotbar_slot(p.hotbar_index);
-                let assoc_block = item_registry().get(stack.item).unwrap().assoc_block;
-                (stack.count, assoc_block)
-            }
-            None => return,
+    pub fn block_interaction(
+        &mut self,
+        player_entity_id: EntityId,
+        block_pos: IVec3,
+        face: Direction,
+    ) {
+        let Some((item_count, place_block)) = self.hotbar_stack_info(player_entity_id) else {
+            return;
         };
 
         if let Some((id, state)) = self.get_block_at(block_pos).map(|(b, s)| (b, *s)) {
@@ -323,7 +298,18 @@ impl World {
         }
     }
 
-    pub fn break_block(&mut self, player_entity_id: u64, block_pos: IVec3) {
+    pub fn hotbar_stack_info(
+        &self,
+        entity: EntityId,
+    ) -> Option<(u16, Option<&'static LazyId<BlockId>>)> {
+        let inv = self.ecs.get_component::<Inventory>(entity)?;
+        let hotbar = self.ecs.get_component::<SelectedHotbarSlot>(entity)?;
+        let stack = inv.hotbar_slot(hotbar.0);
+        let assoc_block = item_registry().get(stack.item).unwrap().assoc_block;
+        Some((stack.count, assoc_block))
+    }
+
+    pub fn break_block(&mut self, player_entity_id: EntityId, block_pos: IVec3) {
         let (block, state) = match self.get_block_at(block_pos) {
             Some((b, s)) => (b, *s),
             None => return,
@@ -347,9 +333,8 @@ impl World {
             crate::protocol::BlockUpdateKind::Removed,
         );
 
-        let player = match self.get_entity_mut::<PlayerEntity>(player_entity_id) {
-            Some(p) => p,
-            None => return,
+        let Some(inv) = self.ecs.get_component_mut::<Inventory>(player_entity_id) else {
+            return;
         };
 
         for (item, drop_entry) in drops {
@@ -381,13 +366,28 @@ impl World {
 
             // TODO: implement item entities, for now just add the items directly to the player's
             // inventory
-            player.inventory.add_stack(item, count as u16);
+            inv.add_stack(item, count as u16);
         }
     }
 }
 
 impl CollisionWorld for World {
     fn collides(&self, pos: Vec3, width: f32, height: f32) -> bool {
+        self.chunks.collides(pos, width, height)
+    }
+}
+
+impl CollisionWorld for FxHashMap<IVec3, Chunk> {
+    fn collides(&self, pos: Vec3, width: f32, height: f32) -> bool {
+        fn get_block_at(
+            this: &FxHashMap<IVec3, Chunk>,
+            world_pos: IVec3,
+        ) -> Option<(BlockId, &BlockState)> {
+            let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+            let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+
+            this.get(&chunk_pos).and_then(|c| c.get_block(local_pos))
+        }
         let min_block_pos = (pos - Vec3::splat(width / 2.0)).floor().as_ivec3();
         let max_block_pos = (pos + Vec3::new(width / 2.0, height, width / 2.0))
             .floor()
@@ -397,7 +397,7 @@ impl CollisionWorld for World {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
-                    if let Some((block, block_state)) = self.get_block_at(block_pos)
+                    if let Some((block, block_state)) = get_block_at(self, block_pos)
                         && let Some(block) = block_registry().get(block)
                         && block.collides_with_player(
                             width,
@@ -530,14 +530,6 @@ impl World {
     ///   - 1 byte: entity type (u8)
     ///   - 4 bytes: length of entity data (M)
     ///   - M bytes: entity data (format defined by each entity type)
-    ///
-    /// # players/{hashed_username}.bin
-    /// - 1 byte: length of username (U)
-    /// - U bytes: username (UTF-8 string)
-    /// - 12 bytes: position (3 f32 values for x, y, z)
-    /// - 12 bytes: velocity (3 f32 values for x, y, z)
-    /// - 4 bytes: yaw (f32)
-    /// - 4 bytes: pitch (f32)
     pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
         let mut save_file = std::fs::File::create(path.join("save.bin"))?;
         std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
@@ -569,28 +561,35 @@ impl World {
 
         let mut entities_file = std::fs::File::create(path.join("entities.bin"))?;
         std::fs::create_dir_all(path.join("players"))?;
+
+        let player_ids: FxHashSet<EntityId> = self
+            .ecs
+            .query_ro::<&Username>()
+            .map(|(entity, _)| entity)
+            .collect();
+
         let entity_count = self
-            .entities
-            .values()
-            .filter(|e| e.def_id() != *entities::PLAYER)
+            .ecs
+            .e_alloc
+            .iter()
+            .filter(|e| !player_ids.contains(e))
             .count() as u64;
         std::io::Write::write_all(&mut entities_file, &entity_count.to_le_bytes())?;
-        for entity in self.entities.values() {
-            if entity.def_id() == *entities::PLAYER {
-                let player = entity.as_any().downcast_ref::<PlayerEntity>().unwrap();
-                let player_data = player.save();
-                let hashed_username = hash64(player.username.as_bytes());
+
+        for entity in self.ecs.e_alloc.iter() {
+            let details = self.ecs.entity_details(entity);
+
+            if let Some(username) = self.ecs.get_component::<Username>(entity) {
+                let player_data = details.to_bytes();
+                let hashed_username = hash64(username.0.as_bytes());
                 let player_path = path
                     .join("players")
                     .join(format!("{}.bin", hashed_username));
                 let mut player_file = std::fs::File::create(player_path)?;
                 std::io::Write::write_all(&mut player_file, &player_data)?;
             } else {
-                let entity_ident = entity_registry().get(entity.def_id()).unwrap().ident;
-                let entity_data = entity.save();
+                let entity_data = details.to_bytes();
                 let entity_data_len = entity_data.len() as u32;
-                std::io::Write::write_all(&mut entities_file, &[entity_ident.len() as u8])?;
-                std::io::Write::write_all(&mut entities_file, entity_ident.as_bytes())?;
                 std::io::Write::write_all(&mut entities_file, &entity_data_len.to_le_bytes())?;
                 std::io::Write::write_all(&mut entities_file, &entity_data)?;
             }
@@ -598,9 +597,9 @@ impl World {
 
         log::info!("Saved entities and logged-in players");
 
-        for cached in self.player_cache.values() {
-            let player_data = cached.save();
-            let hashed_username = hash64(cached.username.as_bytes());
+        for (username, cached) in self.player_cache.iter() {
+            let player_data = cached.to_bytes();
+            let hashed_username = hash64(username.as_bytes());
             let player_path = path
                 .join("players")
                 .join(format!("{}.bin", hashed_username));
@@ -608,7 +607,7 @@ impl World {
             std::io::Write::write_all(&mut player_file, &player_data)?;
         }
 
-        log::info!("Saved logged-off players");
+        log::info!("Saved logged-out players");
 
         Ok(())
     }
@@ -620,7 +619,7 @@ impl World {
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
         match save_iter.next() {
-            Some(version) if version <= 0x07 => load_v0_to_v7(path, &mut save_iter, version),
+            Some(version) if version <= 0x08 => load_v0_to_v8(path, &mut save_iter, version),
             Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
                 "Unsupported save version: {}",
                 version
@@ -632,7 +631,7 @@ impl World {
     }
 }
 
-fn load_v0_to_v7(
+fn load_v0_to_v8(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,
     version: u8,
@@ -652,7 +651,7 @@ fn load_v0_to_v7(
 
     let mut world = World {
         chunks: FxHashMap::default(),
-        entities: FxHashMap::default(),
+        ecs: ECS::new(),
         generator,
         time,
         player_cache: HashMap::new(),
@@ -702,34 +701,28 @@ fn load_v0_to_v7(
     }
 
     // ENTITIES
-    let entities_path = path.join("entities.bin");
-    if !entities_path.exists() {
-        return Err(WorldLoadError::MissingSaveFile(entities_path));
+    if version >= 0x08 {
+        let entities_path = path.join("entities.bin");
+        if !entities_path.exists() {
+            return Err(WorldLoadError::MissingSaveFile(entities_path));
+        }
+        let entities_data = std::fs::read(entities_path).unwrap();
+        let mut entities_iter = entities_data.into_iter();
+        let entity_count = read_u64(&mut entities_iter, "Entity count")?;
+
+        for _ in 0..entity_count {
+            let entity_data_len = read_u32(&mut entities_iter, "Entity data length")?;
+            let entity_data =
+                take_exact(&mut entities_iter, entity_data_len as usize, "Entity data")?;
+
+            let details = EntityDetails::from_bytes(&entity_data).map_err(|e| {
+                WorldLoadError::InvalidSaveFormat(format!("Failed to load entity: {e}"))
+            })?;
+
+            world.ecs.spawn_from_details(&details);
+        }
     }
-    let entities_data = std::fs::read(entities_path).unwrap();
-    let mut entities_iter = entities_data.into_iter();
-    let entity_count = read_u64(&mut entities_iter, "Entity count")?;
-    for _ in 0..entity_count {
-        let ident_str_len = read_u8(&mut entities_iter, "Entity ident length")? as usize;
-        let ident_str = read_string(&mut entities_iter, ident_str_len, "Entity ident")?;
-        let entity_data_len = read_u32(&mut entities_iter, "Entity data length")?;
-        let entity_data = take_exact(&mut entities_iter, entity_data_len as usize, "Entity data")?;
-
-        let def_id = entity_registry().get_id(&ident_str).ok_or_else(|| {
-            WorldLoadError::InvalidSaveFormat(format!("Unknown entity ident: {}", ident_str))
-        })?;
-        let def = entity_registry().get(def_id).unwrap();
-
-        let deserialize = def.deserialize.as_ref().ok_or_else(|| {
-            WorldLoadError::InvalidSaveFormat(format!(
-                "Entity type {} cannot be loaded from entities.bin",
-                ident_str
-            ))
-        })?;
-
-        let entity = deserialize(&mut entity_data.into_iter(), version)?;
-        world.add_entity(entity);
-    }
+    // versions before 0x08 predate the ECS entirely so no non-player entities existed to save, nothing to load
 
     let players_dir = path.join("players");
     if !players_dir.exists() {
@@ -743,16 +736,75 @@ fn load_v0_to_v7(
             continue;
         }
         let player_data = std::fs::read(entry.path()).unwrap();
-        let mut player_iter = player_data.into_iter();
-        let player = PlayerEntity::load(&mut player_iter, version).map_err(|e| {
-            WorldLoadError::InvalidSaveFormat(format!(
-                "Failed to load player data from {}: {}",
-                entry.path().display(),
-                e
-            ))
-        })?;
-        world.player_cache.insert(player.username.clone(), player);
+
+        let (username, details) = if version < 8 {
+            let mut player_iter = player_data.into_iter();
+            load_legacy_player_details(&mut player_iter, version).map_err(|e| {
+                WorldLoadError::InvalidSaveFormat(format!(
+                    "Failed to load player data from {}: {}",
+                    entry.path().display(),
+                    e
+                ))
+            })?
+        } else {
+            let details = EntityDetails::from_bytes(&player_data).map_err(|e| {
+                WorldLoadError::InvalidSaveFormat(format!(
+                    "Failed to load player data from {}: {}",
+                    entry.path().display(),
+                    e
+                ))
+            })?;
+            let username = details
+                .get::<Username>() // see note below — needs a typed accessor on EntityDetails
+                .ok_or_else(|| {
+                    WorldLoadError::InvalidSaveFormat(format!(
+                        "Player save {} missing Username component",
+                        entry.path().display()
+                    ))
+                })?
+                .0
+                .clone();
+            (username, details)
+        };
+
+        world.player_cache.insert(username, details);
     }
 
     Ok(world)
+}
+
+fn load_legacy_player_details(
+    data: &mut impl Iterator<Item = u8>,
+    version: u8,
+) -> Result<(String, EntityDetails), WorldLoadError> {
+    let username_len = read_u8(data, "Player username length")? as usize;
+    let username = read_string(data, username_len, "Player username")?;
+    let position = read_vec3(data, "Player position")?;
+    let velocity = read_vec3(data, "Player velocity")?;
+    let yaw = read_f32(data, "Player yaw")?;
+    let pitch = read_f32(data, "Player pitch")?;
+    let inventory = if version < 2 {
+        Inventory::new()
+    } else {
+        Inventory::load(data, version)?
+    };
+    let flying = read_u8(data, "Player flying state")? != 0;
+
+    let details = EntityDetails::builder()
+        .with(Position(position))
+        .with(Velocity(velocity))
+        .with(Rotation { yaw, pitch })
+        .with(OnGround(false))
+        .with(Username(username.clone()))
+        .with(inventory)
+        .with(SelectedHotbarSlot(0))
+        .with(Flying(flying))
+        .with(Hitbox {
+            width: 0.8,
+            height: 1.8,
+        })
+        .with(MoveInput::default())
+        .build();
+
+    Ok((username, details))
 }

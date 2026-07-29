@@ -8,7 +8,7 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{BlockId, BlockState},
     direction::Direction,
-    entity::EntityDefId,
+    entity::EntityId,
     textcomponent::TextComponent,
     world::chunk::Chunk,
 };
@@ -89,7 +89,7 @@ pub enum S2CMessage {
     /// Confirmation of connection to a world.
     Connected {
         user_id: u64,
-        entity_id: u64,
+        entity_id: EntityId,
         inventory: crate::item::Inventory,
     },
     /// Notification of connection failure with a reason.
@@ -98,13 +98,12 @@ pub enum S2CMessage {
     Disconnected { user_id: u64 },
     /// An entity has spawned in the world.
     EntitySpawned {
-        entity_id: u64,
-        entity_def_id: EntityDefId,
+        entity_id: EntityId,
         entity_snapshot: Vec<u8>,
     },
     /// Update of a player's position, yaw, and pitch.
     PlayerMoved {
-        entity_id: u64,
+        entity_id: EntityId,
         position: Vec3,
         yaw: f32,
         pitch: f32,

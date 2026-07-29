@@ -6,11 +6,12 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use fxhash::FxHashMap;
-use glam::Vec3;
+use glam::{IVec3, Vec3};
 
 use crate::{
     command::{CommandContext, CommandManager, commands},
-    entity::{Entity, PlayerEntity},
+    entity::{EntityDetails, EntityId, MoveInput, components::*, ecs::Scheduler, systems},
+    item::Inventory,
     protocol::*,
     world::{World, chunk::CHUNK_SIZE},
 };
@@ -39,7 +40,7 @@ fn broadcast_message(
 /// Represents a connected client on the server.
 pub struct PlayerSession {
     pub user_id: u64,
-    pub entity_id: u64,
+    pub entity_id: EntityId,
     pub username: String,
     pub pending_messages: Vec<S2CMessage>,
 }
@@ -73,8 +74,9 @@ impl PlayerSession {
 pub struct Server {
     pub sessions: FxHashMap<u64, PlayerSession>,
     pub connections: FxHashMap<u64, u64>,
-    pub entity_to_user: FxHashMap<u64, u64>,
+    pub entity_to_user: FxHashMap<EntityId, u64>,
     pub world: World,
+    pub scheduler: Scheduler,
     pub singleplayer: bool,
     pub save_path: PathBuf,
     pub user_db: user::UserDatabase,
@@ -88,11 +90,13 @@ impl Server {
     pub fn new(singleplayer: bool, seed: i32, save_path: PathBuf) -> Server {
         let mut command_manager = CommandManager::new();
         commands::init_command_mgr(&mut command_manager);
+        let scheduler = Scheduler::new().add_system(systems::movement_system);
         Self {
             sessions: FxHashMap::default(),
             connections: FxHashMap::default(),
             entity_to_user: FxHashMap::default(),
             world: World::new(seed),
+            scheduler,
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),
@@ -112,10 +116,9 @@ impl Server {
 
     /// Gets a session by entity ID, if it exists.
     pub fn get_session_by_entity<'a>(
-        &self,
-        entity_to_user: &HashMap<u64, u64>,
+        entity_to_user: &HashMap<EntityId, u64>,
         sessions: &'a HashMap<u64, PlayerSession>,
-        entity_id: u64,
+        entity_id: EntityId,
     ) -> Option<&'a PlayerSession> {
         let user_id = entity_to_user.get(&entity_id)?;
         sessions.get(user_id)
@@ -123,12 +126,34 @@ impl Server {
 
     /// Gets a mutable reference to a session by entity ID, if it exists.
     fn get_session_by_entity_mut<'a>(
-        entity_to_user: &FxHashMap<u64, u64>,
+        entity_to_user: &FxHashMap<EntityId, u64>,
         sessions: &'a mut FxHashMap<u64, PlayerSession>,
-        entity_id: u64,
+        entity_id: EntityId,
     ) -> Option<&'a mut PlayerSession> {
         let user_id = entity_to_user.get(&entity_id)?;
         sessions.get_mut(user_id)
+    }
+
+    /// Default entity details for a player who has logged in for the first time.
+    fn default_player_details(username: &str, pos: Vec3) -> EntityDetails {
+        EntityDetails::builder()
+            .with(Position(pos))
+            .with(Velocity(Vec3::ZERO))
+            .with(Rotation {
+                yaw: 0.0,
+                pitch: 0.0,
+            })
+            .with(OnGround(false))
+            .with(Username(username.to_string()))
+            .with(Inventory::new())
+            .with(SelectedHotbarSlot(0))
+            .with(Flying(false))
+            .with(Hitbox {
+                width: 0.8,
+                height: 1.8,
+            })
+            .with(MoveInput::default())
+            .build()
     }
 
     /// Handles messages received from clients, and prepares responses. Note that this does not
@@ -167,15 +192,15 @@ impl Server {
                             username
                         );
                         let user_id = self.next_user_id();
-                        let entity = if let Some(entity) = self.world.player_cache.remove(&username)
-                        {
-                            entity
-                        } else {
-                            PlayerEntity::new(username.clone(), Vec3::new(0.0, 25.0, 0.0))
-                        };
-                        self.world.load_around(entity.position().as_ivec3());
-                        let inventory = entity.inventory.clone();
-                        let entity_id = self.world.add_entity(Box::new(entity));
+                        let entitydet =
+                            if let Some(entitydet) = self.world.player_cache.remove(&username) {
+                                entitydet
+                            } else {
+                                Self::default_player_details(&username, Vec3::new(0.0, 25.0, 0.0))
+                            };
+                        self.world.load_around(IVec3::new(0, 25, 0));
+                        let inventory = entitydet.get::<Inventory>().unwrap();
+                        let entity_id = self.world.ecs.spawn_from_details(&entitydet);
                         self.sessions.insert(
                             user_id,
                             PlayerSession {
@@ -196,19 +221,11 @@ impl Server {
                             None,
                             S2CMessage::EntitySpawned {
                                 entity_id,
-                                entity_def_id: *crate::entity::entities::PLAYER,
-                                entity_snapshot: self
-                                    .world
-                                    .get_entity::<PlayerEntity>(entity_id)
-                                    .unwrap()
-                                    .snapshot(),
+                                entity_snapshot: entitydet.to_bytes(),
                             },
                         );
                         log::info!(
-                            "User '{}' connected with user ID {} and entity ID {}",
-                            username,
-                            user_id,
-                            entity_id
+                            "User '{username}' connected with user ID {user_id} and entity ID {entity_id}"
                         );
                     }
                     Err(reason) => {
@@ -221,13 +238,12 @@ impl Server {
                 let user_id = self.connections.remove(&connection_id)?;
 
                 if let Some(session) = self.sessions.remove(&user_id) {
-                    if let Some(entity) = self.world.remove_entity(session.entity_id)
-                        && let Ok(player_entity) = entity.into_any().downcast::<PlayerEntity>()
-                    {
-                        self.world
-                            .player_cache
-                            .insert(player_entity.username.clone(), *player_entity);
-                    }
+                    let details = self.world.ecs.entity_details(session.entity_id);
+                    self.world.ecs.despawn(session.entity_id);
+
+                    self.world
+                        .player_cache
+                        .insert(session.username.clone(), details);
 
                     broadcast_message(
                         &mut self.sessions,
@@ -241,30 +257,25 @@ impl Server {
                     );
                 }
             }
-            C2SMessage::Move(MoveInstructions {
-                forward,
-                strafe,
-                jump,
-                sneak,
-                yaw,
-                pitch,
-            }) => {
+            C2SMessage::Move(inst) => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get(user_id)
-                    && let Some(entity) =
-                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
                 {
-                    entity.yaw = yaw;
-                    entity.pitch = pitch;
-                    entity.input = MoveInstructions {
-                        forward,
-                        strafe,
-                        jump,
-                        sneak,
-                        yaw,
-                        pitch,
+                    if let Some(rot) = self
+                        .world
+                        .ecs
+                        .get_component_mut::<Rotation>(session.entity_id)
+                    {
+                        rot.yaw = inst.yaw;
+                        rot.pitch = inst.pitch;
                     }
-                    .into();
+                    if let Some(input) = self
+                        .world
+                        .ecs
+                        .get_component_mut::<MoveInput>(session.entity_id)
+                    {
+                        *input = inst.into();
+                    }
                 }
             }
             C2SMessage::RequestChunks { chunk_positions } => {
@@ -272,8 +283,9 @@ impl Server {
                     && let Some(session) = self.sessions.get_mut(user_id)
                     && let Some(pos) = self
                         .world
-                        .get_entity::<PlayerEntity>(session.entity_id)
-                        .map(|e| e.position / CHUNK_SIZE as f32)
+                        .ecs
+                        .get_component::<Position>(session.entity_id)
+                        .map(|v| v.0 / CHUNK_SIZE as f32)
                 {
                     for chunk_position in chunk_positions {
                         let cp_float = chunk_position.as_vec3() + Vec3::splat(0.5);
@@ -339,12 +351,12 @@ impl Server {
             } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
-                    && let Some(player_pos) = self
+                    && let Some(pos) = self
                         .world
-                        .get_entity::<PlayerEntity>(session.entity_id)
-                        .map(|e| e.position)
+                        .ecs
+                        .get_component_copied::<Position>(session.entity_id)
                 {
-                    if position.as_vec3().distance_squared(player_pos) > 25.0 {
+                    if position.as_vec3().distance_squared(pos.0) > 25.0 {
                         return None;
                     }
                     if right {
@@ -358,19 +370,24 @@ impl Server {
             C2SMessage::InventoryClick { idx, right } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
-                    && let Some(player_entity) =
-                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                    && let Some(inv) = self
+                        .world
+                        .ecs
+                        .get_component_mut::<Inventory>(session.entity_id)
                 {
-                    player_entity.inventory.click(idx, right);
+                    inv.click(idx, right);
                 }
             }
             C2SMessage::HotbarChange { idx } => {
-                if let Some(user_id) = self.connections.get(&connection_id)
+                if idx < 9
+                    && let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
-                    && let Some(player_entity) =
-                        self.world.get_entity_mut::<PlayerEntity>(session.entity_id)
+                    && let Some(selected_hotbar) = self
+                        .world
+                        .ecs
+                        .get_component_mut::<SelectedHotbarSlot>(session.entity_id)
                 {
-                    player_entity.hotbar_index = idx;
+                    selected_hotbar.0 = idx;
                 }
             }
         }
@@ -385,8 +402,9 @@ impl Server {
             .values()
             .filter_map(|session| {
                 self.world
-                    .get_entity::<PlayerEntity>(session.entity_id)
-                    .map(|entity| entity.position / CHUNK_SIZE as f32)
+                    .ecs
+                    .get_component::<Position>(session.entity_id)
+                    .map(|v| v.0 / CHUNK_SIZE as f32)
             })
             .collect();
         self.world.chunks.retain(|&pos, _| {
@@ -397,7 +415,7 @@ impl Server {
         });
 
         self.tps = tps;
-        self.world.tick(tps);
+        self.world.tick(&mut self.scheduler, tps);
 
         let pending_changes = std::mem::take(&mut self.world.pending_changes).collect::<Vec<_>>();
         broadcast_message(
@@ -408,32 +426,33 @@ impl Server {
             },
         );
 
-        for entity in self.world.entities.values() {
-            if let Some(entity) = entity.as_any().downcast_ref::<PlayerEntity>() {
-                if entity.velocity.length_squared() > 0.0 {
-                    broadcast_message(
-                        &mut self.sessions,
-                        None,
-                        S2CMessage::PlayerMoved {
-                            entity_id: entity.id(),
-                            position: entity.position(),
-                            yaw: entity.yaw,
-                            pitch: entity.pitch,
-                        },
-                    );
-                }
-
-                if entity.inventory.dirty
-                    && let Some(session) = Self::get_session_by_entity_mut(
-                        &self.entity_to_user,
-                        &mut self.sessions,
-                        entity.id(),
-                    )
-                {
-                    session.pending_messages.push(S2CMessage::InventoryUpdated {
-                        inventory: entity.inventory.clone(),
-                    });
-                }
+        for (entity, (&position, &velocity, &rotation, inventory)) in
+            self.world
+                .ecs
+                .query::<(&Position, &Velocity, &Rotation, &Inventory)>()
+        {
+            if velocity.0.length_squared() > 0.0 {
+                broadcast_message(
+                    &mut self.sessions,
+                    None,
+                    S2CMessage::PlayerMoved {
+                        entity_id: entity,
+                        position: position.0,
+                        yaw: rotation.yaw,
+                        pitch: rotation.pitch,
+                    },
+                );
+            }
+            if inventory.dirty
+                && let Some(session) = Self::get_session_by_entity_mut(
+                    &self.entity_to_user,
+                    &mut self.sessions,
+                    entity,
+                )
+            {
+                session.pending_messages.push(S2CMessage::InventoryUpdated {
+                    inventory: inventory.clone(),
+                });
             }
         }
     }
@@ -451,11 +470,13 @@ impl Server {
     pub fn load(singleplayer: bool, save_path: PathBuf) -> std::io::Result<Self> {
         let mut command_manager = CommandManager::new();
         commands::init_command_mgr(&mut command_manager);
+        let scheduler = Scheduler::new().add_system(systems::movement_system);
         Ok(Self {
             sessions: FxHashMap::default(),
             connections: FxHashMap::default(),
             entity_to_user: FxHashMap::default(),
             world: World::load(&save_path)?,
+            scheduler,
             singleplayer,
             save_path: save_path.clone(),
             user_db: user::UserDatabase::load(save_path.join("users.json")),

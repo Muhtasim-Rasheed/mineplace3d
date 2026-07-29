@@ -202,7 +202,9 @@ impl SinglePlayer {
                 entity_shader: shader_program!(entity, gl, ".."),
                 postprocess_shader: shader_program!(postprocess, gl, ".."),
                 chunk_border_shader: shader_program!(chunk_border, gl, ".."),
-                entity_model: crate::render::entities::player_model(gl),
+                // FIXME: Update the width and height values based on self.client.player.width and
+                // height
+                entity_model: crate::render::entities::player_model(0.8, 1.8, gl),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
                 pink_black,

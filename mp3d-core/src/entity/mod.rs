@@ -2,37 +2,93 @@
 //!
 //! This module provides the `Entity` trait and some implementations like the `Player` entity.
 
-use glam::Vec3;
+use crate::{
+    define_entities,
+    entity::components::{Component, ComponentId, component_registry},
+    registry::Def,
+    serialize::{
+        read::{ByteReader, ReadError},
+        write::ByteWriter,
+    },
+};
 
-use crate::{define_entities, saving::Saveable, world::World};
+/// ID of an entity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EntityId {
+    pub index: u32,
+    pub generation: u32,
+}
 
-/// Represents a game entity in the world.
-pub trait Entity: std::any::Any + Saveable + Send + Sync + 'static {
-    fn as_any(&self) -> &dyn std::any::Any;
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
-    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
-    fn name(&self) -> &'static str {
-        std::any::type_name::<Self>().rsplit("::").next().unwrap()
+impl std::fmt::Display for EntityId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:08x}-{:08x}", self.index, self.generation)
     }
-    fn def_id(&self) -> EntityDefId;
-    fn set_id(&mut self, id: u64);
-    fn id(&self) -> u64;
-    fn snapshot(&self) -> Vec<u8>;
-    fn position(&self) -> Vec3;
-    fn position_mut(&mut self) -> &mut Vec3;
-    fn forward(&self) -> Vec3;
-    fn apply_velocity(&mut self, velocity: Vec3);
-    fn width() -> f32
-    where
-        Self: Sized;
-    fn height() -> f32
-    where
-        Self: Sized;
-    fn requests_removal(&self) -> bool {
-        false
+}
+
+pub struct EntityDetails {
+    components: Vec<(ComponentId, Vec<u8>)>,
+}
+
+impl EntityDetails {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+        let mut reader = ByteReader::new(bytes);
+
+        let count = reader.u16()?;
+        let registry = component_registry();
+        let mut components = Vec::with_capacity(count as usize);
+
+        for _ in 0..count {
+            let ident = reader.string()?;
+            let len = reader.u32()? as usize;
+            let data = reader.take(len)?.to_vec();
+
+            match registry.get_id(&ident) {
+                Some(id) => components.push((id, data)),
+                None => continue,
+            }
+        }
+
+        Ok(Self { components })
     }
-    /// Called every 48 ticks per second.
-    fn tick(&mut self, world: &mut World, tps: u8);
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let registry = component_registry();
+        let mut writer = ByteWriter::new().u16(self.components.len() as u16);
+        for (id, data) in &self.components {
+            let ident = registry.get(*id).unwrap().ident();
+            writer = writer.string(ident).u32(data.len() as u32).bytes(data);
+        }
+        writer.into_bytes()
+    }
+
+    pub fn get<T: Component>(&self) -> Option<T> {
+        let id = T::component_id();
+        let (_, bytes) = self.components.iter().find(|(cid, _)| *cid == id)?;
+        T::from_bytes(bytes).ok()
+    }
+
+    pub fn builder() -> EntityDetailsBuilder {
+        EntityDetailsBuilder {
+            components: Vec::new(),
+        }
+    }
+}
+
+pub struct EntityDetailsBuilder {
+    components: Vec<(ComponentId, Vec<u8>)>,
+}
+
+impl EntityDetailsBuilder {
+    pub fn with<T: Component>(mut self, value: T) -> Self {
+        self.components.push((T::component_id(), value.to_bytes()));
+        self
+    }
+
+    pub fn build(self) -> EntityDetails {
+        EntityDetails {
+            components: self.components,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -65,12 +121,11 @@ impl From<crate::protocol::MoveInstructions> for MoveInput {
     }
 }
 
-define_entities! {
-    PLAYER => { ident: "player" }
-}
-
-pub mod player;
+pub mod components;
+pub mod ecs;
 pub mod registration;
+pub mod systems;
 
-pub use player::*;
-pub use registration::*;
+// The player is not here because EntityDef requires us to make a template function but a player
+// entity doesn't have a sensible default.
+define_entities! {}

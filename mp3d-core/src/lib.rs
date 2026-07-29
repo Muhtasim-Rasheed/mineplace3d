@@ -14,6 +14,7 @@ pub mod physics;
 pub mod protocol;
 pub mod registry;
 pub mod saving;
+pub mod serialize;
 pub mod server;
 pub mod textcomponent;
 pub mod uniquequeue;
@@ -22,7 +23,7 @@ pub mod world;
 pub fn init() {
     block::init_block_registry();
     item::init_item_registry();
-    entity::init_entity_registry();
+    entity::components::init_component_registry();
 }
 
 pub(crate) fn aabb_overlap(a_min: Vec3, a_max: Vec3, b_min: Vec3, b_max: Vec3) -> bool {

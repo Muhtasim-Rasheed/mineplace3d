@@ -3,6 +3,7 @@ use glam::{IVec3, Vec3};
 use crate::{
     block::{BlockState, CollisionShape},
     direction::Direction,
+    entity::EntityId,
     registry::{Def, DefId, LazyId, Registry, RegistryToken},
     world::World,
 };
@@ -21,10 +22,10 @@ impl DefId for BlockId {
 }
 
 pub type OnClick =
-    Box<dyn Fn(BlockId, &mut World, u64, IVec3, BlockState, Direction) -> bool + Send + Sync>;
+    Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, BlockState, Direction) -> bool + Send + Sync>;
 pub type OnPlace =
-    Box<dyn Fn(BlockId, &mut World, u64, IVec3, Direction) -> BlockState + Send + Sync>;
-pub type OnBreak = Box<dyn Fn(BlockId, &mut World, u64, IVec3, BlockState) + Send + Sync>;
+    Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, Direction) -> BlockState + Send + Sync>;
+pub type OnBreak = Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, BlockState) + Send + Sync>;
 
 pub struct BlockDef {
     pub visible: bool,

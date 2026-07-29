@@ -1,11 +1,14 @@
 //! Implementation of the /setblock command
 
+use glam::Vec3;
+
 use crate::{
     block::{BlockState, block_registry},
     command::{
         ArgStream, Command, CommandArg, CommandContext,
         parser::{Coord3, Word},
     },
+    entity::components::{Position, Rotation},
     textcomponent::TextComponent,
 };
 
@@ -42,6 +45,23 @@ impl Command for SetBlockCommand {
             }
         };
 
+        let Some((Position(pos), rot)) = ctx
+            .world
+            .ecs
+            .get_component_copied::<Position>(sender)
+            .and_then(|v| Some((v, ctx.world.ecs.get_component_copied::<Rotation>(sender)?)))
+        else {
+            return Err("You must have a position and rotation associated with you".to_string());
+        };
+
+        let yaw_rad = rot.yaw.to_radians();
+        let pitch_rad = rot.pitch.to_radians();
+        let fwd = Vec3::new(
+            yaw_rad.sin() * pitch_rad.cos(),
+            pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
+        );
+
         let ident = Word::parse(&mut args)?;
         let coord3 = Coord3::parse(&mut args)?;
         let state_data = <Option<u16>>::parse(&mut args)?;
@@ -50,7 +70,7 @@ impl Command for SetBlockCommand {
         let reg = block_registry();
         let block = reg.get_id(&ident.0).ok_or("Unknown block identifier")?;
         let block_def = reg.get(block).unwrap();
-        let ivec3 = coord3.as_ivec3(sender.position(), sender.forward());
+        let ivec3 = coord3.as_ivec3(pos, fwd);
         let state = if let Some(state_data) = state_data {
             if BlockState::possible_data_values(block_def.state_type)
                 .unwrap()

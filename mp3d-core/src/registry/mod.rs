@@ -73,12 +73,10 @@ impl<Entry: Def> Registry<Entry> {
         Ok(id)
     }
 
-    // #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, Entry> {
         self.entries.iter()
     }
 
-    // #[inline]
     pub fn iter_enumerate(&self) -> impl Iterator<Item = (Entry::Id, &Entry)> {
         self.entries
             .iter()
@@ -86,22 +84,26 @@ impl<Entry: Def> Registry<Entry> {
             .map(|(i, entry)| (Entry::Id::new(i, RegistryToken::new()), entry))
     }
 
-    // #[inline]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    // #[inline]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
-    // #[inline]
+    pub fn valid_id(&self, id: usize) -> Option<Entry::Id> {
+        if id < self.len() {
+            Some(Entry::Id::new(id, RegistryToken::new()))
+        } else {
+            None
+        }
+    }
+
     pub fn get_id(&self, str_id: &str) -> Option<Entry::Id> {
         self.str_to_id.get(str_id).copied()
     }
 
-    // #[inline]
     pub fn get(&self, id: Entry::Id) -> Option<&Entry> {
         self.entries.get(id.get())
     }

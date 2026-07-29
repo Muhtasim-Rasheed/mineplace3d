@@ -17,6 +17,7 @@ use std::{cell::RefCell, rc::Rc};
 use glam::{IVec3, Vec3};
 use mp3d_core::{
     block::block_registry,
+    entity::EntityId,
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
     textcomponent::TextComponent,
@@ -146,7 +147,7 @@ pub struct Client<C: Connection> {
     pub connection: C,
     pub player: player::ClientPlayer,
     pub user_id: Option<u64>,
-    pub entity_id: Option<u64>,
+    pub entity_id: Option<EntityId>,
     pub gui: CurrentGUI,
     pub messages: Vec<TextComponent>,
     pub world: ClientWorld,
@@ -188,6 +189,8 @@ impl<C: Connection> Client<C> {
                 flying: false,
                 on_ground: false,
                 input: MoveInstructions::default(),
+                width: 0.8,
+                height: 1.8,
                 inventory: Rc::new(RefCell::new(ClientInventory::new())),
                 third_person: false,
             },
@@ -461,17 +464,15 @@ impl<C: Connection> Client<C> {
                     return Err(reason);
                 }
                 S2CMessage::EntitySpawned {
-                    entity_id: _,
-                    entity_def_id,
+                    entity_id,
                     entity_snapshot,
                 } => {
-                    if entity_def_id == *mp3d_core::entity::entities::PLAYER {
-                        log::info!("Player snapshot received, {} bytes", entity_snapshot.len());
-                        if u64::from_le_bytes(entity_snapshot[0..8].try_into().unwrap())
-                            == self.entity_id.unwrap()
-                        {
-                            self.player.update_from_snapshot(&entity_snapshot);
-                        }
+                    if Some(entity_id) == self.entity_id {
+                        self.player
+                            .update_from_snapshot(&entity_snapshot)
+                            .unwrap_or_else(|e| {
+                                panic!("failed updating client player from snapshot: {e}")
+                            });
                     }
                 }
                 S2CMessage::PlayerMoved {

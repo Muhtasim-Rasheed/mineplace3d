@@ -2,8 +2,7 @@
 
 use crate::{
     command::{ArgStream, Command, CommandArg, CommandContext, parser::Word},
-    entity::PlayerEntity,
-    item::item_registry,
+    item::{Inventory, item_registry},
     textcomponent::TextComponent,
 };
 
@@ -47,8 +46,8 @@ impl Command for GiveCommand {
         let reg = item_registry();
         let item = reg.get_id(&ident.0).ok_or("Unknown item identifier")?;
         let item_def = reg.get(item).unwrap();
-        if let Some(player) = sender.as_any_mut().downcast_mut::<PlayerEntity>() {
-            player.inventory.add_stack(item, count);
+        if let Some(inv) = ctx.world.ecs.get_component_mut::<Inventory>(sender) {
+            inv.add_stack(item, count);
 
             Ok(format!("%b7FGave you {} x {}%r", count, item_def.ident)
                 .parse()

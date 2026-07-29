@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use glam::{Vec2, Vec3, vec2, vec3};
 use glow::HasContext;
-use mp3d_core::entity::Entity;
 
 use crate::abs::{Mesh, Vertex};
 
@@ -49,9 +48,7 @@ impl Vertex for EntityVertex {
     }
 }
 
-pub fn player_model(gl: &Arc<glow::Context>) -> Mesh {
-    let width = mp3d_core::entity::PlayerEntity::width();
-    let height = mp3d_core::entity::PlayerEntity::height();
+pub fn player_model(width: f32, height: f32, gl: &Arc<glow::Context>) -> Mesh {
     let hw = width / 2.0;
 
     let (y0, y1) = (0.0, height);

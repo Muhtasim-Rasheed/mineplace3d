@@ -2,7 +2,7 @@
 
 use crate::{
     command::{ArgStream, Command, CommandContext},
-    entity::PlayerEntity,
+    item::Inventory,
     textcomponent::TextComponent,
 };
 
@@ -36,8 +36,8 @@ impl Command for ClearCommand {
 
         args.ensure_empty()?;
 
-        if let Some(player) = sender.as_any_mut().downcast_mut::<PlayerEntity>() {
-            player.inventory.clear();
+        if let Some(inv) = ctx.world.ecs.get_component_mut::<Inventory>(sender) {
+            inv.clear();
 
             Ok("%b7FCleared your inventory".parse().unwrap())
         } else {
