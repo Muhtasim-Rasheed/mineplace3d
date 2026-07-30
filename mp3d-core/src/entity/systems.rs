@@ -12,7 +12,7 @@ pub fn movement_system(world: &mut World, dt: f32) {
         &mut Position,
         &mut Velocity,
         &mut OnGround,
-        &mut Flying,
+        Option<&mut Flying>,
         &Rotation,
         &Hitbox,
         Option<&MoveInput>,
@@ -22,7 +22,7 @@ pub fn movement_system(world: &mut World, dt: f32) {
             position: pos.0,
             velocity: vel.0,
             on_ground: on_ground.0,
-            flying: flying.0,
+            flying: flying.as_ref().map_or(false, |v| v.0),
         };
         let state = step(
             state,
@@ -36,6 +36,8 @@ pub fn movement_system(world: &mut World, dt: f32) {
         *pos = Position(state.position);
         *vel = Velocity(state.velocity);
         *on_ground = OnGround(state.on_ground);
-        *flying = Flying(state.flying);
+        if let Some(flying) = flying {
+            *flying = Flying(state.flying);
+        }
     }
 }

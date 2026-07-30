@@ -57,9 +57,9 @@ impl CommandArg for CoordArg {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Coord3 {
-    x: CoordArg,
-    y: CoordArg,
-    z: CoordArg,
+    pub x: CoordArg,
+    pub y: CoordArg,
+    pub z: CoordArg,
 }
 
 impl Coord3 {

@@ -70,7 +70,7 @@ impl Command for TpCommand {
         ctx.world.load_around(pos.as_ivec3());
 
         Ok(
-            format!("%b7FTeleported you to {}, {}, {}%r", vec3.x, vec3.y, vec3.z,)
+            format!("%b7FTeleported you to {}, {}, {}%r", vec3.x, vec3.y, vec3.z)
                 .parse()
                 .unwrap(),
         )

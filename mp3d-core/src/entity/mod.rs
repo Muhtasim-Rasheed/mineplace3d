@@ -121,6 +121,7 @@ impl From<crate::protocol::MoveInstructions> for MoveInput {
     }
 }
 
+pub mod cat;
 pub mod components;
 pub mod ecs;
 pub mod registration;
@@ -128,4 +129,9 @@ pub mod systems;
 
 // The player is not here because EntityDef requires us to make a template function but a player
 // entity doesn't have a sensible default.
-define_entities! {}
+define_entities! {
+    CAT => {
+        ident: "cat",
+        template: crate::entity::cat::cat_template,
+    },
+}

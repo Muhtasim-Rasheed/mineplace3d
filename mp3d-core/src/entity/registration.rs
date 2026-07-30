@@ -72,15 +72,12 @@ macro_rules! define_entities {
         ),* $(,)?
     ) => {
         pub mod entities {
-            #[allow(unused_imports)]
-            use super::*;
-
             $(
-                pub static $name: $crate::registry::LazyId<EntityDefId> = $crate::registry::LazyId::new();
+                pub static $name: $crate::registry::LazyId<$crate::entity::registration::EntityDefId> = $crate::registry::LazyId::new();
 
                 ::inventory::submit! {
-                    $crate::item::EntityRegistration {
-                        build: || EntityDef {
+                    $crate::entity::registration::EntityRegistration {
+                        build: || $crate::entity::registration::EntityDef {
                             ident: $ident,
                             template: $template,
                         },

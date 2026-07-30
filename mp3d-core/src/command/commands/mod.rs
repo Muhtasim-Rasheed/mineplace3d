@@ -6,6 +6,7 @@ mod help;
 mod say;
 mod seed;
 mod setblock;
+mod spawn;
 mod test;
 mod time;
 mod tp;
@@ -18,6 +19,7 @@ pub fn init_command_mgr(mgr: &mut CommandManager) {
     mgr.register(say::SayCommand);
     mgr.register(seed::SeedCommand);
     mgr.register(setblock::SetBlockCommand);
+    mgr.register(spawn::SpawnCommand);
     mgr.register(tp::TpCommand);
     mgr.register(tps::TpsCommand);
     mgr.register(test::TestCommand);
