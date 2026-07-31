@@ -208,6 +208,14 @@ impl World {
         self.time += 1;
     }
 
+    pub fn entities_in_range(&self, center: Vec3, range: f32) -> Vec<EntityId> {
+        self.ecs
+            .query_ro::<&Position>()
+            .filter(|(_, pos)| pos.0.distance_squared(center) <= range * range)
+            .map(|(entity, _)| entity)
+            .collect()
+    }
+
     fn player_bounds(ecs: &ECS, entity: EntityId) -> Option<(Vec3, f32, f32)> {
         let pos = ecs.get_component_copied::<Position>(entity)?.0;
         let hb = ecs.get_component_copied::<Hitbox>(entity)?;

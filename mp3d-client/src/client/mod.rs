@@ -8,6 +8,7 @@
 //! this trait for local server interactions.
 
 pub mod chunk;
+pub mod ecs;
 mod emoji;
 pub mod player;
 pub mod world;
@@ -17,7 +18,7 @@ use std::{cell::RefCell, rc::Rc};
 use glam::{IVec3, Vec3};
 use mp3d_core::{
     block::block_registry,
-    entity::EntityId,
+    entity::{EntityDetails, EntityId},
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
     server::Server,
     textcomponent::TextComponent,
@@ -25,7 +26,7 @@ use mp3d_core::{
 use sdl2::keyboard::Keycode;
 
 use crate::{
-    client::{player::ClientInventory, world::ClientWorld},
+    client::{player::LocalInventory, world::ClientWorld},
     other::UpdateContext,
     render::particles::ParticleSystem,
 };
@@ -145,7 +146,7 @@ impl CurrentGUI {
 /// The client struct that uses a connection to communicate with the server.
 pub struct Client<C: Connection> {
     pub connection: C,
-    pub player: player::ClientPlayer,
+    pub player: player::LocalPlayer,
     pub user_id: Option<u64>,
     pub entity_id: Option<EntityId>,
     pub gui: CurrentGUI,
@@ -179,7 +180,7 @@ impl<C: Connection> Client<C> {
 
         Self {
             connection,
-            player: player::ClientPlayer {
+            player: player::LocalPlayer {
                 position: Vec3::new(0.0, 100.0, 0.0),
                 velocity: Vec3::ZERO,
                 yaw: 0.0,
@@ -191,7 +192,7 @@ impl<C: Connection> Client<C> {
                 input: MoveInstructions::default(),
                 width: 0.8,
                 height: 1.8,
-                inventory: Rc::new(RefCell::new(ClientInventory::new())),
+                inventory: Rc::new(RefCell::new(LocalInventory::new())),
                 third_person: false,
             },
             user_id: None,
@@ -473,6 +474,14 @@ impl<C: Connection> Client<C> {
                             .unwrap_or_else(|e| {
                                 panic!("failed updating client player from snapshot: {e}")
                             });
+                    } else {
+                        match EntityDetails::from_bytes(&entity_snapshot) {
+                            Ok(entity) => {
+                                self.world.ecs.spawn(entity_id, entity);
+                                log::debug!("Entity spawned with ID ({entity_id})");
+                            }
+                            Err(e) => log::warn!("Server sent invalid entity details: {e}"),
+                        }
                     }
                 }
                 S2CMessage::PlayerMoved {
@@ -572,7 +581,7 @@ impl<C: Connection> Drop for Client<C> {
 /// hit.
 pub fn cast_ray(
     world: &ClientWorld,
-    player: &player::ClientPlayer,
+    player: &player::LocalPlayer,
     max_distance: f32,
 ) -> Option<(IVec3, IVec3)> {
     let mut pos = player.first_person_eye();

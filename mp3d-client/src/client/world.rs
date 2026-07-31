@@ -10,7 +10,7 @@ use mp3d_core::{
     world::chunk::CHUNK_SIZE,
 };
 
-use crate::client::chunk::ClientChunk;
+use crate::client::{chunk::ClientChunk, ecs::ClientEcs};
 
 /// Number of chunks to render around the player
 const RENDER_DISTANCE: i32 = 8;
@@ -22,6 +22,8 @@ const RENDER_DISTANCE: i32 = 8;
 pub struct ClientWorld {
     /// A mapping of chunk positions to their corresponding client-side chunk data.
     pub chunks: HashMap<IVec3, ClientChunk>,
+    /// Client-side ECS instance that always obeys the server.
+    pub ecs: ClientEcs,
     /// Changes done to the world that haven't been sent to the server yet.
     #[allow(unused)]
     pub pending_changes: Vec<(IVec3, (BlockId, BlockState))>,
@@ -34,6 +36,7 @@ impl ClientWorld {
     pub fn new() -> Self {
         Self {
             chunks: HashMap::new(),
+            ecs: ClientEcs::new(),
             pending_changes: Vec::new(),
             remesh_queue: RemeshQueue::default(),
         }

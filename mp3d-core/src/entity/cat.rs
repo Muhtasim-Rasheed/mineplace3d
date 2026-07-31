@@ -2,7 +2,7 @@ use glam::Vec3;
 
 use crate::entity::{
     EntityDetails,
-    components::{Flying, Hitbox, OnGround, Rotation, Velocity},
+    components::{Hitbox, OnGround, Rotation, Velocity},
 };
 
 pub fn cat_template() -> EntityDetails {

@@ -67,6 +67,16 @@ impl EntityDetails {
         T::from_bytes(bytes).ok()
     }
 
+    pub fn merge(&mut self, other: &EntityDetails) {
+        for (id, data) in &other.components {
+            if let Some(existing) = self.components.iter_mut().find(|(eid, _)| eid == id) {
+                existing.1 = data.clone();
+            } else {
+                self.components.push((*id, data.clone()));
+            }
+        }
+    }
+
     pub fn builder() -> EntityDetailsBuilder {
         EntityDetailsBuilder {
             components: Vec::new(),

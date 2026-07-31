@@ -201,21 +201,35 @@ impl Server {
                         self.world.load_around(IVec3::new(0, 25, 0));
                         let inventory = entitydet.get::<Inventory>().unwrap();
                         let entity_id = self.world.ecs.spawn_from_details(&entitydet);
-                        self.sessions.insert(
+                        let mut session = PlayerSession {
                             user_id,
-                            PlayerSession {
+                            entity_id,
+                            username: username.clone(),
+                            pending_messages: vec![S2CMessage::Connected {
                                 user_id,
                                 entity_id,
-                                username: username.clone(),
-                                pending_messages: vec![S2CMessage::Connected {
-                                    user_id,
-                                    entity_id,
-                                    inventory,
-                                }],
-                            },
-                        );
+                                inventory,
+                            }],
+                        };
                         self.connections.insert(connection_id, user_id);
                         self.entity_to_user.insert(entity_id, user_id);
+                        let render_distance = 8.0 * MAX_RENDER_DIST as f32;
+
+                        for other_entity in self.world.entities_in_range(
+                            entitydet.get::<Position>().unwrap().0,
+                            render_distance,
+                        ) {
+                            if other_entity == entity_id {
+                                continue; // don't send the joining player their own entity twice
+                            }
+
+                            let details = self.world.ecs.entity_details(other_entity);
+                            session.pending_messages.push(S2CMessage::EntitySpawned {
+                                entity_id: other_entity,
+                                entity_snapshot: details.to_bytes(),
+                            });
+                        }
+                        self.sessions.insert(user_id, session);
                         broadcast_message(
                             &mut self.sessions,
                             None,

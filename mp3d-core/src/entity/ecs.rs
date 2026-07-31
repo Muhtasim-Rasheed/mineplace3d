@@ -149,7 +149,7 @@ impl ECS {
         const {
             assert!(
                 Q::READ_ONLY,
-                "use query_mut for queries containing &mut components"
+                "use query for queries containing &mut components"
             )
         };
         let mut accesses = Vec::new();

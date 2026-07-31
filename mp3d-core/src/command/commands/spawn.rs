@@ -11,6 +11,7 @@ use crate::{
         components::{Position, Rotation},
         registration::entity_registry,
     },
+    protocol::S2CMessage,
     textcomponent::TextComponent,
 };
 
@@ -80,8 +81,16 @@ impl Command for SpawnCommand {
         let entity_def_id = reg
             .get_id(&entity_ident.0)
             .ok_or("Unknown entity identifier")?;
-
         let entity_id = ctx.world.ecs.spawn_entity(entity_def_id, pos);
+
+        let entity_snapshot = ctx.world.ecs.serialize_entity(entity_id);
+        ctx.get_sender_session()
+            .unwrap()
+            .pending_messages
+            .push(S2CMessage::EntitySpawned {
+                entity_id,
+                entity_snapshot,
+            });
 
         Ok(format!(
             "%b7FSpawned {} entity at {}, {}, {} with ID {entity_id}%r",

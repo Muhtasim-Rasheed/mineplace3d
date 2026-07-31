@@ -17,7 +17,7 @@ pub struct CommandContext<'a> {
 }
 
 impl<'a> CommandContext<'a> {
-    pub fn get_sender_session_id(&mut self) -> Result<u64, String> {
+    pub fn get_sender_session_id(&self) -> Result<u64, String> {
         self.connections
             .get(&self.connection_id)
             .ok_or_else(|| {
@@ -39,7 +39,7 @@ impl<'a> CommandContext<'a> {
         })
     }
 
-    pub fn get_sender(&mut self) -> Result<EntityId, String> {
+    pub fn get_sender(&self) -> Result<EntityId, String> {
         let session_id = self.get_sender_session_id()?;
         self.sessions
             .get(&session_id)

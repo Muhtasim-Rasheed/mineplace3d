@@ -13,13 +13,13 @@ use mp3d_core::{
 
 use crate::client::world::ClientWorld;
 
-pub struct ClientInventory {
+pub struct LocalInventory {
     pub inner: Inventory,
     pub clicks: Vec<(usize, bool)>,
     pub slot: usize,
 }
 
-impl ClientInventory {
+impl LocalInventory {
     pub fn new() -> Self {
         Self {
             inner: Inventory::new(),
@@ -39,7 +39,7 @@ impl ClientInventory {
     }
 }
 
-pub struct ClientPlayer {
+pub struct LocalPlayer {
     pub position: Vec3,
     pub velocity: Vec3,
     pub yaw: f32,
@@ -51,11 +51,11 @@ pub struct ClientPlayer {
     pub input: MoveInstructions,
     pub width: f32,
     pub height: f32,
-    pub inventory: Rc<RefCell<ClientInventory>>,
+    pub inventory: Rc<RefCell<LocalInventory>>,
     pub third_person: bool,
 }
 
-impl ClientPlayer {
+impl LocalPlayer {
     pub fn forward(&self) -> Vec3 {
         let yaw_rad = self.yaw.to_radians();
         let pitch_rad = self.pitch.to_radians();
@@ -146,7 +146,8 @@ impl ClientPlayer {
     }
 
     pub fn model(&self) -> Mat4 {
-        Mat4::from_rotation_translation(
+        Mat4::from_scale_rotation_translation(
+            Vec3::new(self.width, self.height, self.width),
             glam::Quat::from_rotation_y((self.yaw - self.delta_yaw * 2.0).to_radians()),
             self.position,
         )

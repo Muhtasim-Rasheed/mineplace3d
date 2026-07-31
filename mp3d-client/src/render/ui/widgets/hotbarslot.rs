@@ -4,7 +4,7 @@ use glam::{Mat4, UVec2, UVec4, Vec2, Vec4};
 use mp3d_core::{block::block_registry, item::*};
 
 use crate::{
-    client::player::ClientInventory,
+    client::player::LocalInventory,
     render::ui::{
         font::{ColorlessTextParams, Font, TextParams},
         uirenderer::DrawCommand,
@@ -19,12 +19,12 @@ pub const ITEM_ELEVATION: f32 = 12.0;
 pub struct HotbarSlot {
     position: Vec2,
     nineslice: NineSlice,
-    inventory: Rc<RefCell<ClientInventory>>,
+    inventory: Rc<RefCell<LocalInventory>>,
     idx: usize,
 }
 
 impl HotbarSlot {
-    pub fn new(inventory: &Rc<RefCell<ClientInventory>>, idx: usize) -> Self {
+    pub fn new(inventory: &Rc<RefCell<LocalInventory>>, idx: usize) -> Self {
         let nineslice = NineSlice::new(
             [UVec2::new(32, 16), UVec2::new(16, 16)],
             HOTBAR_SLOT_SIZE,

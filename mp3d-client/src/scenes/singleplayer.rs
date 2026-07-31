@@ -8,13 +8,18 @@ use std::{
 
 use glam::{IVec3, Mat4, UVec2, UVec4, Vec2, Vec3, Vec4};
 use glow::HasContext;
-use mp3d_core::{textcomponent::TextComponent, world::chunk::CHUNK_SIZE};
+use mp3d_core::{
+    entity::components::{Hitbox, Position, Rotation},
+    textcomponent::TextComponent,
+    world::chunk::CHUNK_SIZE,
+};
 
 use crate::{
     abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},
     client::{Client, Connection, CurrentGUI, LocalConnection},
     render::{
         clouds::CloudRenderer,
+        entities::unit_cube,
         meshing::mesh_world,
         particles::ParticleSystem,
         profiler::Profiler,
@@ -64,7 +69,7 @@ struct WorldRenderer {
     postprocess_shader: ShaderProgram,
     chunk_border_shader: ShaderProgram,
 
-    entity_model: Mesh,
+    entity_cube: Mesh,
     fullscreen_quad: Mesh,
     cube_wireframe: Mesh,
 
@@ -202,9 +207,7 @@ impl SinglePlayer {
                 entity_shader: shader_program!(entity, gl, ".."),
                 postprocess_shader: shader_program!(postprocess, gl, ".."),
                 chunk_border_shader: shader_program!(chunk_border, gl, ".."),
-                // FIXME: Update the width and height values based on self.client.player.width and
-                // height
-                entity_model: crate::render::entities::player_model(0.8, 1.8, gl),
+                entity_cube: unit_cube(gl),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
                 pink_black,
@@ -309,7 +312,21 @@ impl SinglePlayer {
         // TODO: use a proper texture atlas for entities.
         self.renderer.pink_black.bind(0);
 
-        self.renderer.entity_model.draw();
+        self.renderer.entity_cube.draw();
+
+        for (_, (pos, rot, hit)) in self
+            .client
+            .world
+            .ecs
+            .query::<(&Position, &Rotation, &Hitbox)>()
+        {
+            let model = Mat4::from_translation(pos.0)
+                * Mat4::from_rotation_y(rot.yaw.to_radians())
+                * Mat4::from_scale(Vec3::new(hit.width, hit.height, hit.width));
+
+            self.renderer.entity_shader.set_uniform("u_model", model);
+            self.renderer.entity_cube.draw();
+        }
     }
 
     fn draw_crosshair(ui: &mut UIRenderer, screen_size: Vec2) {
