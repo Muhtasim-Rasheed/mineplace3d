@@ -13,6 +13,14 @@ use mp3d_core::{
 
 use crate::client::world::ClientWorld;
 
+const SNAP_DISTANCE: f32 = 4.0;
+const SNAP_ANGLE: f32 = 90.0;
+
+fn angle_delta(a: f32, b: f32) -> f32 {
+    let d = (b - a).rem_euclid(360.0);
+    if d > 180.0 { d - 360.0 } else { d }
+}
+
 pub struct LocalInventory {
     pub inner: Inventory,
     pub clicks: Vec<(usize, bool)>,
@@ -53,6 +61,26 @@ pub struct LocalPlayer {
     pub height: f32,
     pub inventory: Rc<RefCell<LocalInventory>>,
     pub third_person: bool,
+}
+
+impl Default for LocalPlayer {
+    fn default() -> Self {
+        Self {
+            position: Vec3::new(0.0, 25.0, 0.0),
+            velocity: Vec3::ZERO,
+            yaw: 0.0,
+            delta_yaw: 0.0,
+            pitch: 0.0,
+            fov: 90.0,
+            flying: false,
+            on_ground: false,
+            input: MoveInstructions::default(),
+            width: 0.8,
+            height: 1.8,
+            inventory: Rc::new(RefCell::new(LocalInventory::new())),
+            third_person: false,
+        }
+    }
 }
 
 impl LocalPlayer {
@@ -196,14 +224,34 @@ impl LocalPlayer {
     pub fn update_from_snapshot(&mut self, snapshot: &[u8]) -> Result<(), ReadError> {
         let details = EntityDetails::from_bytes(snapshot)?;
 
-        if let Some(Position(pos)) = details.get::<Position>() {
-            self.position = pos;
+        let server_pos = details.get::<Position>().map(|Position(p)| p);
+        let server_rot = details
+            .get::<Rotation>()
+            .map(|Rotation { yaw, pitch }| (yaw, pitch));
+
+        if let Some(pos) = server_pos {
+            let delta = pos - self.position;
+            if delta.length_squared() > SNAP_DISTANCE * SNAP_DISTANCE {
+                self.position = pos;
+            } else {
+                self.position += delta * 0.15;
+            }
         }
 
         let previous_yaw = self.yaw;
-        if let Some(Rotation { yaw, pitch }) = details.get::<Rotation>() {
-            self.yaw = yaw;
-            self.pitch = pitch;
+        if let Some((yaw, pitch)) = server_rot {
+            let angle_diff_yaw = angle_delta(self.yaw, yaw).abs();
+            let angle_diff_pitch = angle_delta(self.pitch, pitch).abs();
+            if angle_diff_yaw > SNAP_ANGLE {
+                self.yaw = yaw;
+            } else {
+                self.yaw += angle_diff_yaw * 0.15;
+            }
+            if angle_diff_pitch > SNAP_ANGLE {
+                self.pitch = pitch;
+            } else {
+                self.pitch += angle_diff_pitch * 0.15;
+            }
         }
         self.delta_yaw = self.yaw - previous_yaw;
 

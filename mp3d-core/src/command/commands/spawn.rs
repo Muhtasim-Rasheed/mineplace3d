@@ -83,13 +83,13 @@ impl Command for SpawnCommand {
             .ok_or("Unknown entity identifier")?;
         let entity_id = ctx.world.ecs.spawn_entity(entity_def_id, pos);
 
-        let entity_snapshot = ctx.world.ecs.serialize_entity(entity_id);
+        let entity_details = ctx.world.ecs.serialize_entity(entity_id);
         ctx.get_sender_session()
             .unwrap()
             .pending_messages
             .push(S2CMessage::EntitySpawned {
                 entity_id,
-                entity_snapshot,
+                entity_details,
             });
 
         Ok(format!(

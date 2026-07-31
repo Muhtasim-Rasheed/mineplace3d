@@ -40,13 +40,16 @@ pub struct World {
     pub generator: Generator,
     pub time: u64,
 
+    // What clients were last told
+    pub(crate) replicated_snapshots: FxHashMap<EntityId, EntityDetails>,
+
     // Storage of player data, keyed by username. This is used to store player data when they are
     // not currently in the world. It stores the data as bytes.
-    pub(super) player_cache: HashMap<String, EntityDetails>,
+    pub(crate) player_cache: HashMap<String, EntityDetails>,
 
     /// Stores pending changes to blocks in the world. This is used to track changes that need to
     /// be sent to players.
-    pub(super) pending_changes: PendingChanges,
+    pub(crate) pending_changes: PendingChanges,
 
     /// A map of chunk positions to a map of local block positions to the new block and block
     /// state. This is used to track changes to chunks that have been modified by the player or
@@ -66,6 +69,7 @@ impl World {
             ecs: ECS::new(),
             generator,
             time: 0,
+            replicated_snapshots: FxHashMap::default(),
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
             changes: FxHashMap::default(),
@@ -662,6 +666,7 @@ fn load_v0_to_v8(
         ecs: ECS::new(),
         generator,
         time,
+        replicated_snapshots: FxHashMap::default(),
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
         changes: FxHashMap::default(),

@@ -13,8 +13,6 @@ mod emoji;
 pub mod player;
 pub mod world;
 
-use std::{cell::RefCell, rc::Rc};
-
 use glam::{IVec3, Vec3};
 use mp3d_core::{
     block::block_registry,
@@ -25,11 +23,7 @@ use mp3d_core::{
 };
 use sdl2::keyboard::Keycode;
 
-use crate::{
-    client::{player::LocalInventory, world::ClientWorld},
-    other::UpdateContext,
-    render::particles::ParticleSystem,
-};
+use crate::{client::world::ClientWorld, other::UpdateContext, render::particles::ParticleSystem};
 
 /// The [`Connection`] trait defines the interface for client-server communication.
 pub trait Connection {
@@ -180,21 +174,7 @@ impl<C: Connection> Client<C> {
 
         Self {
             connection,
-            player: player::LocalPlayer {
-                position: Vec3::new(0.0, 100.0, 0.0),
-                velocity: Vec3::ZERO,
-                yaw: 0.0,
-                delta_yaw: 0.0,
-                pitch: 0.0,
-                fov: 90.0,
-                flying: false,
-                on_ground: false,
-                input: MoveInstructions::default(),
-                width: 0.8,
-                height: 1.8,
-                inventory: Rc::new(RefCell::new(LocalInventory::new())),
-                third_person: false,
-            },
+            player: player::LocalPlayer::default(),
             user_id: None,
             entity_id: None,
             gui: CurrentGUI::None,
@@ -466,16 +446,16 @@ impl<C: Connection> Client<C> {
                 }
                 S2CMessage::EntitySpawned {
                     entity_id,
-                    entity_snapshot,
+                    entity_details,
                 } => {
                     if Some(entity_id) == self.entity_id {
                         self.player
-                            .update_from_snapshot(&entity_snapshot)
+                            .update_from_snapshot(&entity_details)
                             .unwrap_or_else(|e| {
                                 panic!("failed updating client player from snapshot: {e}")
                             });
                     } else {
-                        match EntityDetails::from_bytes(&entity_snapshot) {
+                        match EntityDetails::from_bytes(&entity_details) {
                             Ok(entity) => {
                                 self.world.ecs.spawn(entity_id, entity);
                                 log::debug!("Entity spawned with ID ({entity_id})");
@@ -484,26 +464,31 @@ impl<C: Connection> Client<C> {
                         }
                     }
                 }
-                S2CMessage::PlayerMoved {
+                S2CMessage::EntityUpdated {
                     entity_id,
-                    position,
-                    ..
+                    entity_details,
                 } => {
-                    if Some(entity_id) != self.entity_id {
-                        continue;
-                    }
-                    let delta = position - self.player.position;
-                    if delta.length_squared() > 3.0 * 3.0 {
-                        self.player.position = position;
+                    if Some(entity_id) == self.entity_id {
+                        self.player
+                            .update_from_snapshot(&entity_details)
+                            .unwrap_or_else(|e| {
+                                panic!("failed updating client player from snapshot: {e}")
+                            });
                     } else {
-                        self.player.position += delta * 0.15;
+                        match EntityDetails::from_bytes(&entity_details) {
+                            Ok(entity) => {
+                                self.world.ecs.apply_update(entity_id, &entity);
+                            }
+                            Err(e) => log::warn!("Server sent invalid entity details: {e}"),
+                        }
                     }
                 }
-                S2CMessage::InventoryUpdated { inventory } => {
-                    self.player
-                        .inventory
-                        .borrow_mut()
-                        .update_from_inventory(inventory);
+                S2CMessage::EntityDespawned { entity_id } => {
+                    if Some(entity_id) == self.entity_id {
+                        log::error!("Help! The server is trying to erase me!");
+                    } else {
+                        self.world.ecs.despawn(entity_id);
+                    }
                 }
                 S2CMessage::ChunkData {
                     chunk_position,

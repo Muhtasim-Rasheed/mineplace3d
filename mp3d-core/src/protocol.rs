@@ -3,7 +3,7 @@
 //! This module defines the protocol used for communication in both the singleplayer and
 //! multiplayer modes of the game.
 
-use glam::{IVec3, Vec3};
+use glam::IVec3;
 
 use crate::{
     block::{BlockId, BlockState},
@@ -99,17 +99,15 @@ pub enum S2CMessage {
     /// An entity has spawned in the world.
     EntitySpawned {
         entity_id: EntityId,
-        entity_snapshot: Vec<u8>,
+        entity_details: Vec<u8>,
     },
-    /// Update of a player's position, yaw, and pitch.
-    PlayerMoved {
+    /// Update of an entity's component(s).
+    EntityUpdated {
         entity_id: EntityId,
-        position: Vec3,
-        yaw: f32,
-        pitch: f32,
+        entity_details: Vec<u8>,
     },
-    /// Update of a player's inventory.
-    InventoryUpdated { inventory: crate::item::Inventory },
+    /// An entity has despawned out of the world.
+    EntityDespawned { entity_id: EntityId }, // you'll want this too, per the last message
     /// Update of multiple blocks changed in one tick.
     BlocksUpdated { updates: Vec<BlockUpdate> },
     /// Delivery of chunk data.

@@ -25,6 +25,7 @@ impl std::fmt::Display for EntityId {
     }
 }
 
+#[derive(Clone)]
 pub struct EntityDetails {
     components: Vec<(ComponentId, Vec<u8>)>,
 }
@@ -61,10 +62,34 @@ impl EntityDetails {
         writer.into_bytes()
     }
 
+    pub fn len(&self) -> usize {
+        self.components.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.components.is_empty()
+    }
+
     pub fn get<T: Component>(&self) -> Option<T> {
         let id = T::component_id();
         let (_, bytes) = self.components.iter().find(|(cid, _)| *cid == id)?;
         T::from_bytes(bytes).ok()
+    }
+
+    pub fn diff(&self, new: &EntityDetails) -> EntityDetails {
+        let mut changed = Vec::new();
+        for (id, new_bytes) in &new.components {
+            let differs = match self.components.iter().find(|(oid, _)| oid == id) {
+                Some((_, old_bytes)) => old_bytes != new_bytes,
+                None => true, // component newly present
+            };
+            if differs {
+                changed.push((*id, new_bytes.clone()));
+            }
+        }
+        EntityDetails {
+            components: changed,
+        }
     }
 
     pub fn merge(&mut self, other: &EntityDetails) {

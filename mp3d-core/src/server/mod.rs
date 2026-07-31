@@ -125,7 +125,7 @@ impl Server {
     }
 
     /// Gets a mutable reference to a session by entity ID, if it exists.
-    fn get_session_by_entity_mut<'a>(
+    pub fn get_session_by_entity_mut<'a>(
         entity_to_user: &FxHashMap<EntityId, u64>,
         sessions: &'a mut FxHashMap<u64, PlayerSession>,
         entity_id: EntityId,
@@ -226,7 +226,7 @@ impl Server {
                             let details = self.world.ecs.entity_details(other_entity);
                             session.pending_messages.push(S2CMessage::EntitySpawned {
                                 entity_id: other_entity,
-                                entity_snapshot: details.to_bytes(),
+                                entity_details: details.to_bytes(),
                             });
                         }
                         self.sessions.insert(user_id, session);
@@ -235,7 +235,7 @@ impl Server {
                             None,
                             S2CMessage::EntitySpawned {
                                 entity_id,
-                                entity_snapshot: entitydet.to_bytes(),
+                                entity_details: entitydet.to_bytes(),
                             },
                         );
                         log::info!(
@@ -408,6 +408,31 @@ impl Server {
         None
     }
 
+    fn replication_tick(&mut self) {
+        for entity in self.world.ecs.e_alloc.iter() {
+            let current = self.world.ecs.entity_details(entity);
+            let previous = self.world.replicated_snapshots.get(&entity);
+
+            let diff = match previous {
+                Some(prev) => prev.diff(&current),
+                None => current.clone(),
+            };
+
+            if !diff.is_empty() {
+                broadcast_message(
+                    &mut self.sessions,
+                    None,
+                    S2CMessage::EntityUpdated {
+                        entity_id: entity,
+                        entity_details: diff.to_bytes(),
+                    },
+                );
+            }
+
+            self.world.replicated_snapshots.insert(entity, current);
+        }
+    }
+
     /// Ticks the server.
     pub fn tick(&mut self, tps: u8) {
         // Unload chunks that have no players nearby
@@ -440,35 +465,7 @@ impl Server {
             },
         );
 
-        for (entity, (&position, &velocity, &rotation, inventory)) in
-            self.world
-                .ecs
-                .query::<(&Position, &Velocity, &Rotation, &Inventory)>()
-        {
-            if velocity.0.length_squared() > 0.0 {
-                broadcast_message(
-                    &mut self.sessions,
-                    None,
-                    S2CMessage::PlayerMoved {
-                        entity_id: entity,
-                        position: position.0,
-                        yaw: rotation.yaw,
-                        pitch: rotation.pitch,
-                    },
-                );
-            }
-            if inventory.dirty
-                && let Some(session) = Self::get_session_by_entity_mut(
-                    &self.entity_to_user,
-                    &mut self.sessions,
-                    entity,
-                )
-            {
-                session.pending_messages.push(S2CMessage::InventoryUpdated {
-                    inventory: inventory.clone(),
-                });
-            }
-        }
+        self.replication_tick();
     }
 }
 
