@@ -301,17 +301,19 @@ impl Server {
                         .get_component::<Position>(session.entity_id)
                         .map(|v| v.0 / CHUNK_SIZE as f32)
                 {
-                    for chunk_position in chunk_positions {
-                        let cp_float = chunk_position.as_vec3() + Vec3::splat(0.5);
-                        if cp_float.distance_squared(pos) > MAX_RENDER_DIST_SQ as f32 {
-                            continue;
-                        }
-                        let chunk = self.world.get_chunk_or_new(chunk_position);
-                        session.pending_messages.push(S2CMessage::ChunkData {
-                            chunk_position,
-                            chunk: Box::new(chunk.clone()),
-                        });
-                    }
+                    session.pending_messages.push(S2CMessage::ChunkData {
+                        chunks: chunk_positions
+                            .into_iter()
+                            .filter_map(|chunk_position| {
+                                let cp_float = chunk_position.as_vec3() + Vec3::splat(0.5);
+                                if cp_float.distance_squared(pos) > MAX_RENDER_DIST_SQ as f32 {
+                                    return None;
+                                }
+                                let chunk = self.world.get_chunk_or_new(chunk_position);
+                                Some((chunk_position, chunk.clone()))
+                            })
+                            .collect::<Vec<_>>(),
+                    });
                 }
             }
             C2SMessage::SendMessage { message } => {

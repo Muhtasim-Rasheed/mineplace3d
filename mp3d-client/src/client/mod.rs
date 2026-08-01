@@ -184,8 +184,9 @@ impl<C: Connection> Client<C> {
         }
     }
 
-    /// Takes in player input and sends it to the server through the connection.
-    pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32, sensitivity: f32) {
+    /// Transition the GUI if escape is pressed and also supress movement if the current GUI is not
+    /// None.
+    pub fn transition_gui(&mut self, update_context: &UpdateContext) {
         if update_context.keyboard.pressed.contains(&Keycode::Escape) {
             self.gui = match self.gui {
                 CurrentGUI::None => CurrentGUI::PauseMenu,
@@ -198,7 +199,10 @@ impl<C: Connection> Client<C> {
         if !self.gui.none() {
             self.player.input = MoveInstructions::default();
         }
+    }
 
+    /// Takes in player input and sends it to the server through the connection.
+    pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32, sensitivity: f32) {
         let chat_messages = &self.messages;
         let chat_hist = &mut self.chat_hist;
 
@@ -490,22 +494,21 @@ impl<C: Connection> Client<C> {
                         self.world.ecs.despawn(entity_id);
                     }
                 }
-                S2CMessage::ChunkData {
-                    chunk_position,
-                    chunk,
-                } => {
-                    self.world.chunks.insert(chunk_position, (*chunk).into());
-                    self.world.remesh_queue.push(chunk_position, true);
-                    // also push the other neighbor chunks to the remesh queue
-                    for neighbor in [
-                        chunk_position + IVec3::new(0, 0, -1),
-                        chunk_position + IVec3::new(0, 0, 1),
-                        chunk_position + IVec3::new(1, 0, 0),
-                        chunk_position + IVec3::new(-1, 0, 0),
-                        chunk_position + IVec3::new(0, 1, 0),
-                        chunk_position + IVec3::new(0, -1, 0),
-                    ] {
-                        self.world.remesh_queue.push(neighbor, false);
+                S2CMessage::ChunkData { chunks } => {
+                    for (chunk_position, chunk) in chunks {
+                        self.world.chunks.insert(chunk_position, chunk.into());
+                        self.world.remesh_queue.push(chunk_position, true);
+                        // also push the other neighbor chunks to the remesh queue
+                        for neighbor in [
+                            chunk_position + IVec3::new(0, 0, -1),
+                            chunk_position + IVec3::new(0, 0, 1),
+                            chunk_position + IVec3::new(1, 0, 0),
+                            chunk_position + IVec3::new(-1, 0, 0),
+                            chunk_position + IVec3::new(0, 1, 0),
+                            chunk_position + IVec3::new(0, -1, 0),
+                        ] {
+                            self.world.remesh_queue.push(neighbor, false);
+                        }
                     }
                 }
                 S2CMessage::ChatMessage { message } => {

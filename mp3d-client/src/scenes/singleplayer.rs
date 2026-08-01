@@ -464,13 +464,15 @@ impl super::Scene for SinglePlayer {
         {
             let _p = self.renderer.profiler.start_scope("client_update");
 
-            self.client
-                .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
+            self.client.transition_gui(ctx);
 
             if !self.client.gui.pause_menu() {
                 if ctx.keyboard.pressed.contains(&sdl2::keyboard::Keycode::F3) {
                     self.ui.debug_opened = !self.ui.debug_opened;
                 }
+
+                self.client
+                    .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
 
                 if let Err(reason) = self
                     .client

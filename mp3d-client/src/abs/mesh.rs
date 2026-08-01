@@ -237,6 +237,9 @@ impl Drop for Mesh {
             self.gl.delete_buffer(self.vbo);
             self.gl.delete_buffer(self.ebo);
             self.gl.delete_vertex_array(self.vao);
+            if let Some(instance_vbo) = self.instance_vbo {
+                self.gl.delete_buffer(instance_vbo);
+            }
         }
     }
 }

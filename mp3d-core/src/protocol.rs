@@ -69,9 +69,9 @@ pub enum C2SMessage {
     RequestChunks { chunk_positions: Vec<IVec3> },
     /// Request to send a chat message or execute a command.
     SendMessage { message: String },
-    /// Request for interaction with / placement of / removal of a block. The face is a number
-    /// from 0 to 5 in the order of NSEWUD. No block data is sent with this message, so the server
-    /// will determine the block being placed (if the targetted block is not interactable)
+    /// Request for interaction with / placement of / removal of a block. No block data is sent with
+    /// this message, so the server will determine the block being placed (if the targetted block is
+    /// not interactable)
     BlockClick {
         position: IVec3,
         face: Direction,
@@ -107,14 +107,11 @@ pub enum S2CMessage {
         entity_details: Vec<u8>,
     },
     /// An entity has despawned out of the world.
-    EntityDespawned { entity_id: EntityId }, // you'll want this too, per the last message
+    EntityDespawned { entity_id: EntityId },
     /// Update of multiple blocks changed in one tick.
     BlocksUpdated { updates: Vec<BlockUpdate> },
     /// Delivery of chunk data.
-    ChunkData {
-        chunk_position: IVec3,
-        chunk: Box<Chunk>,
-    },
+    ChunkData { chunks: Vec<(IVec3, Chunk)> },
     /// Delivery of a chat message or command output.
     ChatMessage { message: TextComponent },
     /// Notification of change of selected hotbar slot.
