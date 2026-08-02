@@ -10,7 +10,7 @@ use crate::direction::Direction;
 /// type of the block state is stored in the lower 16 bits, and the data is stored in the upper 16
 /// bits. This allows for up to 65536 different block state types, each with up to 65536 different
 /// data values.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct BlockState(u32);
 
 impl BlockState {

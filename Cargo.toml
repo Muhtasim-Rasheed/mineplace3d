@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mp3d-client","mp3d-core"]
+members = ["mp3d-client", "mp3d-core", "mp3d-server"]
 
 [profile.dev]
 opt-level = 3

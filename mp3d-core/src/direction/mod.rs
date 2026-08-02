@@ -10,7 +10,7 @@ use crate::axis::Axis;
 mod arith;
 mod convert;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum Direction {
     North = 0,

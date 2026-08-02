@@ -4,6 +4,7 @@
 //! multiplayer modes of the game.
 
 use glam::IVec3;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     block::{BlockId, BlockState},
@@ -14,7 +15,7 @@ use crate::{
 };
 
 /// Move instructions for the player.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MoveInstructions {
     /// Forward movement: -1 (backward), 0 (none), 1 (forward), 2 (sprint).
     /// Invalid values will be treated as 0.
@@ -34,7 +35,7 @@ pub struct MoveInstructions {
 
 /// The type of block update, which can be used to determine how the client should animate the
 /// update.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockUpdateKind {
     /// A block was placed by a player.
     Placed,
@@ -47,7 +48,7 @@ pub enum BlockUpdateKind {
 }
 
 /// Represents an update to a block at a specified position with a given block and block state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlockUpdate {
     pub position: IVec3,
     pub block: BlockId,
@@ -57,6 +58,7 @@ pub struct BlockUpdate {
 }
 
 /// Messages sent from the client to the server.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum C2SMessage {
     /// Request to join a world. This contains credentials to register the player or log in if the
     /// player already has an account.
@@ -84,14 +86,10 @@ pub enum C2SMessage {
 }
 
 /// Messages sent from the server to the client.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum S2CMessage {
     /// Confirmation of connection to a world.
-    Connected {
-        user_id: u64,
-        entity_id: EntityId,
-        inventory: crate::item::Inventory,
-    },
+    Connected { user_id: u64, entity_id: EntityId },
     /// Notification of connection failure with a reason.
     ConnectionFailed { reason: String },
     /// Notification of disconnection from a world.

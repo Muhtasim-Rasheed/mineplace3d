@@ -199,17 +199,12 @@ impl Server {
                                 Self::default_player_details(&username, Vec3::new(0.0, 25.0, 0.0))
                             };
                         self.world.load_around(IVec3::new(0, 25, 0));
-                        let inventory = entitydet.get::<Inventory>().unwrap();
                         let entity_id = self.world.ecs.spawn_from_details(&entitydet);
                         let mut session = PlayerSession {
                             user_id,
                             entity_id,
                             username: username.clone(),
-                            pending_messages: vec![S2CMessage::Connected {
-                                user_id,
-                                entity_id,
-                                inventory,
-                            }],
+                            pending_messages: vec![S2CMessage::Connected { user_id, entity_id }],
                         };
                         self.connections.insert(connection_id, user_id);
                         self.entity_to_user.insert(entity_id, user_id);

@@ -21,6 +21,28 @@ impl DefId for BlockId {
     }
 }
 
+impl serde::Serialize for BlockId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(block_registry().get(*self).unwrap().ident)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for BlockId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match block_registry().get_id(&s) {
+            Some(id) => Ok(id),
+            None => Err(serde::de::Error::custom("unknown block identifier")),
+        }
+    }
+}
+
 pub type OnClick =
     Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, BlockState, Direction) -> bool + Send + Sync>;
 pub type OnPlace =

@@ -4,7 +4,7 @@ pub fn sanitize(str: &str) -> String {
     str.replace("%", "%%")
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TextComponent {
     pub parts: Vec<TextComponentPart>,
 }
@@ -80,7 +80,7 @@ impl TextComponent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TextComponentColor {
     Basic(u8),
     Hex(Vec4),
@@ -108,7 +108,7 @@ impl From<TextComponentColor> for Vec4 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TextComponentPart {
     pub text: String,
     pub color: TextComponentColor,

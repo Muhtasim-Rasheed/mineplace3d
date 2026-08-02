@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// ID of an entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct EntityId {
     pub index: u32,
     pub generation: u32,

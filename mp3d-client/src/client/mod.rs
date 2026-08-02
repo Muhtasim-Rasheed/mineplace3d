@@ -30,7 +30,7 @@ pub trait Connection {
     /// Sends a message to the server.
     fn send(&mut self, message: C2SMessage);
 
-    /// Ensures that all messages are reach the destination
+    /// Ensures that all messages have reached the destination
     fn flush(&mut self);
 
     /// Ticks the connection to update its state.
@@ -427,11 +427,7 @@ impl<C: Connection> Client<C> {
         let messages = self.connection.receive();
         for message in messages {
             match message {
-                S2CMessage::Connected {
-                    user_id,
-                    entity_id,
-                    inventory,
-                } => {
+                S2CMessage::Connected { user_id, entity_id } => {
                     log::info!(
                         "Connected to server with user ID {} and entity ID {}",
                         user_id,
@@ -439,10 +435,6 @@ impl<C: Connection> Client<C> {
                     );
                     self.user_id = Some(user_id);
                     self.entity_id = Some(entity_id);
-                    self.player
-                        .inventory
-                        .borrow_mut()
-                        .update_from_inventory(inventory);
                 }
                 S2CMessage::ConnectionFailed { reason } => {
                     log::error!("Connection failed!");

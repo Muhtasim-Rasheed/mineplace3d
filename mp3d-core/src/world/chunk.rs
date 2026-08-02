@@ -1,6 +1,8 @@
 //! A 16x16x16 chunk in a voxel engine.
 
 use glam::IVec3;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::{
     block::{BlockId, BlockState, CollisionShape, block_registry, blocks},
@@ -10,10 +12,13 @@ use crate::{
 pub const CHUNK_SIZE: usize = 16;
 
 /// A 16x16x16 chunk of blocks.
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chunk {
     block_palette: Vec<BlockId>,
+    #[serde_as(as = "[_; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]")]
     blocks: [u16; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+    #[serde_as(as = "[_; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]")]
     block_states: [BlockState; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
 }
 
