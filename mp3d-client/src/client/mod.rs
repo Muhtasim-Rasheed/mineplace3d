@@ -8,9 +8,12 @@
 //! this trait for local server interactions.
 
 pub mod chunk;
+pub mod connectionkind;
 pub mod ecs;
 mod emoji;
+pub mod localconnection;
 pub mod player;
+pub mod tcpconnection;
 pub mod world;
 
 use glam::{IVec3, Vec3};
@@ -18,7 +21,6 @@ use mp3d_core::{
     block::block_registry,
     entity::{EntityDetails, EntityId},
     protocol::{C2SMessage, MoveInstructions, S2CMessage},
-    server::Server,
     textcomponent::TextComponent,
 };
 use sdl2::keyboard::Keycode;
@@ -27,8 +29,8 @@ use crate::{client::world::ClientWorld, other::UpdateContext, render::particles:
 
 /// The [`Connection`] trait defines the interface for client-server communication.
 pub trait Connection {
-    /// Sends a message to the server.
-    fn send(&mut self, message: C2SMessage);
+    /// Sends a message to the server. Returns whether the connection was closed.
+    fn send(&mut self, message: C2SMessage) -> bool;
 
     /// Ensures that all messages have reached the destination
     fn flush(&mut self);
@@ -38,55 +40,6 @@ pub trait Connection {
 
     // Receives messages from the server.
     fn receive(&mut self) -> Vec<S2CMessage>;
-}
-
-/// A local connection that directly interacts with a server instance.
-///
-/// The [`LocalConnection`] owns the server instance instead of borrowing it. The local connection
-/// will use a connection ID of `0` for all interactions since it is the only connection, and the
-/// server does not need to differentiate between multiple clients.
-pub struct LocalConnection {
-    pub server: Server,
-    pub message: Option<S2CMessage>,
-}
-
-impl LocalConnection {
-    /// Creates a new `LocalConnection` with the given server and user ID.
-    pub fn new(server: Server) -> Self {
-        log::info!("Creating local connection");
-
-        Self {
-            server,
-            message: None,
-        }
-    }
-}
-
-impl Connection for LocalConnection {
-    fn send(&mut self, message: C2SMessage) {
-        if let Some(message) = self.server.handle_message(0, message) {
-            self.message = Some(message);
-        }
-    }
-
-    // All messages are sent immediately to the server, so nothing is to be done
-    fn flush(&mut self) {}
-
-    fn tick(&mut self, tps: u8) {
-        self.server.tick(tps);
-    }
-
-    fn receive(&mut self) -> Vec<S2CMessage> {
-        if let Some(message) = self.message.take() {
-            vec![message]
-        } else if let Some(user_id) = self.server.connections.get(&0)
-            && let Some(session) = self.server.sessions.get_mut(user_id)
-        {
-            std::mem::take(&mut session.pending_messages)
-        } else {
-            vec![]
-        }
-    }
 }
 
 #[derive(Debug, Default)]
@@ -202,7 +155,20 @@ impl<C: Connection> Client<C> {
     }
 
     /// Takes in player input and sends it to the server through the connection.
-    pub fn send_input(&mut self, update_context: &UpdateContext, dt: f32, sensitivity: f32) {
+    pub fn send_input(
+        &mut self,
+        update_context: &UpdateContext,
+        dt: f32,
+        sensitivity: f32,
+    ) -> Option<String> {
+        macro_rules! send_or_bail {
+            ($self:expr, $msg:expr) => {
+                if $self.connection.send($msg) {
+                    return Some("Server closed the connection".to_string());
+                }
+            };
+        }
+
         let chat_messages = &self.messages;
         let chat_hist = &mut self.chat_hist;
 
@@ -252,11 +218,14 @@ impl<C: Connection> Client<C> {
                     .contains(&sdl2::mouse::MouseButton::Left)
                     && let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0)
                 {
-                    self.connection.send(C2SMessage::BlockClick {
-                        position,
-                        face: face.try_into().unwrap(),
-                        right: false,
-                    });
+                    send_or_bail!(
+                        self,
+                        C2SMessage::BlockClick {
+                            position,
+                            face: face.try_into().unwrap(),
+                            right: false,
+                        }
+                    );
                 }
 
                 if update_context
@@ -265,11 +234,14 @@ impl<C: Connection> Client<C> {
                     .contains(&sdl2::mouse::MouseButton::Right)
                     && let Some((position, face)) = cast_ray(&self.world, &self.player, 5.0)
                 {
-                    self.connection.send(C2SMessage::BlockClick {
-                        position,
-                        face: face.try_into().unwrap(),
-                        right: true,
-                    });
+                    send_or_bail!(
+                        self,
+                        C2SMessage::BlockClick {
+                            position,
+                            face: face.try_into().unwrap(),
+                            right: true,
+                        }
+                    );
                 }
 
                 if kb.pressed.contains(&Keycode::T) {
@@ -299,7 +271,7 @@ impl<C: Connection> Client<C> {
                 .enumerate()
                 {
                     if kb.pressed.contains(key) {
-                        self.connection.send(C2SMessage::HotbarChange { idx: i });
+                        send_or_bail!(self, C2SMessage::HotbarChange { idx: i });
                         self.player.inventory.borrow_mut().slot = i;
                         break;
                     }
@@ -312,7 +284,7 @@ impl<C: Connection> Client<C> {
                     let new = old
                         .saturating_add_signed(mouse_scroll.signum() as isize)
                         .min(8);
-                    self.connection.send(C2SMessage::HotbarChange { idx: new });
+                    send_or_bail!(self, C2SMessage::HotbarChange { idx: new });
                     self.player.inventory.borrow_mut().slot = new;
                 }
             }
@@ -344,8 +316,7 @@ impl<C: Connection> Client<C> {
                     if let Some(i) = gui.ghost.take() {
                         let c = chat_hist.get(i).unwrap();
                         if !c.trim().is_empty() {
-                            self.connection
-                                .send(C2SMessage::SendMessage { message: c.clone() });
+                            send_or_bail!(self, C2SMessage::SendMessage { message: c.clone() });
                             // Check if we only stepped once
                             if i != chat_hist.len() - 1 {
                                 chat_hist.push(c.clone());
@@ -354,8 +325,7 @@ impl<C: Connection> Client<C> {
                         }
                     } else {
                         let c = std::mem::take(&mut gui.message);
-                        self.connection
-                            .send(C2SMessage::SendMessage { message: c.clone() });
+                        send_or_bail!(self, C2SMessage::SendMessage { message: c.clone() });
                         chat_hist.push(c);
                         self.gui = CurrentGUI::None;
                     }
@@ -408,18 +378,22 @@ impl<C: Connection> Client<C> {
 
         self.player.input.yaw = self.player.yaw;
         self.player.input.pitch = self.player.pitch;
-        self.connection.send(C2SMessage::Move(self.player.input));
+        send_or_bail!(self, C2SMessage::Move(self.player.input));
 
         let needed_chunks = self.world.needs_chunks(self.player.position.as_ivec3());
-        self.connection.send(C2SMessage::RequestChunks {
-            chunk_positions: needed_chunks,
-        });
+        self.world
+            .requested_chunks
+            .extend(needed_chunks.iter().copied());
+        for pos in needed_chunks {
+            send_or_bail!(self, C2SMessage::RequestChunk { pos });
+        }
 
         let inventory_changes = std::mem::take(&mut self.player.inventory.borrow_mut().clicks);
         for (idx, right) in inventory_changes {
-            self.connection
-                .send(C2SMessage::InventoryClick { idx, right });
+            send_or_bail!(self, C2SMessage::InventoryClick { idx, right });
         }
+
+        None
     }
 
     /// Updates any state on the client side from all received messages from the server.
@@ -486,21 +460,20 @@ impl<C: Connection> Client<C> {
                         self.world.ecs.despawn(entity_id);
                     }
                 }
-                S2CMessage::ChunkData { chunks } => {
-                    for (chunk_position, chunk) in chunks {
-                        self.world.chunks.insert(chunk_position, chunk.into());
-                        self.world.remesh_queue.push(chunk_position, true);
-                        // also push the other neighbor chunks to the remesh queue
-                        for neighbor in [
-                            chunk_position + IVec3::new(0, 0, -1),
-                            chunk_position + IVec3::new(0, 0, 1),
-                            chunk_position + IVec3::new(1, 0, 0),
-                            chunk_position + IVec3::new(-1, 0, 0),
-                            chunk_position + IVec3::new(0, 1, 0),
-                            chunk_position + IVec3::new(0, -1, 0),
-                        ] {
-                            self.world.remesh_queue.push(neighbor, false);
-                        }
+                S2CMessage::ChunkData { pos, chunk } => {
+                    self.world.chunks.insert(pos, (*chunk).into());
+                    self.world.requested_chunks.remove(&pos);
+                    self.world.remesh_queue.push(pos, true);
+                    // also push the other neighbor chunks to the remesh queue
+                    for neighbor in [
+                        pos + IVec3::new(0, 0, -1),
+                        pos + IVec3::new(0, 0, 1),
+                        pos + IVec3::new(1, 0, 0),
+                        pos + IVec3::new(-1, 0, 0),
+                        pos + IVec3::new(0, 1, 0),
+                        pos + IVec3::new(0, -1, 0),
+                    ] {
+                        self.world.remesh_queue.push(neighbor, false);
                     }
                 }
                 S2CMessage::ChatMessage { message } => {

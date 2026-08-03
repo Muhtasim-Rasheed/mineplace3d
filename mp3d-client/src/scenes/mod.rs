@@ -38,6 +38,7 @@ pub enum SceneActionError {
     Debug,
     FailedReloadingAssets(String),
     FailedLoadingWorld(String),
+    FailedConnectingServer(String),
     Unexpected(String),
 }
 
@@ -57,6 +58,9 @@ impl std::fmt::Display for SceneActionError {
                     "Failed loading '{}'\n\nMore details are likely available in the log file.",
                     e
                 )
+            }
+            SceneActionError::FailedConnectingServer(e) => {
+                write!(f, "Failed connecting to the server: {e}")
             }
             SceneActionError::Unexpected(e) => {
                 write!(f, "An unexpected error occurred, but is not fatal\n\n{}", e)
@@ -417,9 +421,10 @@ impl SceneManager {
     }
 }
 
+pub mod gamescene;
+pub mod joinserver;
 pub mod options;
 pub mod packselection;
-pub mod singleplayer;
 pub mod titlescreen;
 pub mod worldcreation;
 pub mod worldselection;

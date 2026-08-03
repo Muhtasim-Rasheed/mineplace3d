@@ -287,27 +287,23 @@ impl Server {
                     }
                 }
             }
-            C2SMessage::RequestChunks { chunk_positions } => {
+            C2SMessage::RequestChunk { pos } => {
                 if let Some(user_id) = self.connections.get(&connection_id)
                     && let Some(session) = self.sessions.get_mut(user_id)
-                    && let Some(pos) = self
+                    && let Some(e_pos) = self
                         .world
                         .ecs
                         .get_component::<Position>(session.entity_id)
                         .map(|v| v.0 / CHUNK_SIZE as f32)
                 {
+                    let cp_float = pos.as_vec3() + Vec3::splat(0.5);
+                    if cp_float.distance_squared(e_pos) > MAX_RENDER_DIST_SQ as f32 {
+                        return None;
+                    }
+                    let chunk = self.world.get_chunk_or_new(pos);
                     session.pending_messages.push(S2CMessage::ChunkData {
-                        chunks: chunk_positions
-                            .into_iter()
-                            .filter_map(|chunk_position| {
-                                let cp_float = chunk_position.as_vec3() + Vec3::splat(0.5);
-                                if cp_float.distance_squared(pos) > MAX_RENDER_DIST_SQ as f32 {
-                                    return None;
-                                }
-                                let chunk = self.world.get_chunk_or_new(chunk_position);
-                                Some((chunk_position, chunk.clone()))
-                            })
-                            .collect::<Vec<_>>(),
+                        pos,
+                        chunk: Box::new(chunk.clone()),
                     });
                 }
             }

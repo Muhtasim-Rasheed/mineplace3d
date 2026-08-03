@@ -172,7 +172,7 @@ impl super::Scene for WorldSelection {
             .is_released()
         {
             let world_name = self.previous_worlds[self.selected.unwrap()].clone();
-            let singleplayer_instance = super::singleplayer::SinglePlayer::load(
+            let singleplayer_instance = super::gamescene::GameScene::singleplayer_load(
                 gl,
                 assets,
                 window.size(),

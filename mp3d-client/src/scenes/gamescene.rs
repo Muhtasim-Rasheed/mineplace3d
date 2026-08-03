@@ -16,7 +16,10 @@ use mp3d_core::{
 
 use crate::{
     abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},
-    client::{Client, Connection, CurrentGUI, LocalConnection},
+    client::{
+        Client, Connection, CurrentGUI, connectionkind::ConnectionKind,
+        localconnection::LocalConnection, tcpconnection::TcpConnection,
+    },
     render::{
         clouds::CloudRenderer,
         entities::unit_cube,
@@ -46,7 +49,7 @@ const CROSSHAIR_SIZE: f32 = 20.0;
 const CROSSHAIR_THICKNESS: f32 = 2.0;
 const CROSSHAIR_COLOR: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.8);
 
-struct SinglePlayerUI {
+struct GameSceneUI {
     chat_input_label: Label,
     pause_screen: Column,
     inventory: Stack,
@@ -78,22 +81,21 @@ struct WorldRenderer {
     profiler: Profiler,
 }
 
-/// The [`SinglePlayer`] struct represents the single player scene.
-pub struct SinglePlayer {
-    client: Client<LocalConnection>,
+/// The [`GameScene`] struct represents the single player scene.
+pub struct GameScene {
+    client: Client<ConnectionKind>,
     renderer: WorldRenderer,
     screen_size: UVec2,
     tick_acc: f32,
     tick_rate: f32,
-    ui: SinglePlayerUI,
-    world_path: PathBuf,
+    ui: GameSceneUI,
     mouse_pos: Vec2,
     timer: f32,
 }
 
-impl SinglePlayer {
-    /// Creates a new [`SinglePlayer`] instance.
-    pub fn new(
+impl GameScene {
+    /// Creates a new [`GameScene`] singleplayer instance.
+    pub fn singleplayer(
         gl: &Arc<glow::Context>,
         assets: &Arc<Assets>,
         window_size: (u32, u32),
@@ -101,39 +103,65 @@ impl SinglePlayer {
         world_path: PathBuf,
         username: String,
     ) -> Self {
-        let server = mp3d_core::server::Server::new(true, seed, world_path.clone());
-        Self::setup(server, gl, assets, window_size, world_path, username)
+        let c = ConnectionKind::SinglePlayer {
+            connection: LocalConnection::new(mp3d_core::server::Server::new(
+                true,
+                seed,
+                world_path.clone(),
+            )),
+            world_path,
+        };
+        GameScene::setup(c, gl, assets, window_size, username, None)
     }
 
-    /// Loads a world from the given path and creates a new [`SinglePlayer`] instance.
-    pub fn load(
+    /// Loads a world from the given path and creates a new [`GameScene`] singleplayer instance.
+    pub fn singleplayer_load(
         gl: &Arc<glow::Context>,
         assets: &Arc<Assets>,
         window_size: (u32, u32),
         world_path: PathBuf,
         username: String,
     ) -> Result<Self, std::io::Error> {
-        let server = mp3d_core::server::Server::load(true, world_path.clone())?;
-        Ok(Self::setup(
-            server,
+        let c = ConnectionKind::SinglePlayer {
+            connection: LocalConnection::new(mp3d_core::server::Server::load(
+                true,
+                world_path.clone(),
+            )?),
+            world_path,
+        };
+        Ok(GameScene::setup(c, gl, assets, window_size, username, None))
+    }
+
+    pub fn multiplayer(
+        gl: &Arc<glow::Context>,
+        assets: &Arc<Assets>,
+        window_size: (u32, u32),
+        addr: impl AsRef<str>,
+        username: String,
+        password: String,
+    ) -> Result<Self, std::io::Error> {
+        let c = ConnectionKind::Multiplayer {
+            connection: TcpConnection::connect(addr)?,
+        };
+        Ok(GameScene::setup(
+            c,
             gl,
             assets,
             window_size,
-            world_path,
             username,
+            Some(password),
         ))
     }
 
     fn setup(
-        server: mp3d_core::server::Server,
+        connection: ConnectionKind,
         gl: &Arc<glow::Context>,
         assets: &Arc<Assets>,
         window_size: (u32, u32),
-        world_path: PathBuf,
         username: String,
+        password: Option<String>,
     ) -> Self {
-        let connection = LocalConnection::new(server);
-        let client = Client::new(connection, username, None);
+        let client = Client::new(connection, username, password);
         let layout_ctx = crate::render::ui::widgets::LayoutContext {
             max_size: Vec2::new(window_size.0 as f32, window_size.1 as f32),
             cursor: Vec2::ZERO,
@@ -171,7 +199,13 @@ impl SinglePlayer {
         let pause_screen = Column::new(20.0)
             .justification(Justification::Center)
             .with(Button::new("Return to Game"))
-            .with(Button::new("Save and Quit"));
+            .with(Button::new(
+                if matches!(client.connection, ConnectionKind::SinglePlayer { .. }) {
+                    "Save and Quit"
+                } else {
+                    "Disconnect"
+                },
+            ));
 
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
@@ -216,7 +250,7 @@ impl SinglePlayer {
             screen_size: UVec2::new(window_size.0, window_size.1),
             tick_acc: 0.0,
             tick_rate: 48.0,
-            ui: SinglePlayerUI {
+            ui: GameSceneUI {
                 chat_input_label: Label::new(""),
                 pause_screen,
                 inventory: inventory_stack,
@@ -226,7 +260,6 @@ impl SinglePlayer {
                 fps: 0.0,
                 fps_history: [0.0; FPS_HISTORY_LEN],
             },
-            world_path,
             mouse_pos: Vec2::ZERO,
             timer: 0.0,
         }
@@ -412,7 +445,7 @@ impl SinglePlayer {
     }
 }
 
-impl super::Scene for SinglePlayer {
+impl super::Scene for GameScene {
     fn handle_event(&mut self, gl: &Arc<glow::Context>, event: &sdl2::event::Event) {
         if let sdl2::event::Event::Window {
             win_event: sdl2::event::WindowEvent::Resized(width, height),
@@ -447,7 +480,12 @@ impl super::Scene for SinglePlayer {
             assets,
         };
 
-        window.set_title("Mineplace3D - Single Player").unwrap();
+        window
+            .set_title(match self.client.connection {
+                ConnectionKind::SinglePlayer { .. } => "Mineplace3D - Singleplayer",
+                ConnectionKind::Multiplayer { .. } => "Mineplace3D - Multiplayer",
+            })
+            .unwrap();
         sdl_ctx
             .mouse()
             .set_relative_mouse_mode(self.client.gui.none());
@@ -471,22 +509,45 @@ impl super::Scene for SinglePlayer {
                     self.ui.debug_opened = !self.ui.debug_opened;
                 }
 
-                self.client
-                    .send_input(ctx, ctx.delta_time, config.read().unwrap().sensitivity());
+                if let Some(reason) = self.client.send_input(
+                    ctx,
+                    ctx.delta_time,
+                    config.read().unwrap().sensitivity(),
+                ) {
+                    log::error!("Connection lost: {}", reason);
+                    if let ConnectionKind::SinglePlayer {
+                        connection,
+                        world_path,
+                    } = &self.client.connection
+                    {
+                        log::info!("Saving world...");
+                        std::fs::create_dir_all(&world_path)
+                            .expect("Failed to create world directory");
+                        connection.server.save().expect("Failed to save world");
+                    }
+                    return vec![
+                        SceneAction::ShowError(crate::scenes::SceneActionError::Unexpected(
+                            format!("Connection lost: {}", reason),
+                        )),
+                        SceneAction::Pop,
+                    ];
+                }
 
                 if let Err(reason) = self
                     .client
                     .receive_state(&mut self.renderer.particle_system)
                 {
                     log::error!("Connection lost: {}", reason);
-                    log::info!("Saving world...");
-                    std::fs::create_dir_all(&self.world_path)
-                        .expect("Failed to create world directory");
-                    self.client
-                        .connection
-                        .server
-                        .save()
-                        .expect("Failed to save world");
+                    if let ConnectionKind::SinglePlayer {
+                        connection,
+                        world_path,
+                    } = &self.client.connection
+                    {
+                        log::info!("Saving world...");
+                        std::fs::create_dir_all(&world_path)
+                            .expect("Failed to create world directory");
+                        connection.server.save().expect("Failed to save world");
+                    }
                     return vec![
                         SceneAction::ShowError(crate::scenes::SceneActionError::Unexpected(
                             format!("Connection lost: {}", reason),
@@ -517,14 +578,16 @@ impl super::Scene for SinglePlayer {
                     .get_widget::<Button>(1)
                     .is_some_and(|btn| btn.is_released())
                 {
-                    log::info!("Saving world...");
-                    std::fs::create_dir_all(&self.world_path)
-                        .expect("Failed to create world directory");
-                    self.client
-                        .connection
-                        .server
-                        .save()
-                        .expect("Failed to save world");
+                    if let ConnectionKind::SinglePlayer {
+                        connection,
+                        world_path,
+                    } = &self.client.connection
+                    {
+                        log::info!("Saving world...");
+                        std::fs::create_dir_all(&world_path)
+                            .expect("Failed to create world directory");
+                        connection.server.save().expect("Failed to save world");
+                    }
 
                     return vec![SceneAction::Pop];
                 }

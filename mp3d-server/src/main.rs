@@ -53,6 +53,7 @@ fn config() -> &'static ServerConfig {
         .expect("config() used before config initialization")
 }
 
+#[derive(Debug)]
 enum ServerEvent {
     Connected {
         connection_id: u64,

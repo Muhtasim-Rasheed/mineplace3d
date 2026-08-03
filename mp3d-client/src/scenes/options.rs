@@ -69,7 +69,7 @@ impl Options {
         window_size: (u32, u32),
         config: &Arc<RwLock<ClientConfig>>,
     ) -> Self {
-        let mut container = Column::new(40.0)
+        let mut container = Column::new(20.0)
             .justification(Justification::Center)
             .with(Label::new("Options").font_size(48.0))
             .with(

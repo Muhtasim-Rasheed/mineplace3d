@@ -85,6 +85,7 @@ impl TitleScreen {
             .with(
                 Column::new(10.0)
                     .with(Button::new("Singleplayer").size(button_size))
+                    .with(Button::new("Multiplayer").size(button_size))
                     .with(
                         Row::new(10.0)
                             .with(Button::new("Options").size(half_button_size))
@@ -140,11 +141,15 @@ impl super::Scene for TitleScreen {
                 .unwrap()
                 .size = Vec2::new(1010.0, 80.0);
             self.container
-                .find_widget_mut::<Button>(&[1, 1, 0])
+                .find_widget_mut::<Button>(&[1, 1])
+                .unwrap()
+                .size = Vec2::new(1010.0, 80.0);
+            self.container
+                .find_widget_mut::<Button>(&[1, 2, 0])
                 .unwrap()
                 .size = Vec2::new(500.0, 80.0);
             self.container
-                .find_widget_mut::<Button>(&[1, 1, 1])
+                .find_widget_mut::<Button>(&[1, 2, 1])
                 .unwrap()
                 .size = Vec2::new(500.0, 80.0);
         } else {
@@ -153,11 +158,15 @@ impl super::Scene for TitleScreen {
                 .unwrap()
                 .size = Vec2::new(new_size.0 as f32 - 40.0, 80.0);
             self.container
-                .find_widget_mut::<Button>(&[1, 1, 0])
+                .find_widget_mut::<Button>(&[1, 1])
+                .unwrap()
+                .size = Vec2::new(new_size.0 as f32 - 40.0, 80.0);
+            self.container
+                .find_widget_mut::<Button>(&[1, 2, 0])
                 .unwrap()
                 .size = Vec2::new((new_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0);
             self.container
-                .find_widget_mut::<Button>(&[1, 1, 1])
+                .find_widget_mut::<Button>(&[1, 2, 1])
                 .unwrap()
                 .size = Vec2::new((new_size.0 as f32 - 40.0 - 5.0) / 2.0, 80.0);
         }
@@ -181,7 +190,17 @@ impl super::Scene for TitleScreen {
 
         if self
             .container
-            .find_widget::<Button>(&[1, 1, 0])
+            .find_widget::<Button>(&[1, 1])
+            .is_some_and(|btn| btn.is_released())
+        {
+            return vec![SceneAction::Push(Box::new(
+                crate::scenes::joinserver::JoinServer::new(assets, window.size()),
+            ))];
+        }
+
+        if self
+            .container
+            .find_widget::<Button>(&[1, 2, 0])
             .is_some_and(|btn| btn.is_released())
         {
             return vec![SceneAction::Push(Box::new(super::options::Options::new(
@@ -193,7 +212,7 @@ impl super::Scene for TitleScreen {
 
         if self
             .container
-            .find_widget::<Button>(&[1, 1, 1])
+            .find_widget::<Button>(&[1, 2, 1])
             .is_some_and(|btn| btn.is_released())
         {
             return vec![SceneAction::Quit];

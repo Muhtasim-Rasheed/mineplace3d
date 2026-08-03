@@ -1,6 +1,6 @@
 //! Client-side world representation.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use glam::{IVec3, Vec3};
 use mp3d_core::{
@@ -22,6 +22,8 @@ const RENDER_DISTANCE: i32 = 8;
 pub struct ClientWorld {
     /// A mapping of chunk positions to their corresponding client-side chunk data.
     pub chunks: HashMap<IVec3, ClientChunk>,
+    /// Chunk positions that have been requested from the server and not yet loaded.
+    pub requested_chunks: HashSet<IVec3>,
     /// Client-side ECS instance that always obeys the server.
     pub ecs: ClientEcs,
     /// Changes done to the world that haven't been sent to the server yet.
@@ -36,6 +38,7 @@ impl ClientWorld {
     pub fn new() -> Self {
         Self {
             chunks: HashMap::new(),
+            requested_chunks: HashSet::new(),
             ecs: ClientEcs::new(),
             pending_changes: Vec::new(),
             remesh_queue: RemeshQueue::default(),
@@ -125,12 +128,13 @@ impl ClientWorld {
                 for z in -RENDER_DISTANCE..=RENDER_DISTANCE {
                     let offset = IVec3::new(x, y, z);
                     let distance = offset.length_squared();
+                    let chunk_coord = chunk_pos + offset;
                     if distance > RENDER_DISTANCE * RENDER_DISTANCE
-                        || self.chunks.contains_key(&(chunk_pos + offset))
+                        || self.chunks.contains_key(&chunk_coord)
+                        || self.requested_chunks.contains(&chunk_coord)
                     {
                         continue;
                     }
-                    let chunk_coord = chunk_pos + offset;
                     chunks.push(chunk_coord);
                 }
             }

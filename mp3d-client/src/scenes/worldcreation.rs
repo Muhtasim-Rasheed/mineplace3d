@@ -134,7 +134,7 @@ impl super::Scene for WorldCreation {
                 seed
             );
             return vec![SceneAction::Replace(Box::new(
-                super::singleplayer::SinglePlayer::new(
+                super::gamescene::GameScene::singleplayer(
                     gl,
                     assets,
                     window.size(),

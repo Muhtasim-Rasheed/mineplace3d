@@ -68,7 +68,7 @@ pub enum C2SMessage {
     /// Request to move the player.
     Move(MoveInstructions),
     /// Request for chunk data.
-    RequestChunks { chunk_positions: Vec<IVec3> },
+    RequestChunk { pos: IVec3 },
     /// Request to send a chat message or execute a command.
     SendMessage { message: String },
     /// Request for interaction with / placement of / removal of a block. No block data is sent with
@@ -109,7 +109,7 @@ pub enum S2CMessage {
     /// Update of multiple blocks changed in one tick.
     BlocksUpdated { updates: Vec<BlockUpdate> },
     /// Delivery of chunk data.
-    ChunkData { chunks: Vec<(IVec3, Chunk)> },
+    ChunkData { pos: IVec3, chunk: Box<Chunk> },
     /// Delivery of a chat message or command output.
     ChatMessage { message: TextComponent },
     /// Notification of change of selected hotbar slot.

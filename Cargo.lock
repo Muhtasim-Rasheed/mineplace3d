@@ -1133,6 +1133,7 @@ dependencies = [
  "include_dir",
  "log",
  "mp3d-core",
+ "postcard",
  "rand 0.10.0",
  "rayon",
  "sdl2",
