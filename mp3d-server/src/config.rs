@@ -12,11 +12,15 @@ pub enum ConfigLoadError {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub max_clients: usize,
+    pub port: Option<u16>,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
-        Self { max_clients: 20 }
+        Self {
+            max_clients: 20,
+            port: None,
+        }
     }
 }
 

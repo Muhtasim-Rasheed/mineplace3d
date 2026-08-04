@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    net::{Ipv4Addr, SocketAddrV4},
     path::PathBuf,
     sync::{
         OnceLock,
@@ -159,8 +160,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Server::new(false, 0, args.save_path.clone())
     };
 
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;
-    log::info!("Listening on 127.0.0.1:8080.");
+    let listener = TcpListener::bind(SocketAddrV4::new(
+        Ipv4Addr::new(127, 0, 0, 1),
+        config().port.unwrap_or(8080),
+    ))
+    .await?;
+    log::info!("Listening on 127.0.0.1:{}.", config().port.unwrap_or(8080));
 
     let _log_stop = LogStop;
 
