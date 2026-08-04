@@ -161,11 +161,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let listener = TcpListener::bind(SocketAddrV4::new(
-        Ipv4Addr::new(127, 0, 0, 1),
+        Ipv4Addr::new(0, 0, 0, 0),
         config().port.unwrap_or(8080),
     ))
     .await?;
-    log::info!("Listening on 127.0.0.1:{}.", config().port.unwrap_or(8080));
+    log::info!("Listening on 0.0.0.0:{}.", config().port.unwrap_or(8080));
 
     let _log_stop = LogStop;
 
