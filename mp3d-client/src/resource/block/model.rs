@@ -166,7 +166,17 @@ impl BlockModel {
             }
             Ok(elements.len() == 1
                 && elements[0].from == [0.0, 0.0, 0.0]
-                && elements[0].to == [16.0, 16.0, 16.0])
+                && elements[0].to == [16.0, 16.0, 16.0]
+                && [
+                    &elements[0].n,
+                    &elements[0].s,
+                    &elements[0].e,
+                    &elements[0].w,
+                    &elements[0].u,
+                    &elements[0].d,
+                ]
+                .iter()
+                .all(|face| face.is_some()))
         } else if let Some(parent) = &raw.parent {
             let path = PathBuf::from("blocks/models").join(format!("{}.json", parent));
             if visited.contains(&path) {
@@ -283,7 +293,7 @@ impl BlockModel {
     ) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
         let mut commands = Vec::new();
         for element in &self.elements {
-            for face in element.faces.iter() {
+            for face in element.faces.iter().flatten() {
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
@@ -376,7 +386,7 @@ impl std::ops::Mul for BlockModelTransform {
 /// A single cuboid element of a block model, defined by two opposite corners and the faces that
 /// make up the cuboid. Each face has its own texture and UV coordinates.
 pub struct BlockElement {
-    pub faces: [BlockFace; 6],
+    pub faces: [Option<BlockFace>; 6],
 }
 
 impl BlockElement {
@@ -392,19 +402,23 @@ impl BlockElement {
         let from = Vec3::from(raw.from) / 16.0;
         let to = Vec3::from(raw.to) / 16.0;
 
-        let faces: [BlockFace; 6] = [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
+        let faces: [Option<BlockFace>; 6] = [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
             .into_iter()
             .enumerate()
             .map(|(i, raw_face)| {
-                BlockFace::from_raw(
-                    raw_face,
-                    textures,
-                    resource_manager,
-                    atlas,
-                    (from, to),
-                    Direction::try_from(i as u8).unwrap(),
-                    transform,
-                )
+                raw_face
+                    .map(|raw_face| {
+                        BlockFace::from_raw(
+                            raw_face,
+                            textures,
+                            resource_manager,
+                            atlas,
+                            (from, to),
+                            Direction::try_from(i as u8).unwrap(),
+                            transform,
+                        )
+                    })
+                    .transpose()
             })
             .collect::<Result<Vec<_>, _>>()?
             .try_into()

@@ -78,7 +78,9 @@ fn should_occlude(
     }
 
     for a_el in &a_model.elements {
-        let a_face = &a_el.faces[face as usize];
+        let Some(a_face) = &a_el.faces[face as usize] else {
+            continue;
+        };
 
         let Some(a_occ) = &a_face.occlusion_face else {
             continue;
@@ -89,7 +91,9 @@ fn should_occlude(
         }
 
         for b_el in &b_model.elements {
-            let b_face = &b_el.faces[face.opposite() as usize];
+            let Some(b_face) = &b_el.faces[face.opposite() as usize] else {
+                continue;
+            };
 
             let Some(b_occ) = &b_face.occlusion_face else {
                 continue;
@@ -441,7 +445,9 @@ fn mesh_chunk(
                             // The elements' faces are ordered as NSEWUD and we are using a
                             // right handed coordinate system with +X = east, +Y = up, +Z =
                             // south.
-                            let face = &el.faces[dir as usize];
+                            let Some(face) = &el.faces[dir as usize] else {
+                                continue;
+                            };
 
                             let block_world_pos = IVec3::new(world_x, world_y, world_z);
 
