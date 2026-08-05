@@ -25,7 +25,11 @@ use crate::{
     physics::CollisionWorld,
     protocol::{BlockUpdate, BlockUpdateKind},
     registry::LazyId,
-    saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    saving::{
+        GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError,
+        io::*,
+        nbt::{self, Tag},
+    },
     uniquequeue::UniqueQueue,
     world::{
         chunk::{CHUNK_SIZE, Chunk},
@@ -508,125 +512,111 @@ impl Iterator for PendingChanges {
 }
 
 impl World {
-    /// Saves the world to a folder.
+    /// Saves the world as named binary tags (NBT).
     ///
-    /// All modified chunks are saved to the "chunks" subfolder, with filenames in the format
-    /// "chunk_x_y_z.bin". The entity data is saved to "entities.bin". The player data is contained
-    /// in the "players" subfolder, with filenames in the format "{hashed_username}.bin", which
-    /// contains the position, rotation, and other relevant data for each player. Note that the
-    /// players, even though they are entities, aren't stored in the entities.bin file, since they
-    /// are linked to user accounts and need to be loaded and linked to the accounts when they
-    /// join, so they are stored separately in the "players" subfolder. The folder also contains a
-    /// "save.bin" file with metadata about the world, such as the seed, generation settings, and
-    /// also the version of the save format, so that future versions of the game can maintain
-    /// compatibility with older saves. The entity IDs aren't stored in the world save, since they
-    /// can be generated on load anyways.
-    ///
-    /// # chunks/chunk_x_y_z.bin
-    /// - 2 bytes: number of changes in the chunk (N)
-    /// - N times
-    ///   - 3 bytes: local block position (x, y, z) within the chunk (0-15)
-    ///   - 1 byte: length of the block identifier (M)
-    ///   - M bytes: block identifier (UTF-8 string)
-    ///   - 4 bytes: block state data (u32)
-    ///
-    /// # save.bin
-    /// - 1 byte: save format version (u8)
-    /// - 1 byte: generator version (u8)
-    /// - 4 bytes: world seed (i32)
-    /// - 8 bytes: current time in ticks (u64)
-    ///
-    /// # entities.bin
-    /// - 8 bytes: number of entities (N)
-    /// - N times
-    ///   - 1 byte: entity type (u8)
-    ///   - 4 bytes: length of entity data (M)
-    ///   - M bytes: entity data (format defined by each entity type)
+    /// `level.nbt` contains the save version, generator configuration, and game time. Modified
+    /// chunks are written as `chunks/chunk_x_y_z.nbt`; entities and player records are written as
+    /// `entities.nbt` and `players/{hashed_username}.nbt` respectively. The loader also supports
+    /// the pre-NBT `save.bin` layout for existing worlds.
     pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
-        let mut save_file = std::fs::File::create(path.join("save.bin"))?;
-        std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
-        std::io::Write::write_all(&mut save_file, &self.generator.save())?;
-        std::io::Write::write_all(&mut save_file, &self.time.to_le_bytes())?;
-
-        log::info!("Saved save.bin");
-
-        std::fs::create_dir_all(path.join("chunks"))?;
-        for (chunk_pos, changes) in &self.changes {
-            let chunk_path = path.join("chunks").join(format!(
-                "chunk_{}_{}_{}.bin",
-                chunk_pos.x, chunk_pos.y, chunk_pos.z
-            ));
-            let mut chunk_file = std::fs::File::create(chunk_path)?;
-            let change_count = changes.len() as u16;
-            std::io::Write::write_all(&mut chunk_file, &change_count.to_le_bytes())?;
-            for (local_pos, (block, state)) in changes {
-                std::io::Write::write_all(
-                    &mut chunk_file,
-                    &[local_pos.x as u8, local_pos.y as u8, local_pos.z as u8],
-                )?;
-                let data = (*block, *state).save();
-                std::io::Write::write_all(&mut chunk_file, data.as_slice())?;
-            }
+        fn write(path: &std::path::Path, tag: &Tag) -> std::io::Result<()> {
+            let data = nbt::encode(tag).map_err(std::io::Error::from)?;
+            std::fs::write(path, data)
         }
 
-        log::info!("Saved chunks");
-
-        let mut entities_file = std::fs::File::create(path.join("entities.bin"))?;
+        std::fs::create_dir_all(path.join("chunks"))?;
         std::fs::create_dir_all(path.join("players"))?;
+        write(
+            &path.join("level.nbt"),
+            &Tag::compound([
+                ("DataVersion", Tag::Int(SAVE_VERSION as i32)),
+                (
+                    "Generator",
+                    Tag::compound([
+                        ("Version", Tag::Byte(self.generator.version() as i8)),
+                        ("Seed", Tag::Int(self.generator.seed())),
+                    ]),
+                ),
+                ("Time", Tag::Long(self.time as i64)),
+            ]),
+        )?;
+
+        for (chunk_pos, changes) in &self.changes {
+            let blocks = changes.iter().map(|(pos, (block, state))| {
+                let ident = block_registry().get(*block).unwrap().ident;
+                Tag::compound([
+                    ("X", Tag::Byte(pos.x as i8)),
+                    ("Y", Tag::Byte(pos.y as i8)),
+                    ("Z", Tag::Byte(pos.z as i8)),
+                    ("Name", Tag::String(ident.to_owned())),
+                    ("State", Tag::Int(state.bits() as i32)),
+                ])
+            });
+            write(
+                &path.join("chunks").join(format!(
+                    "chunk_{}_{}_{}.nbt",
+                    chunk_pos.x, chunk_pos.y, chunk_pos.z
+                )),
+                &Tag::compound([
+                    ("X", Tag::Int(chunk_pos.x)),
+                    ("Y", Tag::Int(chunk_pos.y)),
+                    ("Z", Tag::Int(chunk_pos.z)),
+                    ("Blocks", Tag::list(blocks)),
+                ]),
+            )?;
+        }
 
         let player_ids: FxHashSet<EntityId> = self
             .ecs
             .query_ro::<&Username>()
             .map(|(entity, _)| entity)
             .collect();
-
-        let entity_count = self
+        let entities = self
             .ecs
             .e_alloc
             .iter()
-            .filter(|e| !player_ids.contains(e))
-            .count() as u64;
-        std::io::Write::write_all(&mut entities_file, &entity_count.to_le_bytes())?;
+            .filter(|entity| !player_ids.contains(entity))
+            .map(|entity| {
+                Tag::compound([(
+                    "Data",
+                    Tag::ByteArray(self.ecs.entity_details(entity).to_bytes()),
+                )])
+            });
+        write(
+            &path.join("entities.nbt"),
+            &Tag::compound([("Entities", Tag::list(entities))]),
+        )?;
 
         for entity in self.ecs.e_alloc.iter() {
-            let details = self.ecs.entity_details(entity);
-
             if let Some(username) = self.ecs.get_component::<Username>(entity) {
-                let player_data = details.to_bytes();
-                let hashed_username = hash64(username.0.as_bytes());
-                let player_path = path
-                    .join("players")
-                    .join(format!("{}.bin", hashed_username));
-                let mut player_file = std::fs::File::create(player_path)?;
-                std::io::Write::write_all(&mut player_file, &player_data)?;
-            } else {
-                let entity_data = details.to_bytes();
-                let entity_data_len = entity_data.len() as u32;
-                std::io::Write::write_all(&mut entities_file, &entity_data_len.to_le_bytes())?;
-                std::io::Write::write_all(&mut entities_file, &entity_data)?;
+                write(
+                    &path
+                        .join("players")
+                        .join(format!("{}.nbt", hash64(username.0.as_bytes()))),
+                    &Tag::compound([(
+                        "Data",
+                        Tag::ByteArray(self.ecs.entity_details(entity).to_bytes()),
+                    )]),
+                )?;
             }
         }
-
-        log::info!("Saved entities and logged-in players");
-
-        for (username, cached) in self.player_cache.iter() {
-            let player_data = cached.to_bytes();
-            let hashed_username = hash64(username.as_bytes());
-            let player_path = path
-                .join("players")
-                .join(format!("{}.bin", hashed_username));
-            let mut player_file = std::fs::File::create(player_path)?;
-            std::io::Write::write_all(&mut player_file, &player_data)?;
+        for (username, details) in &self.player_cache {
+            write(
+                &path
+                    .join("players")
+                    .join(format!("{}.nbt", hash64(username.as_bytes()))),
+                &Tag::compound([("Data", Tag::ByteArray(details.to_bytes()))]),
+            )?;
         }
-
-        log::info!("Saved logged-out players");
-
+        log::info!("Saved NBT world data");
         Ok(())
     }
-
     /// Loads a world from a folder. The folder should have the same structure as described in the
     /// `save` method.
     pub fn load(path: &std::path::Path) -> Result<Self, WorldLoadError> {
+        if path.join("level.nbt").exists() {
+            return load_nbt(path);
+        }
         let save_content = std::fs::read(path.join("save.bin"))
             .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
         let mut save_iter = save_content.into_iter();
@@ -643,6 +633,102 @@ impl World {
     }
 }
 
+fn load_nbt(path: &std::path::Path) -> Result<World, WorldLoadError> {
+    fn read(path: &std::path::Path) -> Result<Tag, WorldLoadError> {
+        let data =
+            std::fs::read(path).map_err(|_| WorldLoadError::MissingSaveFile(path.to_owned()))?;
+        nbt::decode(&data)
+    }
+    let level = read(&path.join("level.nbt"))?;
+    let version = level.int("DataVersion")?;
+    if version != SAVE_VERSION as i32 {
+        return Err(WorldLoadError::InvalidSaveFormat(format!(
+            "Unsupported NBT save version: {version}"
+        )));
+    }
+    let generator_data = level.compound_value("Generator")?;
+    let generator = Generator::new(
+        generator_data.byte("Version")? as u8,
+        generator_data.int("Seed")?,
+    )
+    .map_err(WorldLoadError::InvalidSaveFormat)?;
+    let time = u64::try_from(level.long("Time")?)
+        .map_err(|_| WorldLoadError::InvalidSaveFormat("NBT time is negative".into()))?;
+    let mut world = World {
+        chunks: FxHashMap::default(),
+        ecs: ECS::new(),
+        generator,
+        time,
+        replicated_snapshots: FxHashMap::default(),
+        player_cache: HashMap::new(),
+        pending_changes: PendingChanges::default(),
+        changes: FxHashMap::default(),
+        game_data: GameData::new(),
+    };
+
+    let chunks = path.join("chunks");
+    if chunks.exists() {
+        for entry in std::fs::read_dir(chunks)
+            .map_err(|e| WorldLoadError::InvalidSaveFormat(e.to_string()))?
+        {
+            let entry = entry.map_err(|e| WorldLoadError::InvalidSaveFormat(e.to_string()))?;
+            if entry.path().extension().and_then(|x| x.to_str()) != Some("nbt") {
+                continue;
+            }
+            let chunk = read(&entry.path())?;
+            let chunk_pos = IVec3::new(chunk.int("X")?, chunk.int("Y")?, chunk.int("Z")?);
+            for block in chunk.list_value("Blocks")? {
+                let x = block.byte("X")? as i32;
+                let y = block.byte("Y")? as i32;
+                let z = block.byte("Z")? as i32;
+                let name = block.string("Name")?;
+                let id = block_registry().get_id(name).ok_or_else(|| {
+                    WorldLoadError::InvalidSaveFormat(format!("Unknown block identifier: {name}"))
+                })?;
+                world.changes.entry(chunk_pos).or_default().insert(
+                    IVec3::new(x, y, z),
+                    (id, BlockState::from_bits(block.int("State")? as u32)),
+                );
+            }
+        }
+    }
+
+    let entities_path = path.join("entities.nbt");
+    if entities_path.exists() {
+        for entity in read(&entities_path)?.list_value("Entities")? {
+            let details = EntityDetails::from_bytes(entity.bytes("Data")?).map_err(|e| {
+                WorldLoadError::InvalidSaveFormat(format!("Failed to load entity: {e}"))
+            })?;
+            world.ecs.spawn_from_details(&details);
+        }
+    }
+    let players = path.join("players");
+    if players.exists() {
+        for entry in std::fs::read_dir(players)
+            .map_err(|e| WorldLoadError::InvalidSaveFormat(e.to_string()))?
+        {
+            let entry = entry.map_err(|e| WorldLoadError::InvalidSaveFormat(e.to_string()))?;
+            if entry.path().extension().and_then(|x| x.to_str()) != Some("nbt") {
+                continue;
+            }
+            let details =
+                EntityDetails::from_bytes(read(&entry.path())?.bytes("Data")?).map_err(|e| {
+                    WorldLoadError::InvalidSaveFormat(format!("Failed to load player data: {e}"))
+                })?;
+            let username = details
+                .get::<Username>()
+                .ok_or_else(|| {
+                    WorldLoadError::InvalidSaveFormat(
+                        "Player save missing Username component".into(),
+                    )
+                })?
+                .0
+                .clone();
+            world.player_cache.insert(username, details);
+        }
+    }
+    Ok(world)
+}
 fn load_v0_to_v8(
     path: &std::path::Path,
     save_iter: &mut impl Iterator<Item = u8>,

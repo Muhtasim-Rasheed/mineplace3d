@@ -2,7 +2,7 @@
 //! versioned format.
 
 /// The current version of the world save format (in beta).
-pub const SAVE_VERSION: u8 = 0x08;
+pub const SAVE_VERSION: u8 = 0x09;
 
 /// The current generator version. 0x00 is used for alpha generators and 0x01 and onwards are used
 /// for beta generators.
@@ -18,5 +18,6 @@ pub trait Saveable {
 
 pub mod error;
 pub mod io;
+pub mod nbt;
 
 pub use error::WorldLoadError;
