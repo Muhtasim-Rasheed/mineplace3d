@@ -17,8 +17,7 @@
 			"s": {"uv": [0, -8, 16, 16], "texture": "$s", "occludes": false, "cullable": false},
 			"e": {"uv": [0, -8, 8, 16], "texture": "$e", "occludes": false},
 			"w": {"uv": [0, -8, 8, 16], "texture": "$w", "occludes": false},
-			"u": {"uv": [0, -8, 16, 16], "texture": "$u", "occludes": false},
-			"d": {"uv": [0, -8, 16, 16], "texture": "$d", "occludes": false}
+			"u": {"uv": [0, -8, 16, 16], "texture": "$u", "occludes": false}
 		}
 	]
 }
