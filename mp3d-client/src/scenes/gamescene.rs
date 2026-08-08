@@ -168,10 +168,10 @@ impl GameScene {
             assets,
         };
 
-        let inventory_col = Column::new(8.0)
+        let inventory_col = Column::new(40.0)
             .alignment(Alignment::Start)
             .padding(Vec4::splat(16.0))
-            .with(Label::new("Inventory").font_size(36.0))
+            .with(Label::new("Inventory").font_size(24.0))
             .with(
                 Grid::new(
                     9,
@@ -393,7 +393,7 @@ impl GameScene {
         assets: &Assets,
     ) {
         let messages = self.get_recent_messages();
-        let message_size = measure_messages(&assets.font, &messages, 24.0);
+        let message_size = measure_messages(&assets.font, &messages, 16.0);
 
         let hotbar_size = self.ui.hotbar.size_hint(layout_ctx);
 
@@ -401,7 +401,7 @@ impl GameScene {
             self.screen_size.y as f32 - message_size.y - 10.0 - hotbar_size.y - 15.0;
 
         if self.client.gui.chat().is_some() {
-            messages_start_y -= 24.0 + 10.0;
+            messages_start_y -= 16.0 + 10.0;
             let label_size = self.ui.chat_input_label.size_hint(layout_ctx);
             ui.add_command(DrawCommand::Quad {
                 rect: [
@@ -436,7 +436,7 @@ impl GameScene {
         for cmd in text_messages(
             &assets.font,
             &messages,
-            24.0,
+            16.0,
             Vec2::new(10.0, messages_start_y),
         ) {
             ui.add_command(cmd);
@@ -640,7 +640,7 @@ impl super::Scene for GameScene {
                 max_size: Vec2::new(self.screen_size.x as f32, self.screen_size.y as f32),
                 cursor: Vec2::new(
                     10.0,
-                    self.screen_size.y as f32 - 24.0 - 10.0 - hotbar_size.y - 15.0,
+                    self.screen_size.y as f32 - 16.0 - 10.0 - hotbar_size.y - 15.0,
                 ),
                 assets,
             });
@@ -850,7 +850,7 @@ impl super::Scene for GameScene {
 {} FPS
 
 X: {:.2} Y: {:.2} Z: {:.2}
-Yaw: {:.2} Pitch: {:.2} Dir: {}
+Yaw: {:.2} Pitch: {:.2} Dir: {} ({:?})
 
 Block: X: {} Y: {} Z: {}
 Chunk: X: {} Y: {} Z: {}
@@ -862,6 +862,7 @@ Chunk local: X: {} Y: {} Z: {}"#,
                     self.client.player.position.z,
                     self.client.player.yaw,
                     self.client.player.pitch,
+                    mp3d_core::direction::Direction::from(self.client.player.forward()),
                     mp3d_core::direction::Direction::from(self.client.player.forward()),
                     block_pos.x,
                     block_pos.y,
@@ -1002,6 +1003,7 @@ fn measure_messages(font: &Font, messages: &[TextComponent], font_size: f32) -> 
             ColorlessTextParams {
                 font_size,
                 word_wrap_width: Some(700.0),
+                has_shadow: true,
             },
         );
         size.x = size.x.max(message_size.x);
@@ -1024,6 +1026,7 @@ fn text_messages(
             ColorlessTextParams {
                 font_size,
                 word_wrap_width: Some(700.0),
+                has_shadow: true,
             },
         );
         for mut cmd in message_commands {
@@ -1042,6 +1045,7 @@ fn text_messages(
             ColorlessTextParams {
                 font_size,
                 word_wrap_width: Some(700.0),
+                has_shadow: true,
             },
         );
         cursor.y += message_size.y;

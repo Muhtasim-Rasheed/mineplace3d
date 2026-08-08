@@ -30,7 +30,7 @@ impl InputField {
             size: Vec2::new(1010.0, 80.0),
             text: String::new(),
             color: Vec4::ONE,
-            font_size: 24.0,
+            font_size: 16.0,
             cursor_pos: 0,
             placeholder: placeholder.to_string(),
             sanitize: None,

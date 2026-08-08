@@ -40,7 +40,7 @@ impl Slider {
             value: 0.0,
             text: text.to_string(),
             color: Vec4::ONE,
-            font_size: 24.0,
+            font_size: 16.0,
             min_value: *range.start(),
             max_value: *range.end(),
             is_dragging: false,

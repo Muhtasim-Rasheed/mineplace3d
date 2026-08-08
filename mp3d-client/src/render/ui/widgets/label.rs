@@ -12,6 +12,7 @@ pub struct Label {
     pub font_size: f32,
     pub color: Vec4,
     pub wrap: Option<f32>,
+    pub has_shadow: bool,
 }
 
 impl Label {
@@ -19,9 +20,10 @@ impl Label {
         Self {
             text: text.to_string(),
             position: Vec2::ZERO,
-            font_size: 24.0,
+            font_size: 16.0,
             color: Vec4::ONE,
             wrap: None,
+            has_shadow: true,
         }
     }
 
@@ -37,6 +39,11 @@ impl Label {
 
     pub fn wrap(mut self, wrap_width: f32) -> Self {
         self.wrap = Some(wrap_width);
+        self
+    }
+
+    pub fn has_shadow(mut self, has_shadow: bool) -> Self {
+        self.has_shadow = has_shadow;
         self
     }
 }
@@ -56,6 +63,7 @@ impl Widget for Label {
             ColorlessTextParams {
                 font_size: self.font_size,
                 word_wrap_width: self.wrap,
+                has_shadow: self.has_shadow,
             },
         )
     }
@@ -86,6 +94,7 @@ impl Widget for Label {
                     font_size: self.font_size,
                     color: self.color,
                     word_wrap_width: self.wrap,
+                    has_shadow: self.has_shadow,
                 },
             )
             .into_iter()

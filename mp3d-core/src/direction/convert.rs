@@ -88,27 +88,41 @@ impl std::str::FromStr for Direction {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "north" => Ok(Direction::North),
-            "south" => Ok(Direction::South),
-            "east" => Ok(Direction::East),
-            "west" => Ok(Direction::West),
-            "up" => Ok(Direction::Up),
-            "down" => Ok(Direction::Down),
+            "north" | "-z" => Ok(Direction::North),
+            "south" | "+z" => Ok(Direction::South),
+            "east" | "+x" => Ok(Direction::East),
+            "west" | "-x" => Ok(Direction::West),
+            "up" | "+y" => Ok(Direction::Up),
+            "down" | "-y" => Ok(Direction::Down),
             _ => Err(()),
+        }
+    }
+}
+
+impl std::fmt::Debug for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Direction::*;
+        match self {
+            North => write!(f, "-z"),
+            South => write!(f, "+z"),
+            East => write!(f, "+x"),
+            West => write!(f, "-x"),
+            Up => write!(f, "+y"),
+            Down => write!(f, "-y"),
         }
     }
 }
 
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Direction::North => "North",
-            Direction::South => "South",
-            Direction::East => "East",
-            Direction::West => "West",
-            Direction::Up => "Up",
-            Direction::Down => "Down",
-        };
-        write!(f, "{}", s)
+        use Direction::*;
+        match self {
+            North => write!(f, "north"),
+            South => write!(f, "south"),
+            East => write!(f, "east"),
+            West => write!(f, "west"),
+            Up => write!(f, "up"),
+            Down => write!(f, "down"),
+        }
     }
 }

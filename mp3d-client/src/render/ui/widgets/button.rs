@@ -27,7 +27,7 @@ impl Button {
             size: Vec2::new(500.0, 80.0),
             text: text.to_string(),
             color: Vec4::ONE,
-            font_size: 24.0,
+            font_size: 16.0,
             always_hovered: false,
             disabled: false,
             is_down: false,

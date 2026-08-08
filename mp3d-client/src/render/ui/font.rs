@@ -10,6 +10,7 @@ pub struct TextParams {
     pub font_size: f32,
     pub color: Vec4,
     pub word_wrap_width: Option<f32>,
+    pub has_shadow: bool,
 }
 
 impl TextParams {
@@ -17,6 +18,7 @@ impl TextParams {
         ColorlessTextParams {
             font_size: self.font_size,
             word_wrap_width: self.word_wrap_width,
+            has_shadow: self.has_shadow,
         }
     }
 }
@@ -25,14 +27,16 @@ impl TextParams {
 pub struct ColorlessTextParams {
     pub font_size: f32,
     pub word_wrap_width: Option<f32>,
+    pub has_shadow: bool,
 }
 
 impl Default for TextParams {
     fn default() -> Self {
         Self {
-            font_size: 24.0,
+            font_size: 16.0,
             color: Vec4::ONE,
             word_wrap_width: None,
+            has_shadow: true,
         }
     }
 }
@@ -40,8 +44,9 @@ impl Default for TextParams {
 impl Default for ColorlessTextParams {
     fn default() -> Self {
         Self {
-            font_size: 24.0,
+            font_size: 16.0,
             word_wrap_width: None,
+            has_shadow: true,
         }
     }
 }
@@ -57,6 +62,7 @@ pub struct Font {
     char_size: Vec2,
     first_char: char,
     strikethrough: Option<u32>,
+    spacing: f32,
 }
 
 impl Font {
@@ -69,6 +75,7 @@ impl Font {
             ),
             first_char: font_settings.first_char,
             strikethrough: font_settings.strikethrough_idx,
+            spacing: font_settings.spacing.unwrap_or(0.0),
         }
     }
 
@@ -116,7 +123,7 @@ impl Font {
         let mut result = Vec::new();
 
         let mut cursor = Vec2::ZERO;
-        let line_height = params.font_size;
+        let line_height = params.font_size + self.spacing * params.font_size / 4.0;
 
         let wrap_width = params.word_wrap_width;
 
@@ -210,6 +217,7 @@ impl Font {
 
     fn char_width(&self, font_size: f32, c: char) -> f32 {
         self.char_size(font_size, c).x - self.char_back(font_size, c)
+            + self.spacing * font_size * (self.char_size.x / self.char_size.y) / 4.0
     }
 
     pub fn text(&self, text: &str, params: TextParams) -> Vec<DrawCommand> {
@@ -237,6 +245,23 @@ impl Font {
                         ),
                         layer: 2000,
                     });
+
+                    if params.has_shadow {
+                        let off = Vec2::new(
+                            self.spacing * params.font_size * (self.char_size.x / self.char_size.y)
+                                / 4.0,
+                            self.spacing * params.font_size / 4.0,
+                        );
+                        commands.push(DrawCommand::Quad {
+                            rect: [pos_min + off, pos_max + off],
+                            uv_rect,
+                            mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
+                                self.atlas().handle(),
+                                Vec4::new(0.0, 0.0, 0.0, 0.5),
+                            ),
+                            layer: 1999,
+                        });
+                    }
                 }
             }
         }
@@ -292,6 +317,23 @@ impl Font {
                         ),
                         layer: 2000,
                     });
+
+                    if params.has_shadow {
+                        let off = Vec2::new(
+                            self.spacing * params.font_size * (self.char_size.x / self.char_size.y)
+                                / 4.0,
+                            self.spacing * params.font_size / 4.0,
+                        );
+                        commands.push(DrawCommand::Quad {
+                            rect: [pos_min + off, pos_max + off],
+                            uv_rect,
+                            mode: crate::render::ui::uirenderer::UIRenderMode::Texture(
+                                self.atlas().handle(),
+                                Vec4::new(0.0, 0.0, 0.0, 0.5),
+                            ),
+                            layer: 1999,
+                        });
+                    }
                 }
             }
         }
