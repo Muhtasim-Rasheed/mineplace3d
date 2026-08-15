@@ -218,9 +218,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         ServerEvent::Disconnected { connection_id } => {
                             outbound_senders.remove(&connection_id);
-                            if let Some(session_id) = server.connections.remove(&connection_id) {
-                                session_to_connection.remove(&session_id);
-                            }
+                            session_to_connection.retain(|_, cid| *cid != connection_id);
+                            server.disconnect_user(connection_id);
                         }
                         ServerEvent::Message {
                             connection_id,

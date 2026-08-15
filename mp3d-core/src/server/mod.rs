@@ -1,7 +1,7 @@
 //! Server code for handling client connections and requests.
 //!
-//! Note that this does not include networking, for that please check mp3d-server (doesn't exist
-//! yet) and instead focuses on the server-side logic.
+//! Note that this does not include networking, for that please check mp3d-server and instead
+//! focuses on the actual server-side logic.
 
 use std::{collections::HashMap, path::PathBuf};
 
@@ -156,6 +156,33 @@ impl Server {
             .build()
     }
 
+    /// Disconnects a user.
+    pub fn disconnect_user(&mut self, connection_id: u64) {
+        let Some(user_id) = self.connections.remove(&connection_id) else {
+            return;
+        };
+
+        if let Some(session) = self.sessions.remove(&user_id) {
+            let details = self.world.ecs.entity_details(session.entity_id);
+            self.world.ecs.despawn(session.entity_id);
+
+            self.world
+                .player_cache
+                .insert(session.username.clone(), details);
+
+            broadcast_message(
+                &mut self.sessions,
+                None,
+                S2CMessage::Disconnected { user_id },
+            );
+            log::info!(
+                "User '{}' with user ID {} disconnected",
+                session.username,
+                user_id
+            );
+        }
+    }
+
     /// Handles messages received from clients, and prepares responses. Note that this does not
     /// tick the server, that must be done separately.
     pub fn handle_message(
@@ -244,27 +271,7 @@ impl Server {
                 }
             }
             C2SMessage::Disconnect => {
-                let user_id = self.connections.remove(&connection_id)?;
-
-                if let Some(session) = self.sessions.remove(&user_id) {
-                    let details = self.world.ecs.entity_details(session.entity_id);
-                    self.world.ecs.despawn(session.entity_id);
-
-                    self.world
-                        .player_cache
-                        .insert(session.username.clone(), details);
-
-                    broadcast_message(
-                        &mut self.sessions,
-                        None,
-                        S2CMessage::Disconnected { user_id },
-                    );
-                    log::info!(
-                        "User '{}' with user ID {} disconnected",
-                        session.username,
-                        user_id
-                    );
-                }
+                self.disconnect_user(connection_id);
             }
             C2SMessage::Move(inst) => {
                 if let Some(user_id) = self.connections.get(&connection_id)
