@@ -210,13 +210,17 @@ impl GameScene {
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
 
-        let image_bytes = [
-            255, 0, 255, 255, // Pink
-            0, 0, 0, 255, // Black
-            0, 0, 0, 255, // Black
-            255, 0, 255, 255, // Pink
-        ];
-        let pink_black = Texture::new_bytes(gl, 2, 2, image_bytes.to_vec());
+        // let image_bytes = [
+        //     255, 0, 255, 255, // Pink
+        //     0, 0, 0, 255, // Black
+        //     0, 0, 0, 255, // Black
+        //     255, 0, 255, 255, // Pink
+        // ];
+        // let pink_black = Texture::new_bytes(gl, 2, 2, image_bytes.to_vec());
+        let pink_black = Texture::new(
+            gl,
+            &::image::load_from_memory(include_bytes!("../assets/glungus.png")).unwrap(),
+        );
 
         Self {
             client,

@@ -1,6 +1,6 @@
 [package]
 name = "mp3d-server"
-version = "0.1.4-beta"
+version = "0.2.0-beta"
 edition = "2024"
 license = "MIT"
 
@@ -10,7 +10,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 fern = "0.7.1"
 futures = "0.3.33"
 log = "0.4.33"
-mp3d-core = { version = "0.1.4-beta", path = "../mp3d-core" }
+mp3d-core = { path = "../mp3d-core" }
 postcard = { version = "1.1.3", default-features = false, features = ["use-std"] }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.19"

@@ -52,35 +52,35 @@ pub fn unit_cube(gl: &Arc<glow::Context>) -> Mesh {
     #[rustfmt::skip]
     let vertices: Vec<EntityVertex> = vec![
         // North
-        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  0.0, -1.0) },
-        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  0.0, -1.0) },
-        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  0.0, -1.0) },
-        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  0.0, -1.0) },
+        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  0.0, -1.0) },
+        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  0.0, -1.0) },
+        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  0.0, -1.0) },
+        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  0.0, -1.0) },
         // South
-        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  0.0,  1.0) },
-        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  0.0,  1.0) },
-        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  0.0,  1.0) },
-        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  0.0,  1.0) },
+        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  0.0,  1.0) },
+        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  0.0,  1.0) },
+        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  0.0,  1.0) },
+        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  0.0,  1.0) },
         // East
-        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 1.0,  0.0,  0.0) },
         // West
-        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3(-1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3(-1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3(-1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3(-1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3(-1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3(-1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3(-1.0,  0.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3(-1.0,  0.0,  0.0) },
         // Up
-        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  1.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  1.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  1.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  1.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  1.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  1.0,  0.0) },
         // Down    
-        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0, -1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0, -1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0, -1.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0, -1.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0, -1.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0, -1.0,  0.0) },
+        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0, -1.0,  0.0) },
+        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0, -1.0,  0.0) },
     ];
 
     let mut indices: Vec<u32> = Vec::new();
