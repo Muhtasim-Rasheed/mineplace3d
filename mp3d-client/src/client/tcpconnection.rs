@@ -47,6 +47,8 @@ fn network_loop(
     outbound_rx: mpsc::Receiver<OutboundEvent>,
     inbound_tx: mpsc::Sender<S2CMessage>,
 ) {
+    let mut reader = FrameReader::new();
+
     loop {
         loop {
             match outbound_rx.try_recv() {
@@ -62,7 +64,7 @@ fn network_loop(
             }
         }
 
-        match read_framed(&mut stream) {
+        match reader.read_frame(&mut stream) {
             Ok(Some(bytes)) => match postcard::from_bytes::<S2CMessage>(&bytes) {
                 Ok(msg) => {
                     inbound_tx.send(msg).ok();
@@ -90,24 +92,82 @@ fn write_framed(stream: &mut TcpStream, msg: &C2SMessage) -> std::io::Result<()>
     Ok(())
 }
 
-fn read_framed(stream: &mut TcpStream) -> std::io::Result<Option<Vec<u8>>> {
-    let mut len_buf = [0u8; 4];
-    match stream.read_exact(&mut len_buf) {
-        Ok(()) => {}
-        Err(e)
-            if matches!(
-                e.kind(),
-                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-            ) =>
-        {
-            return Ok(None);
+struct FrameReader {
+    len_buf: [u8; 4],
+    len_filled: usize,
+    payload_buf: Vec<u8>,
+    payload_filled: usize,
+    payload_len: Option<usize>,
+}
+
+impl FrameReader {
+    fn new() -> Self {
+        Self {
+            len_buf: [0u8; 4],
+            len_filled: 0,
+            payload_buf: Vec::new(),
+            payload_filled: 0,
+            payload_len: None,
         }
-        Err(e) => return Err(e),
     }
-    let len = u32::from_be_bytes(len_buf) as usize;
-    let mut payload = vec![0u8; len];
-    stream.read_exact(&mut payload)?;
-    Ok(Some(payload))
+
+    fn read_frame(&mut self, stream: &mut TcpStream) -> std::io::Result<Option<Vec<u8>>> {
+        if self.payload_len.is_none() {
+            while self.len_filled < 4 {
+                match stream.read(&mut self.len_buf[self.len_filled..]) {
+                    Ok(0) => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "connection closed while reading length prefix",
+                        ));
+                    }
+                    Ok(n) => self.len_filled += n,
+                    Err(e)
+                        if matches!(
+                            e.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        return Ok(None);
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            let len = u32::from_be_bytes(self.len_buf) as usize;
+            self.payload_len = Some(len);
+            self.payload_buf = vec![0u8; len];
+            self.payload_filled = 0;
+        }
+
+        let target_len = self.payload_len.unwrap();
+
+        while self.payload_filled < target_len {
+            match stream.read(&mut self.payload_buf[self.payload_filled..]) {
+                Ok(0) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "connection closed while reading payload",
+                    ));
+                }
+                Ok(n) => self.payload_filled += n,
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    return Ok(None);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        let payload = std::mem::take(&mut self.payload_buf);
+        self.len_filled = 0;
+        self.payload_filled = 0;
+        self.payload_len = None;
+        Ok(Some(payload))
+    }
 }
 
 impl Connection for TcpConnection {

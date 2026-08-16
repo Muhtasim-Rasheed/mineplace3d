@@ -175,6 +175,15 @@ impl Server {
                 None,
                 S2CMessage::Disconnected { user_id },
             );
+            broadcast_message(
+                &mut self.sessions,
+                None,
+                S2CMessage::ChatMessage {
+                    message: format!("%bC3[-]%r{} has disconnected", session.username)
+                        .parse()
+                        .unwrap(),
+                },
+            );
             log::info!(
                 "User '{}' with user ID {} disconnected",
                 session.username,
@@ -258,6 +267,15 @@ impl Server {
                             S2CMessage::EntitySpawned {
                                 entity_id,
                                 entity_details: entitydet.to_bytes(),
+                            },
+                        );
+                        broadcast_message(
+                            &mut self.sessions,
+                            None,
+                            S2CMessage::ChatMessage {
+                                message: format!("%b33[+]%r {} has connected", username)
+                                    .parse()
+                                    .unwrap(),
                             },
                         );
                         log::info!(

@@ -1120,7 +1120,7 @@ dependencies = [
 
 [[package]]
 name = "mp3d-client"
-version = "0.2.0-beta"
+version = "0.2.1-beta"
 dependencies = [
  "chrono",
  "dirs",
@@ -1143,7 +1143,7 @@ dependencies = [
 
 [[package]]
 name = "mp3d-core"
-version = "0.2.0-beta"
+version = "0.2.1-beta"
 dependencies = [
  "bcrypt",
  "fastnoise-lite",
@@ -1160,7 +1160,7 @@ dependencies = [
 
 [[package]]
 name = "mp3d-server"
-version = "0.2.0-beta"
+version = "0.2.1-beta"
 dependencies = [
  "argh",
  "chrono",
