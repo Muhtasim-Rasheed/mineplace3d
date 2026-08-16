@@ -99,6 +99,7 @@
     "0.2.0-beta": {
       "files": {
         "windows_aarch64": "mineplace3d-windows-aarch64.exe",
+        "windows_x86_64": "mineplace3d-windows-x86_64.exe",
         "linux_x86_64": "mineplace3d-linux-x86_64"
       },
       "uploaded_on": "2026-08-16T14:58:30Z"
