@@ -53,6 +53,7 @@ pub struct LocalPlayer {
     pub yaw: f32,
     pub delta_yaw: f32,
     pub pitch: f32,
+    pub delta_pitch: f32,
     pub fov: f32,
     pub flying: bool,
     pub on_ground: bool,
@@ -71,6 +72,7 @@ impl Default for LocalPlayer {
             yaw: 0.0,
             delta_yaw: 0.0,
             pitch: 0.0,
+            delta_pitch: 0.0,
             fov: 90.0,
             flying: false,
             on_ground: false,
@@ -239,6 +241,7 @@ impl LocalPlayer {
         }
 
         let previous_yaw = self.yaw;
+        let previous_pitch = self.pitch;
         if let Some((yaw, pitch)) = server_rot {
             let angle_diff_yaw = angle_delta(self.yaw, yaw).abs();
             let angle_diff_pitch = angle_delta(self.pitch, pitch).abs();
@@ -254,6 +257,7 @@ impl LocalPlayer {
             }
         }
         self.delta_yaw = self.yaw - previous_yaw;
+        self.delta_pitch = self.pitch - previous_pitch;
 
         if let Some(inv) = details.get::<Inventory>() {
             self.inventory.borrow_mut().update_from_inventory(inv);
