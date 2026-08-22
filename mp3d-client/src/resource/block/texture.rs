@@ -126,18 +126,15 @@ impl TextureAtlas {
             y as i64,
         );
 
+        let uv_bottom_left = UVec2::new(x, y);
+        let uv_top_right = uv_bottom_left + TEXTURE_SIZE;
+        self.uv_coords.insert(name, [uv_bottom_left, uv_top_right]);
+
         self.cursor.x += TEXTURE_SIZE;
         if self.cursor.x >= self.width {
             self.cursor.x = 0;
             self.cursor.y += TEXTURE_SIZE;
         }
-
-        let x = self.cursor.x;
-        let y = self.cursor.y;
-
-        let uv_bottom_left = UVec2::new(x, y + TEXTURE_SIZE);
-        let uv_top_right = UVec2::new(x + TEXTURE_SIZE, y);
-        self.uv_coords.insert(name, [uv_bottom_left, uv_top_right]);
 
         Some([uv_bottom_left, uv_top_right])
     }
@@ -148,12 +145,16 @@ impl TextureAtlas {
         let w = self.width as f32;
         let h = self.height as f32;
         let atlas_min = uv[0].as_vec2() / Vec2::new(w, h);
+        let atlas_min = atlas_min.with_y(1.0 - atlas_min.y);
 
         let tile_size = Vec2::new(TEXTURE_SIZE as f32 / w, TEXTURE_SIZE as f32 / h);
 
+        let model_uv_min = model_uv[0].with_y(1.0 - model_uv[0].y);
+        let model_uv_max = model_uv[1].with_y(1.0 - model_uv[1].y);
+
         Some([
-            atlas_min + model_uv[0] * tile_size,
-            atlas_min - model_uv[1] * tile_size,
+            atlas_min + model_uv_min * tile_size,
+            atlas_min + model_uv_max * tile_size,
         ])
     }
 

@@ -45,6 +45,26 @@ define_blocks! {
     GRANITE => { ident: "granite" },
     LOG => { ident: "log" },
     LEAVES => { ident: "leaves" },
+    PLANKS => { ident: "planks" },
+    PLANKS_SLAB => {
+        ident: "planks_slab",
+        collision_shape: CollisionShape::Slab,
+        state_type: BlockState::SLAB_TYPE,
+        on_click: Box::new(slab::on_click),
+        on_place: Box::new(slab::on_place),
+    },
+    PLANKS_STAIRS => {
+        ident: "planks_stairs",
+        collision_shape: CollisionShape::Stairs,
+        state_type: BlockState::STAIR_TYPE,
+        on_place: Box::new(stairs::on_place),
+    },
+    PLANKS_VSLAB => {
+        ident: "planks_vslab",
+        collision_shape: CollisionShape::VSlab,
+        state_type: BlockState::FACING_TYPE,
+        on_place: Box::new(facing::on_place),
+    },
     GLUNGUS => { ident: "glungus", on_click: Box::new(explode::on_click) },
     GLUNGUS_SLAB => {
         ident: "glungus_slab",

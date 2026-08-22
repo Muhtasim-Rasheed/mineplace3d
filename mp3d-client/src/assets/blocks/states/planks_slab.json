@@ -1,0 +1,10 @@
+{
+	"states": {
+		"0000": { "model": "planks_slab" },
+		"0001": {
+			"model": "planks_slab",
+			"transform": { "translation": [0, 0.5, 0] }
+		},
+		"0002": { "model": "planks" }
+	}
+}
