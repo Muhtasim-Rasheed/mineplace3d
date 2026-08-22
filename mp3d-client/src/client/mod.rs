@@ -177,13 +177,11 @@ impl<C: Connection> Client<C> {
             CurrentGUI::None => {
                 let mouse_delta = update_context.mouse.delta;
                 let previous_yaw = self.player.yaw;
-                let previous_pitch = self.player.pitch;
                 self.player.yaw -= mouse_delta.x * 0.1 * sensitivity;
                 self.player.pitch += mouse_delta.y * 0.1 * sensitivity;
                 self.player.pitch = self.player.pitch.clamp(-89.0, 89.0);
                 self.player.yaw = self.player.yaw.rem_euclid(360.0);
                 self.player.delta_yaw = self.player.yaw - previous_yaw;
-                self.player.delta_pitch = self.player.pitch - previous_pitch;
 
                 let kb = &update_context.keyboard;
 
@@ -380,17 +378,7 @@ impl<C: Connection> Client<C> {
 
         self.player.input.yaw = self.player.yaw;
         self.player.input.pitch = self.player.pitch;
-
-        let is_not_moving = self.player.input.forward == 0
-            && self.player.input.strafe == 0
-            && !self.player.input.jump
-            && !self.player.input.sneak
-            && self.player.delta_yaw.abs() < f32::EPSILON
-            && self.player.delta_pitch.abs() < f32::EPSILON;
-
-        if !is_not_moving {
-            send_or_bail!(self, C2SMessage::Move(self.player.input));
-        }
+        send_or_bail!(self, C2SMessage::Move(self.player.input));
 
         let needed_chunks = self.world.needs_chunks(self.player.position.as_ivec3());
         self.world
