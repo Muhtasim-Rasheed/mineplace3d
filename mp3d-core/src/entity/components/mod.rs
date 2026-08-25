@@ -8,7 +8,7 @@ use crate::{
     },
     item::Inventory,
     serialize::{
-        read::{ByteReader, ReadError},
+        read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
         write::ByteWriter,
     },
 };
@@ -133,7 +133,10 @@ impl Position {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        ByteReader::new(bytes).vec3().map(Self)
+        ByteReader::new(bytes)
+            .vec3()
+            .ctx("position component")
+            .map(Self)
     }
 }
 
@@ -146,7 +149,10 @@ impl Velocity {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        ByteReader::new(bytes).vec3().map(Self)
+        ByteReader::new(bytes)
+            .vec3()
+            .ctx("velocity component")
+            .map(Self)
     }
 }
 
@@ -164,8 +170,8 @@ impl Rotation {
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
-            yaw: reader.f32()?,
-            pitch: reader.f32()?,
+            yaw: reader.f32().ctx("Rotation::yaw")?,
+            pitch: reader.f32().ctx("Rotation::pitch")?,
         })
     }
 }
@@ -179,7 +185,10 @@ impl OnGround {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        ByteReader::new(bytes).bool().map(Self)
+        ByteReader::new(bytes)
+            .bool()
+            .ctx("on_ground component")
+            .map(Self)
     }
 }
 
@@ -188,25 +197,28 @@ pub struct Username(pub String);
 
 impl Username {
     fn to_bytes(&self) -> Vec<u8> {
-        ByteWriter::new().string(&self.0).into_bytes()
+        ByteWriter::new()
+            .u16(self.0.len() as u16)
+            .string(&self.0)
+            .into_bytes()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        ByteReader::new(bytes).string().map(Self)
+        let mut reader = ByteReader::new(bytes);
+        let len = reader.u16().ctx("username length")? as usize;
+        reader.string(len).ctx("username component").map(Self)
     }
 }
 
 impl Inventory {
     fn to_bytes(&self) -> Vec<u8> {
-        crate::saving::Saveable::save(self)
+        ByteWriter::new().save(self).into_bytes()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        // TODO: convert WorldLoadError to ReadError, or maybe remove WorldLoadError in favor of
-        // ReadError
-        Ok(
-            crate::saving::Saveable::load(&mut bytes.iter().copied(), crate::saving::SAVE_VERSION)
-                .unwrap(),
+        crate::serialize::Saveable::load(
+            &mut ByteReader::new(bytes),
+            crate::serialize::SAVE_VERSION,
         )
     }
 }
@@ -222,8 +234,9 @@ impl SelectedHotbarSlot {
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         match ByteReader::new(bytes).u8() {
             Ok(v) if v < 9 => Ok(Self(v as usize)),
-            Ok(v) => Err(ReadError::IndexOutOfRange { value: v, max: 8 }),
-            Err(e) => Err(e),
+            Ok(v) => Err(ReadErrorKind::IndexOutOfRange { value: v, max: 8 })
+                .ctx("selected_hotbar_slot component"),
+            Err(e) => Err(e).ctx("selected_hotbar_slot component"),
         }
     }
 }
@@ -237,7 +250,10 @@ impl Flying {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        ByteReader::new(bytes).bool().map(Self)
+        ByteReader::new(bytes)
+            .bool()
+            .ctx("flying component")
+            .map(Self)
     }
 }
 
@@ -258,8 +274,8 @@ impl Hitbox {
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
-            width: reader.f32()?,
-            height: reader.f32()?,
+            width: reader.f32().ctx("Hitbox::width")?,
+            height: reader.f32().ctx("Hitbox::height")?,
         })
     }
 }
@@ -277,10 +293,10 @@ impl MoveInput {
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
-            forward: reader.f32()?,
-            strafe: reader.f32()?,
-            jump: reader.bool()?,
-            sneak: reader.bool()?,
+            forward: reader.f32().ctx("MoveInput::forward")?,
+            strafe: reader.f32().ctx("MoveInput::strafe")?,
+            jump: reader.bool().ctx("MoveInput::jump")?,
+            sneak: reader.bool().ctx("MoveInput::sneak")?,
         })
     }
 }
@@ -290,14 +306,17 @@ pub struct HasDefId(pub EntityDefId);
 
 impl HasDefId {
     fn to_bytes(&self) -> Vec<u8> {
+        let ident = entity_registry().get(self.0).unwrap().ident;
         ByteWriter::new()
-            .string(entity_registry().get(self.0).unwrap().ident)
+            .u16(ident.len() as u16)
+            .string(ident)
             .into_bytes()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .registry_id(entity_registry())
+            .ctx("has_def_id component")
             .map(Self)
     }
 }

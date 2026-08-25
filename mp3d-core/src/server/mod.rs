@@ -13,6 +13,7 @@ use crate::{
     entity::{EntityDetails, EntityId, MoveInput, components::*, ecs::Scheduler, systems},
     item::Inventory,
     protocol::*,
+    serialize::read::ReadError,
     world::{World, chunk::CHUNK_SIZE},
 };
 
@@ -496,7 +497,7 @@ impl Server {
     }
 
     /// Loads the server state from disk, including the world and user database.
-    pub fn load(singleplayer: bool, save_path: PathBuf) -> std::io::Result<Self> {
+    pub fn load(singleplayer: bool, save_path: PathBuf) -> Result<Self, ReadError> {
         let mut command_manager = CommandManager::new();
         commands::init_command_mgr(&mut command_manager);
         let scheduler = Scheduler::new().add_system(systems::movement_system);

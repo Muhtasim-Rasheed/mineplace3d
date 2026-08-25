@@ -10,6 +10,7 @@ use glam::{IVec3, Mat4, UVec2, UVec4, Vec2, Vec3, Vec4};
 use glow::HasContext;
 use mp3d_core::{
     entity::components::{Hitbox, Position, Rotation},
+    serialize::read::ReadError,
     textcomponent::TextComponent,
     world::chunk::CHUNK_SIZE,
 };
@@ -121,7 +122,7 @@ impl GameScene {
         window_size: (u32, u32),
         world_path: PathBuf,
         username: String,
-    ) -> Result<Self, std::io::Error> {
+    ) -> Result<Self, ReadError> {
         let c = ConnectionKind::SinglePlayer {
             connection: LocalConnection::new(mp3d_core::server::Server::load(
                 true,

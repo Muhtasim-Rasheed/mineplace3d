@@ -13,7 +13,6 @@ pub mod item;
 pub mod physics;
 pub mod protocol;
 pub mod registry;
-pub mod saving;
 pub mod serialize;
 pub mod server;
 pub mod textcomponent;

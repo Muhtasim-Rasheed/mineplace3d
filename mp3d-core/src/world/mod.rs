@@ -25,7 +25,11 @@ use crate::{
     physics::CollisionWorld,
     protocol::{BlockUpdate, BlockUpdateKind},
     registry::LazyId,
-    saving::{GENERATOR_VERSION, SAVE_VERSION, Saveable, WorldLoadError, io::*},
+    serialize::{
+        GENERATOR_VERSION, SAVE_VERSION, Saveable,
+        read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
+        write::ByteWriter,
+    },
     uniquequeue::UniqueQueue,
     world::{
         chunk::{CHUNK_SIZE, Chunk},
@@ -543,10 +547,14 @@ impl World {
     ///   - 4 bytes: length of entity data (M)
     ///   - M bytes: entity data (format defined by each entity type)
     pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
-        let mut save_file = std::fs::File::create(path.join("save.bin"))?;
-        std::io::Write::write_all(&mut save_file, &[SAVE_VERSION])?;
-        std::io::Write::write_all(&mut save_file, &self.generator.save())?;
-        std::io::Write::write_all(&mut save_file, &self.time.to_le_bytes())?;
+        std::fs::write(
+            path.join("save.bin"),
+            ByteWriter::new()
+                .u8(SAVE_VERSION)
+                .save(&self.generator)
+                .u64(self.time)
+                .into_bytes(),
+        )?;
 
         log::info!("Saved save.bin");
 
@@ -556,22 +564,17 @@ impl World {
                 "chunk_{}_{}_{}.bin",
                 chunk_pos.x, chunk_pos.y, chunk_pos.z
             ));
-            let mut chunk_file = std::fs::File::create(chunk_path)?;
-            let change_count = changes.len() as u16;
-            std::io::Write::write_all(&mut chunk_file, &change_count.to_le_bytes())?;
+            let mut chunk_writer = ByteWriter::new().u16(changes.len() as u16);
             for (local_pos, (block, state)) in changes {
-                std::io::Write::write_all(
-                    &mut chunk_file,
-                    &[local_pos.x as u8, local_pos.y as u8, local_pos.z as u8],
-                )?;
-                let data = (*block, *state).save();
-                std::io::Write::write_all(&mut chunk_file, data.as_slice())?;
+                chunk_writer = chunk_writer
+                    .u8vec3(local_pos.as_u8vec3())
+                    .save(&(*block, *state));
             }
+            std::fs::write(chunk_path, chunk_writer.into_bytes())?;
         }
 
         log::info!("Saved chunks");
 
-        let mut entities_file = std::fs::File::create(path.join("entities.bin"))?;
         std::fs::create_dir_all(path.join("players"))?;
 
         let player_ids: FxHashSet<EntityId> = self
@@ -586,7 +589,7 @@ impl World {
             .iter()
             .filter(|e| !player_ids.contains(e))
             .count() as u64;
-        std::io::Write::write_all(&mut entities_file, &entity_count.to_le_bytes())?;
+        let mut entities_writer = ByteWriter::new().u64(entity_count);
 
         for entity in self.ecs.e_alloc.iter() {
             let details = self.ecs.entity_details(entity);
@@ -597,15 +600,15 @@ impl World {
                 let player_path = path
                     .join("players")
                     .join(format!("{}.bin", hashed_username));
-                let mut player_file = std::fs::File::create(player_path)?;
-                std::io::Write::write_all(&mut player_file, &player_data)?;
+                std::fs::write(player_path, &player_data)?;
             } else {
                 let entity_data = details.to_bytes();
                 let entity_data_len = entity_data.len() as u32;
-                std::io::Write::write_all(&mut entities_file, &entity_data_len.to_le_bytes())?;
-                std::io::Write::write_all(&mut entities_file, &entity_data)?;
+                entities_writer = entities_writer.u32(entity_data_len).bytes(&entity_data);
             }
         }
+
+        std::fs::write(path.join("entities.bin"), entities_writer.into_bytes())?;
 
         log::info!("Saved entities and logged-in players");
 
@@ -615,8 +618,7 @@ impl World {
             let player_path = path
                 .join("players")
                 .join(format!("{}.bin", hashed_username));
-            let mut player_file = std::fs::File::create(player_path)?;
-            std::io::Write::write_all(&mut player_file, &player_data)?;
+            std::fs::write(player_path, &player_data)?;
         }
 
         log::info!("Saved logged-out players");
@@ -626,37 +628,29 @@ impl World {
 
     /// Loads a world from a folder. The folder should have the same structure as described in the
     /// `save` method.
-    pub fn load(path: &std::path::Path) -> Result<Self, WorldLoadError> {
+    pub fn load(path: &std::path::Path) -> Result<Self, ReadError> {
         let save_content = std::fs::read(path.join("save.bin"))
-            .map_err(|_| WorldLoadError::MissingSaveFile(path.join("save.bin")))?;
-        let mut save_iter = save_content.into_iter();
-        match save_iter.next() {
-            Some(version) if version <= 0x08 => load_v0_to_v8(path, &mut save_iter, version),
-            Some(version) => Err(WorldLoadError::InvalidSaveFormat(format!(
-                "Unsupported save version: {}",
-                version
-            ))),
-            None => Err(WorldLoadError::InvalidSaveFormat(
-                "Save file is empty".to_string(),
-            )),
+            .map_err(|_| ReadErrorKind::MissingFile(path.join("save.bin")))
+            .ctx("loading world")?;
+        let mut save_reader = ByteReader::new(&save_content);
+        match save_reader.u8().ctx("expected save version")? {
+            version if version <= 0x08 => load_v0_to_v8(path, &mut save_reader, version),
+            version => Err(ReadErrorKind::InvalidTag(version)).ctx("save version"),
         }
     }
 }
 
 fn load_v0_to_v8(
     path: &std::path::Path,
-    save_iter: &mut impl Iterator<Item = u8>,
+    save_reader: &mut ByteReader,
     version: u8,
-) -> Result<World, WorldLoadError> {
+) -> Result<World, ReadError> {
     // GENERATOR
-    let generator = Generator::load(save_iter, version).map_err(|e| {
-        WorldLoadError::InvalidSaveFormat(format!("Failed to load generator: {}", e))
-    })?;
+    let generator = Generator::load(save_reader, version)?;
 
     // TIME
     let time = if version >= 0x05 {
-        read_u64(save_iter, "World::time")
-            .map_err(|e| WorldLoadError::InvalidSaveFormat(format!("Failed to load time: {}", e)))?
+        save_reader.u64().ctx("world::time")?
     } else {
         0
     };
@@ -676,7 +670,7 @@ fn load_v0_to_v8(
     // CHUNKS
     let chunks_dir = path.join("chunks");
     if !chunks_dir.exists() {
-        return Err(WorldLoadError::MissingSaveFile(chunks_dir));
+        return Err(ReadErrorKind::MissingFile(chunks_dir)).ctx("loading chunks");
     }
     for entry in std::fs::read_dir(chunks_dir).unwrap() {
         let entry = entry.unwrap();
@@ -697,11 +691,14 @@ fn load_v0_to_v8(
             parts[2].parse().unwrap(),
         );
         let chunk_data = std::fs::read(entry.path()).unwrap();
-        let mut chunk_iter = chunk_data.into_iter();
-        let change_count = read_u16(&mut chunk_iter, "Chunk change count")?;
+        let mut chunk_reader = ByteReader::new(&chunk_data);
+        let change_count = chunk_reader.u16().ctx("chunk change count")?;
         for _ in 0..change_count {
-            let local_pos = read_u8vec3(&mut chunk_iter, "Chunk change local position")?.as_ivec3();
-            let block_and_state = <(BlockId, BlockState)>::load(&mut chunk_iter, version)?;
+            let local_pos = chunk_reader
+                .u8vec3()
+                .ctx("chunk change local position")?
+                .as_ivec3();
+            let block_and_state = <(BlockId, BlockState)>::load(&mut chunk_reader, version)?;
             world
                 .changes
                 .entry(chunk_pos)
@@ -717,20 +714,17 @@ fn load_v0_to_v8(
     if version >= 0x08 {
         let entities_path = path.join("entities.bin");
         if !entities_path.exists() {
-            return Err(WorldLoadError::MissingSaveFile(entities_path));
+            return Err(ReadErrorKind::MissingFile(entities_path)).ctx("loading entities");
         }
         let entities_data = std::fs::read(entities_path).unwrap();
-        let mut entities_iter = entities_data.into_iter();
-        let entity_count = read_u64(&mut entities_iter, "Entity count")?;
+        let mut entities_reader = ByteReader::new(&entities_data);
+        let entity_count = entities_reader.u64().ctx("entity count")?;
 
         for _ in 0..entity_count {
-            let entity_data_len = read_u32(&mut entities_iter, "Entity data length")?;
-            let entity_data =
-                take_exact(&mut entities_iter, entity_data_len as usize, "Entity data")?;
+            let entity_data_len = entities_reader.u32().ctx("entity data length")? as usize;
+            let entity_data = entities_reader.take(entity_data_len).ctx("entity data")?;
 
-            let details = EntityDetails::from_bytes(&entity_data).map_err(|e| {
-                WorldLoadError::InvalidSaveFormat(format!("Failed to load entity: {e}"))
-            })?;
+            let details = EntityDetails::from_bytes(&entity_data)?;
 
             world.ecs.spawn_from_details(&details);
         }
@@ -739,7 +733,7 @@ fn load_v0_to_v8(
 
     let players_dir = path.join("players");
     if !players_dir.exists() {
-        return Err(WorldLoadError::MissingSaveFile(players_dir));
+        return Err(ReadErrorKind::MissingFile(players_dir)).ctx("loading players");
     }
     for entry in std::fs::read_dir(players_dir).unwrap() {
         let entry = entry.unwrap();
@@ -751,30 +745,14 @@ fn load_v0_to_v8(
         let player_data = std::fs::read(entry.path()).unwrap();
 
         let (username, details) = if version < 8 {
-            let mut player_iter = player_data.into_iter();
-            load_legacy_player_details(&mut player_iter, version).map_err(|e| {
-                WorldLoadError::InvalidSaveFormat(format!(
-                    "Failed to load player data from {}: {}",
-                    entry.path().display(),
-                    e
-                ))
-            })?
+            let mut player_reader = ByteReader::new(&player_data);
+            load_legacy_player_details(&mut player_reader, version)?
         } else {
-            let details = EntityDetails::from_bytes(&player_data).map_err(|e| {
-                WorldLoadError::InvalidSaveFormat(format!(
-                    "Failed to load player data from {}: {}",
-                    entry.path().display(),
-                    e
-                ))
-            })?;
+            let details = EntityDetails::from_bytes(&player_data)?;
             let username = details
-                .get::<Username>() // see note below — needs a typed accessor on EntityDetails
-                .ok_or_else(|| {
-                    WorldLoadError::InvalidSaveFormat(format!(
-                        "Player save {} missing Username component",
-                        entry.path().display()
-                    ))
-                })?
+                .get::<Username>()
+                .ok_or_else(|| ReadErrorKind::MissingData("username".to_string()))
+                .ctx("player save missing username component")?
                 .0
                 .clone();
             (username, details)
@@ -787,21 +765,21 @@ fn load_v0_to_v8(
 }
 
 fn load_legacy_player_details(
-    data: &mut impl Iterator<Item = u8>,
+    reader: &mut ByteReader,
     version: u8,
-) -> Result<(String, EntityDetails), WorldLoadError> {
-    let username_len = read_u8(data, "Player username length")? as usize;
-    let username = read_string(data, username_len, "Player username")?;
-    let position = read_vec3(data, "Player position")?;
-    let velocity = read_vec3(data, "Player velocity")?;
-    let yaw = read_f32(data, "Player yaw")?;
-    let pitch = read_f32(data, "Player pitch")?;
+) -> Result<(String, EntityDetails), ReadError> {
+    let username_len = reader.u8().ctx("player username length")? as usize;
+    let username = reader.string(username_len).ctx("player username")?;
+    let position = reader.vec3().ctx("player position")?;
+    let velocity = reader.vec3().ctx("player velocity")?;
+    let yaw = reader.f32().ctx("player yaw")?;
+    let pitch = reader.f32().ctx("player pitch")?;
     let inventory = if version < 2 {
         Inventory::new()
     } else {
-        Inventory::load(data, version)?
+        Inventory::load(reader, version)?
     };
-    let flying = read_u8(data, "Player flying state")? != 0;
+    let flying = reader.u8().ctx("player flying state")? != 0;
 
     let details = EntityDetails::builder()
         .with(Position(position))

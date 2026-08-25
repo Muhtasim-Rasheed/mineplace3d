@@ -7,7 +7,11 @@ use glam::IVec3;
 
 use crate::{
     block::{BlockId, BlockState, blocks},
-    saving::{Saveable, io::*},
+    serialize::{
+        Saveable,
+        read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
+        write::ByteWriter,
+    },
     world::{
         chunk::{CHUNK_SIZE, Chunk},
         generation::structure::{Structure, StructureData},
@@ -30,7 +34,7 @@ pub enum Generator {
 
 impl Generator {
     /// Creates a new generator with the given version and seed.
-    pub fn new(version: u8, seed: i32) -> Result<Self, String> {
+    pub fn new(version: u8, seed: i32) -> Result<Self, ReadError> {
         match version {
             0x00 => todo!("Alpha generator not implemented yet"),
             0x01 => {
@@ -52,7 +56,7 @@ impl Generator {
                     noise2,
                 })
             }
-            _ => Err(format!("Unsupported generator version: {version}")),
+            _ => Err(ReadErrorKind::InvalidTag(version)).ctx("generator version"),
         }
     }
 
@@ -147,28 +151,20 @@ impl Generator {
 }
 
 impl Saveable for Generator {
-    fn save(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-        data.push(self.version());
-        data.extend(&self.seed().to_le_bytes());
-        data
+    fn save(&self, writer: ByteWriter) -> ByteWriter {
+        writer.u8(self.version()).i32(self.seed())
     }
 
-    fn load<I: Iterator<Item = u8>>(
-        data: &mut I,
-        version: u8,
-    ) -> Result<Self, crate::saving::WorldLoadError>
+    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
     where
         Self: Sized,
     {
-        if version >= 0x03 {
-            let generator_version = read_u8(data, "Generator version")?;
-            let seed = read_i32(data, "Generator seed")?;
-            Self::new(generator_version, seed)
-                .map_err(crate::saving::WorldLoadError::InvalidSaveFormat)
+        let generator_version = if version >= 0x03 {
+            reader.u8().ctx("generator version")?
         } else {
-            let seed = read_i32(data, "Generator seed")?;
-            Self::new(0x01, seed).map_err(crate::saving::WorldLoadError::InvalidSaveFormat)
-        }
+            0x01
+        };
+        let seed = reader.i32().ctx("generator seed")?;
+        Self::new(generator_version, seed)
     }
 }

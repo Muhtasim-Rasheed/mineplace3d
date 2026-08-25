@@ -7,7 +7,7 @@ use crate::{
     entity::components::{Component, ComponentId, component_registry},
     registry::Def,
     serialize::{
-        read::{ByteReader, ReadError},
+        read::{ByteReader, ReadError, ReadErrorExt},
         write::ByteWriter,
     },
 };
@@ -34,14 +34,15 @@ impl EntityDetails {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
 
-        let count = reader.u16()?;
+        let count = reader.u16().ctx("number of components")?;
         let registry = component_registry();
         let mut components = Vec::with_capacity(count as usize);
 
         for _ in 0..count {
-            let ident = reader.string()?;
-            let len = reader.u32()? as usize;
-            let data = reader.take(len)?.to_vec();
+            let len = reader.u16().ctx("component ident length")? as usize;
+            let ident = reader.string(len).ctx("component ident")?;
+            let len = reader.u32().ctx("component data length")? as usize;
+            let data = reader.take(len).ctx("component data")?.to_vec();
 
             match registry.get_id(&ident) {
                 Some(id) => components.push((id, data)),
@@ -57,7 +58,11 @@ impl EntityDetails {
         let mut writer = ByteWriter::new().u16(self.components.len() as u16);
         for (id, data) in &self.components {
             let ident = registry.get(*id).unwrap().ident();
-            writer = writer.string(ident).u32(data.len() as u32).bytes(data);
+            writer = writer
+                .u16(ident.len() as u16)
+                .string(ident)
+                .u32(data.len() as u32)
+                .bytes(data);
         }
         writer.into_bytes()
     }

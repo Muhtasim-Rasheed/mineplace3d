@@ -1,39 +1,36 @@
-use crate::block::*;
-use crate::saving::Saveable;
-use crate::saving::WorldLoadError;
-use crate::saving::io::*;
+use crate::{
+    block::*,
+    serialize::{
+        Saveable,
+        read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
+        write::ByteWriter,
+    },
+};
 
 impl Saveable for BlockId {
-    fn save(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-
+    fn save(&self, writer: ByteWriter) -> ByteWriter {
         let ident = block_registry().get(*self).unwrap().ident;
-
-        let ident_bytes = ident.as_bytes();
-        data.push(ident_bytes.len() as u8);
-        data.extend(ident_bytes);
-
-        data
+        writer.u8(ident.len() as u8).string(ident)
     }
 
-    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError>
+    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
     where
         Self: Sized,
     {
         let ident_str = if version >= 0x06 {
-            let ident_len = read_u8(data, "Block::ident_len")? as usize;
-            let ident_str = read_string(data, ident_len, "Block::ident")?;
+            let ident_len = reader.u8().ctx("Block::ident_len")? as usize;
+            let ident_str = reader.string(ident_len).ctx("Block::ident")?;
             ident_str
         } else {
-            read_u8(data, "Block::visible")?;
-            let ident_len = read_u8(data, "Block::ident_len")? as usize;
-            let ident_str = read_string(data, ident_len, "Block::ident")?;
-            read_u8(data, "Block::collision_shape")?;
+            reader.u8().ctx("Block::visible")?;
+            let ident_len = reader.u8().ctx("Block::ident_len")? as usize;
+            let ident_str = reader.string(ident_len).ctx("Block::ident")?;
+            reader.u8().ctx("Block::collision_shape")?;
             if version >= 4 {
-                read_u8(data, "Block::interact_shape")?;
+                reader.u8().ctx("Block::interact_shape")?;
             }
             if version >= 1 {
-                read_u16(data, "Block::state_type")?;
+                reader.u16().ctx("Block::state_type")?;
             }
             ident_str
         };
@@ -41,37 +38,39 @@ impl Saveable for BlockId {
         if let Some(id) = block_registry().get_id(&ident_str) {
             Ok(id)
         } else {
-            Err(WorldLoadError::InvalidSaveFormat(format!(
-                "Unknown block identifier: {ident_str}"
-            )))
+            Err(ReadErrorKind::InvalidId(ident_str.to_string())).ctx("converting to BlockId")
         }
     }
 }
 
 impl Saveable for BlockState {
-    fn save(&self) -> Vec<u8> {
-        self.bits().to_le_bytes().to_vec()
+    fn save(&self, writer: ByteWriter) -> ByteWriter {
+        writer.u32(self.bits())
     }
 
-    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
-        if version < 1 {
+    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
+    where
+        Self: Sized,
+    {
+        if version < 0x01 {
             Ok(BlockState::none())
         } else {
-            Ok(BlockState::from_bits(read_u32(data, "BlockState::bits")?))
+            Ok(BlockState::from_bits(reader.u32().ctx("BlockState::bits")?))
         }
     }
 }
 
 impl Saveable for (BlockId, BlockState) {
-    fn save(&self) -> Vec<u8> {
-        let mut data = self.0.save();
-        data.extend(self.1.save());
-        data
+    fn save(&self, writer: ByteWriter) -> ByteWriter {
+        writer.save(&self.0).save(&self.1)
     }
 
-    fn load<I: Iterator<Item = u8>>(data: &mut I, version: u8) -> Result<Self, WorldLoadError> {
-        let block = BlockId::load(data, version)?;
-        let block_state = BlockState::load(data, version)?;
+    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
+    where
+        Self: Sized,
+    {
+        let block = BlockId::load(reader, version)?;
+        let block_state = BlockState::load(reader, version)?;
         Ok((block, block_state))
     }
 }
