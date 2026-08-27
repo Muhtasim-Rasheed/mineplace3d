@@ -177,6 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             loop {
                 match listener.accept().await {
                     Ok((stream, addr)) => {
+                        stream.set_nodelay(true).unwrap();
                         let current = CURRENT_CLIENTS.fetch_add(1, Ordering::SeqCst);
                         if current >= config().max_clients as u64 {
                             CURRENT_CLIENTS.fetch_sub(1, Ordering::SeqCst);

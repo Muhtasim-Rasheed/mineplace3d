@@ -24,6 +24,7 @@ pub struct TcpConnection {
 impl TcpConnection {
     pub fn connect(addr: impl AsRef<str>) -> std::io::Result<Self> {
         let stream = TcpStream::connect(addr.as_ref())?;
+        stream.set_nodelay(true).unwrap();
         stream.set_read_timeout(Some(Duration::from_millis(10)))?;
 
         let (outbound_tx, outbound_rx) = mpsc::channel::<OutboundEvent>();
