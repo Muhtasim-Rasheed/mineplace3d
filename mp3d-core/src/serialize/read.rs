@@ -1,6 +1,9 @@
 use glam::{U8Vec3, Vec3};
 
-use crate::registry::{Def, DefId, Registry};
+use crate::{
+    registry::{Def, DefId, Registry},
+    serialize::Saveable,
+};
 
 #[derive(Debug)]
 pub enum ReadErrorKind {
@@ -136,6 +139,10 @@ impl<'a> ByteReader<'a> {
     pub fn string(&mut self, len: usize) -> Result<String, ReadErrorKind> {
         let bytes = self.take(len)?;
         String::from_utf8(bytes.to_vec()).map_err(|_| ReadErrorKind::InvalidUtf8)
+    }
+
+    pub fn load<T: Saveable>(&mut self, version: u8) -> Result<T, ReadError> {
+        T::load(self, version)
     }
 
     pub fn registry_id<I: DefId>(

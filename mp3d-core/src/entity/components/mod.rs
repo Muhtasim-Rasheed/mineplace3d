@@ -216,10 +216,7 @@ impl Inventory {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        crate::serialize::Saveable::load(
-            &mut ByteReader::new(bytes),
-            crate::serialize::SAVE_VERSION,
-        )
+        ByteReader::new(bytes).load(crate::serialize::SAVE_VERSION)
     }
 }
 

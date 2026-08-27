@@ -69,8 +69,6 @@ impl Saveable for (BlockId, BlockState) {
     where
         Self: Sized,
     {
-        let block = BlockId::load(reader, version)?;
-        let block_state = BlockState::load(reader, version)?;
-        Ok((block, block_state))
+        Ok((reader.load(version)?, reader.load(version)?))
     }
 }

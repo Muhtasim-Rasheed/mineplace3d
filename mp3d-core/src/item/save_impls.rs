@@ -42,7 +42,7 @@ impl Saveable for ItemStack {
         Self: Sized,
     {
         Ok(ItemStack {
-            item: ItemId::load(reader, version)?,
+            item: reader.load(version)?,
             count: reader.u16().ctx("ItemStack::count")?,
         })
     }
@@ -62,7 +62,7 @@ impl Saveable for Inventory {
     {
         let mut inventory = Inventory::new();
         for slot in inventory.slots_mut() {
-            let slot_data = ItemStack::load(reader, version)?;
+            let slot_data = reader.load(version)?;
             *slot = slot_data;
         }
         Ok(inventory)

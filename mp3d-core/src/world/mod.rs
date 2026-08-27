@@ -646,7 +646,7 @@ fn load_v0_to_v8(
     version: u8,
 ) -> Result<World, ReadError> {
     // GENERATOR
-    let generator = Generator::load(save_reader, version)?;
+    let generator = save_reader.load(version)?;
 
     // TIME
     let time = if version >= 0x05 {
@@ -698,7 +698,7 @@ fn load_v0_to_v8(
                 .u8vec3()
                 .ctx("chunk change local position")?
                 .as_ivec3();
-            let block_and_state = <(BlockId, BlockState)>::load(&mut chunk_reader, version)?;
+            let block_and_state = chunk_reader.load(version)?;
             world
                 .changes
                 .entry(chunk_pos)
@@ -777,7 +777,7 @@ fn load_legacy_player_details(
     let inventory = if version < 2 {
         Inventory::new()
     } else {
-        Inventory::load(reader, version)?
+        reader.load(version)?
     };
     let flying = reader.u8().ctx("player flying state")? != 0;
 
