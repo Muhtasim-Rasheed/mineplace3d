@@ -26,14 +26,14 @@ use crate::{
     protocol::{BlockUpdate, BlockUpdateKind},
     registry::LazyId,
     serialize::{
-        GENERATOR_VERSION, SAVE_VERSION, Saveable,
+        GENERATOR_VERSION, SAVE_VERSION,
         read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
         write::ByteWriter,
     },
     uniquequeue::UniqueQueue,
     world::{
         chunk::{CHUNK_SIZE, Chunk},
-        generation::Generator,
+        generation::{Generator, pool::GenerationPool},
     },
 };
 
@@ -41,7 +41,7 @@ use crate::{
 pub struct World {
     pub chunks: FxHashMap<IVec3, Chunk>,
     pub ecs: ECS,
-    pub generator: Generator,
+    pub generation_pool: GenerationPool,
     pub time: u64,
 
     // What clients were last told
@@ -66,12 +66,13 @@ pub struct World {
 impl World {
     /// Creates a new empty world.
     pub fn new(seed: i32) -> Self {
-        let generator = Generator::new(GENERATOR_VERSION, seed).unwrap();
+        let generation_pool =
+            GenerationPool::new(Generator::new(GENERATOR_VERSION, seed).unwrap(), 2);
         let chunks = FxHashMap::default();
         World {
             chunks,
             ecs: ECS::new(),
-            generator,
+            generation_pool,
             time: 0,
             replicated_snapshots: FxHashMap::default(),
             player_cache: HashMap::new(),
@@ -89,15 +90,6 @@ impl World {
         self.chunks
             .get(&chunk_pos)
             .and_then(|c| c.get_block(local_pos))
-    }
-
-    /// Gets a block at the given world position, or generates a new chunk and returns the block if
-    /// it doesn't exist.
-    pub fn get_block_or_new(&mut self, world_pos: IVec3) -> Option<(BlockId, &BlockState)> {
-        let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
-        let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
-
-        self.get_chunk_or_new(chunk_pos).get_block(local_pos)
     }
 
     /// Sets a block at the given world position.
@@ -125,8 +117,13 @@ impl World {
             urgent: true,
             kind,
         });
-        let chunk = self.get_chunk_mut_or_new(chunk_pos);
-        chunk.set_block(local_pos, block, state);
+
+        // Only update the in-memory chunk if it's already loaded.
+        // If it isn't, the diff above will be applied automatically
+        // whenever the chunk is generated later.
+        if let Some(chunk) = self.chunks.get_mut(&chunk_pos) {
+            chunk.set_block(local_pos, block, state);
+        }
     }
 
     /// Sets a block at the given world position.
@@ -154,49 +151,35 @@ impl World {
             urgent: false,
             kind,
         });
-        let chunk = self.get_chunk_mut_or_new(chunk_pos);
-        chunk.set_block(local_pos, block, state);
+
+        // Only update the in-memory chunk if it's already loaded.
+        // If it isn't, the diff above will be applied automatically
+        // whenever the chunk is generated later.
+        if let Some(chunk) = self.chunks.get_mut(&chunk_pos) {
+            chunk.set_block(local_pos, block, state);
+        }
     }
 
-    /// Creates a new chunk at the specified coordinates in chunk space, applying all changes done
-    /// to the chunk. Note that this function doesnt automatically insert the new chunk into the
-    /// world.
-    pub fn load_chunk(
-        generator: &Generator,
-        changes: &FxHashMap<IVec3, FxHashMap<IVec3, (BlockId, BlockState)>>,
-        chunk_pos: IVec3,
-    ) -> Chunk {
-        let mut chunk = generator.generate_chunk(chunk_pos);
-        if let Some(changes) = changes.get(&chunk_pos) {
+    /// Applies block changes on a chunk.
+    pub fn apply_changes_on_chunk(&self, chunk: &mut Chunk, chunk_pos: IVec3) {
+        if let Some(changes) = self.changes.get(&chunk_pos) {
             for (local_pos, (block, state)) in changes {
                 chunk.set_block(*local_pos, *block, *state);
             }
         }
-        chunk
-    }
-
-    /// Gets a reference to a chunk at the given chunk position, or loads it if it doesn't exist.
-    pub fn get_chunk_or_new(&mut self, chunk_pos: IVec3) -> &Chunk {
-        self.get_chunk_mut_or_new(chunk_pos)
-    }
-
-    /// Gets a mutable reference to a chunk at the given chunk position, or loads it if it doesn't
-    /// exist.
-    pub fn get_chunk_mut_or_new(&mut self, chunk_pos: IVec3) -> &mut Chunk {
-        self.chunks
-            .entry(chunk_pos)
-            .or_insert_with(|| Self::load_chunk(&self.generator, &self.changes, chunk_pos))
     }
 
     /// Loads around specified coordinates in world space.
-    pub fn load_around(&mut self, pos: IVec3) {
+    pub fn load_around(&mut self, session_id: u64, pos: IVec3) {
         let cpos = pos / CHUNK_SIZE as i32;
 
         for dx in -1..=-1 {
             for dy in -1..=-1 {
                 for dz in -1..=-1 {
                     let cpos = cpos + IVec3::new(dx, dy, dz);
-                    self.get_chunk_or_new(cpos);
+                    if !self.chunks.contains_key(&cpos) {
+                        self.generation_pool.request_chunk(session_id, cpos);
+                    }
                 }
             }
         }
@@ -551,7 +534,7 @@ impl World {
             path.join("save.bin"),
             ByteWriter::new()
                 .u8(SAVE_VERSION)
-                .save(&self.generator)
+                .save(&self.generation_pool.generator)
                 .u64(self.time)
                 .into_bytes(),
         )?;
@@ -647,6 +630,7 @@ fn load_v0_to_v8(
 ) -> Result<World, ReadError> {
     // GENERATOR
     let generator = save_reader.load(version)?;
+    let generation_pool = GenerationPool::new(generator, 2);
 
     // TIME
     let time = if version >= 0x05 {
@@ -658,7 +642,7 @@ fn load_v0_to_v8(
     let mut world = World {
         chunks: FxHashMap::default(),
         ecs: ECS::new(),
-        generator,
+        generation_pool,
         time,
         replicated_snapshots: FxHashMap::default(),
         player_cache: HashMap::new(),

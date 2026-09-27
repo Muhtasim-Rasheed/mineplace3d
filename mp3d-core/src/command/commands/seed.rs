@@ -27,8 +27,11 @@ impl Command for SeedCommand {
     fn execute(&self, ctx: &mut CommandContext, args: ArgStream) -> Result<TextComponent, String> {
         args.ensure_empty()?;
 
-        Ok(format!("Current Seed: {}%r", ctx.world.generator.seed())
-            .parse()
-            .unwrap())
+        Ok(format!(
+            "Current Seed: {}%r",
+            ctx.world.generation_pool.generator.seed()
+        )
+        .parse()
+        .unwrap())
     }
 }

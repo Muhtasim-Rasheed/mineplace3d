@@ -51,12 +51,12 @@ impl Command for TestCommand {
         match mode {
             Subcommand::Error => Err(format!(
                 "Current seed: {}\nCurrent tps: {}\nTHIS IS A TEST ERROR",
-                ctx.world.generator.seed(),
+                ctx.world.generation_pool.generator.seed(),
                 ctx.tps
             )),
             Subcommand::Pass => Ok(format!(
                 "%xFF0000FF RED %x00FF00FF GREEN %x0000FFFF BLUE %x000000FF BLACK %xFFFFFFFF WHITE\nCurrent seed: {}\nCurrent tps: {}%r",
-                ctx.world.generator.seed(),
+                ctx.world.generation_pool.generator.seed(),
                 ctx.tps
             )
             .parse()

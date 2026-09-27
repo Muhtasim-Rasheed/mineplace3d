@@ -40,6 +40,13 @@ impl Command for TpCommand {
                 return Err("You must be connected to use this command".to_string());
             }
         };
+        let sender_id = match ctx.get_sender_session_id() {
+            Ok(entity) => entity,
+            Err(e) => {
+                log::error!("{}", e);
+                return Err("You must be connected to use this command".to_string());
+            }
+        };
 
         let coord3 = Coord3::parse(&mut args)?;
         args.ensure_empty()?;
@@ -67,7 +74,7 @@ impl Command for TpCommand {
             .get_component_mut::<Position>(sender)
             .unwrap()
             .0 = vec3;
-        ctx.world.load_around(pos.as_ivec3());
+        ctx.world.load_around(sender_id, pos.as_ivec3());
 
         Ok(
             format!("%b7FTeleported you to {}, {}, {}%r", vec3.x, vec3.y, vec3.z)

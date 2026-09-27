@@ -21,5 +21,18 @@ pub trait Saveable {
         Self: Sized;
 }
 
+impl<T: Saveable> Saveable for std::sync::Arc<T> {
+    fn save(&self, writer: ByteWriter) -> ByteWriter {
+        self.as_ref().save(writer)
+    }
+
+    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
+    where
+        Self: Sized,
+    {
+        T::load(reader, version).map(std::sync::Arc::new)
+    }
+}
+
 pub mod read;
 pub mod write;

@@ -235,7 +235,7 @@ impl Server {
                             } else {
                                 Self::default_player_details(&username, Vec3::new(0.0, 25.0, 0.0))
                             };
-                        self.world.load_around(IVec3::new(0, 25, 0));
+                        self.world.load_around(user_id, IVec3::new(0, 25, 0));
                         let entity_id = self.world.ecs.spawn_from_details(&entitydet);
                         let mut session = PlayerSession {
                             user_id,
@@ -326,11 +326,7 @@ impl Server {
                     if cp_float.distance_squared(e_pos) > MAX_RENDER_DIST_SQ as f32 {
                         return None;
                     }
-                    let chunk = self.world.get_chunk_or_new(pos);
-                    session.pending_messages.push(S2CMessage::ChunkData {
-                        pos,
-                        chunk: Box::new(chunk.clone()),
-                    });
+                    self.world.generation_pool.request_chunk(*user_id, pos);
                 }
             }
             C2SMessage::SendMessage { message } => {
@@ -483,6 +479,17 @@ impl Server {
                 updates: pending_changes,
             },
         );
+
+        for (session_id, pos, mut chunk) in self.world.generation_pool.drain_ready(8) {
+            self.world.apply_changes_on_chunk(&mut chunk, pos);
+            self.world.chunks.insert(pos, chunk.clone());
+            if let Some(session) = self.sessions.get_mut(&session_id) {
+                session.pending_messages.push(S2CMessage::ChunkData {
+                    pos,
+                    chunk: Box::new(chunk),
+                })
+            }
+        }
 
         self.replication_tick();
     }
