@@ -142,20 +142,15 @@ impl TextureAtlas {
     /// Gets the UV coordinates for a texture in the atlas, if it exists.
     pub fn get_uv(&self, name: &str, model_uv: [Vec2; 2]) -> Option<[Vec2; 2]> {
         let uv = self.uv_coords.get(name)?;
-        let w = self.width as f32;
-        let h = self.height as f32;
-        let atlas_min = uv[0].as_vec2() / Vec2::new(w, h);
-        let atlas_min = atlas_min.with_y(1.0 - atlas_min.y);
+        let size = Vec2::new(self.width as f32, self.height as f32);
 
-        let tile_size = Vec2::new(TEXTURE_SIZE as f32 / w, TEXTURE_SIZE as f32 / h);
+        let tile_origin = uv[0].as_vec2() / size;
+        let tile_size = Vec2::splat(TEXTURE_SIZE as f32) / size;
 
-        let model_uv_min = model_uv[0].with_y(1.0 - model_uv[0].y);
-        let model_uv_max = model_uv[1].with_y(1.0 - model_uv[1].y);
+        let m0 = model_uv[0].with_y(1.0 - model_uv[0].y);
+        let m1 = model_uv[1].with_y(1.0 - model_uv[1].y);
 
-        Some([
-            atlas_min + model_uv_min * tile_size,
-            atlas_min + model_uv_max * tile_size,
-        ])
+        Some([tile_origin + m0 * tile_size, tile_origin + m1 * tile_size])
     }
 
     /// Uploads the atlas to the GPU, returning a reference to the GPU texture. If the atlas has

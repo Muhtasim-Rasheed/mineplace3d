@@ -118,6 +118,7 @@ define_blocks! {
     },
     GOLD => { ident: "gold" },
     DIAMOND => { ident: "diamond" },
+    MOVER => { ident: "mover" },
 }
 
 /// Collision shape used for collision detection.
