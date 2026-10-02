@@ -118,6 +118,11 @@ define_blocks! {
     },
     GOLD => { ident: "gold" },
     DIAMOND => { ident: "diamond" },
+    MACHINE_RUNNER => {
+        ident: "machine_runner",
+        state_type: BlockState::ACTIVE_TYPE,
+        on_click: Box::new(active::on_click),
+    },
     MOVER => { ident: "mover" },
 }
 

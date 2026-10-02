@@ -18,6 +18,7 @@ impl BlockState {
     pub const SLAB_TYPE: u16 = 0x0001;
     pub const STAIR_TYPE: u16 = 0x0002;
     pub const FACING_TYPE: u16 = 0x0003;
+    pub const ACTIVE_TYPE: u16 = 0x0004;
 
     /// Creates a new block state with the given type and data.
     #[inline]
@@ -75,6 +76,12 @@ impl BlockState {
         BlockState::new(Self::FACING_TYPE, dir as u16)
     }
 
+    /// Creates an active/inactive block state with the given active value.
+    #[inline]
+    pub const fn active(is_active: bool) -> BlockState {
+        BlockState::new(Self::ACTIVE_TYPE, is_active as u16)
+    }
+
     /// Checks if the block state is empty (i.e. has no data).
     #[inline]
     pub const fn is_none(&self) -> bool {
@@ -112,6 +119,16 @@ impl BlockState {
         }
     }
 
+    /// Checks if the block state is active/inactive and returns whether it is active or not.
+    #[inline]
+    pub const fn is_active(&self) -> Option<bool> {
+        if self.state_type() == Self::ACTIVE_TYPE {
+            Some(self.data() != 0)
+        } else {
+            None
+        }
+    }
+
     /// Returns all possible data values for the given block state type. If the slice is empty,
     /// then the block state of that type can have any data value (i.e. the data value is not used
     /// for that block state type). If the block state type is not recognized, then `None` is
@@ -123,6 +140,7 @@ impl BlockState {
             Self::SLAB_TYPE => Some(&[0x0000, 0x0001, 0x0002]),
             Self::STAIR_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]),
             Self::FACING_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]),
+            Self::ACTIVE_TYPE => Some(&[0x0000, 0x0001]),
             _ => None,
         }
     }
@@ -136,6 +154,7 @@ impl BlockState {
             Self::SLAB_TYPE => Some(BlockState::slab(0)),
             Self::STAIR_TYPE => Some(BlockState::stairs(Direction::North)),
             Self::FACING_TYPE => Some(BlockState::facing(Direction::North)),
+            Self::ACTIVE_TYPE => Some(BlockState::active(false)),
             _ => None,
         }
     }

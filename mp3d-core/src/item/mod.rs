@@ -40,6 +40,7 @@ define_items!(
     BRICK_VSLAB => { ident: "brick_vslab", block: blocks::BRICK_VSLAB },
     GOLD_BLOCK => { ident: "gold_block", block: blocks::GOLD },
     DIAMOND_BLOCK => { ident: "diamond_block", block: blocks::DIAMOND },
+    MACHINE_RUNNER_BLOCK => { ident: "machine_runner_block", block: blocks::MACHINE_RUNNER },
     MOVER_BLOCK => { ident: "mover_block", block: blocks::MOVER },
 );
 
