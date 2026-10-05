@@ -1,7 +1,7 @@
 use glam::IVec3;
 
 use crate::{
-    block::{BlockId, BlockState, blocks},
+    block::{BlockState, blocks},
     direction::Direction,
     entity::EntityId,
     protocol::BlockUpdateKind,
@@ -9,7 +9,6 @@ use crate::{
 };
 
 pub fn on_click(
-    _: BlockId,
     world: &mut World,
     _: EntityId,
     block_pos: IVec3,
@@ -24,8 +23,7 @@ pub fn on_click(
                     let pos = block_pos + IVec3::new(x, y, z);
                     world.urgent_set_block_at(
                         pos,
-                        *blocks::AIR,
-                        BlockState::none(),
+                        BlockState::default_for(*blocks::AIR),
                         BlockUpdateKind::Interaction,
                     );
                 }

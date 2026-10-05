@@ -3,7 +3,7 @@
 use fxhash::FxHashMap;
 
 use crate::{
-    block::{BlockId, block_registry},
+    block::{BlockId, BlockState, block_registry},
     datapack::files::DataSources,
 };
 
@@ -43,21 +43,19 @@ impl TryFrom<RawDropEntry> for DropEntry {
 type RawLootTableEntry = FxHashMap<String, FxHashMap<String, RawDropEntry>>;
 
 pub struct LootTableEntry {
-    pub drops: FxHashMap<u16, FxHashMap<String, DropEntry>>,
+    pub drops: FxHashMap<u128, FxHashMap<String, DropEntry>>,
 }
 
-impl TryFrom<RawLootTableEntry> for LootTableEntry {
+impl TryFrom<(BlockId, RawLootTableEntry)> for LootTableEntry {
     type Error = String;
 
-    fn try_from(value: RawLootTableEntry) -> Result<Self, Self::Error> {
+    fn try_from((block_id, value): (BlockId, RawLootTableEntry)) -> Result<Self, Self::Error> {
         Ok(Self {
             drops: value
                 .into_iter()
-                .map(|(sd, raw_drops)| {
-                    let sd = u16::from_str_radix(&sd, 16).map_err(|e| e.to_string());
-                    if let Err(e) = sd {
-                        return Err(e);
-                    }
+                .map(|(state_str, raw_drops)| {
+                    let state = parse_state_str(block_id, &state_str)
+                        .map_err(|e| format!("invalid blockstate: {e}"))?;
                     let drops = raw_drops
                         .into_iter()
                         .map(|(k, rv)| {
@@ -69,7 +67,7 @@ impl TryFrom<RawLootTableEntry> for LootTableEntry {
                     if let Err(e) = drops {
                         return Err(e);
                     }
-                    Ok((sd.unwrap(), drops.unwrap()))
+                    Ok((state, drops.unwrap()))
                 })
                 .collect::<Result<_, _>>()?,
         })
@@ -120,7 +118,7 @@ impl GameData {
             }
         };
 
-        let parsed = match LootTableEntry::try_from(parsed_raw) {
+        let parsed = match LootTableEntry::try_from((id, parsed_raw)) {
             Ok(p) => p,
             Err(e) => {
                 log::error!("Failed to convert loot table {}: {:?}", str_id, e);
@@ -132,4 +130,25 @@ impl GameData {
 
         self.loot_table.block_entries.get(&id)
     }
+}
+
+fn parse_state_str(block: BlockId, state_str: &str) -> Result<u128, String> {
+    let mut blockstate = BlockState::default_for(block);
+
+    for part in state_str
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
+        let (name, val) = part
+            .split_once('=')
+            .ok_or_else(|| format!("expected '=' in property '{part}'"))?;
+        let (name, val) = (name.trim(), val.trim());
+
+        if !blockstate.set_str(name, val) {
+            return Err(format!("unknown property or invalid value: {name}={val}"));
+        }
+    }
+
+    Ok(blockstate.data)
 }

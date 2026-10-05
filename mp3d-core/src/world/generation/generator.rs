@@ -118,7 +118,7 @@ impl Generator {
                 && pos.z < chunk_max.z
             {
                 let local = pos - chunk_min;
-                chunk.set_block(local, block, BlockState::none());
+                chunk.set_block(local, BlockState::default_for(block));
             }
         };
 

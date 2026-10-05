@@ -1,15 +1,15 @@
 {
 	"states": {
-		"0000": { "model": "planks_stairs" },
-		"0001": {
+		"facing=north": { "model": "planks_stairs" },
+		"facing=south": {
 			"model": "planks_stairs",
 			"transform": { "rotation": [0, 180, 0] }
 		},
-		"0002": {
+		"facing=east": {
 			"model": "planks_stairs",
 			"transform": { "rotation": [0, -90, 0] }
 		},
-		"0003": {
+		"facing=west": {
 			"model": "planks_stairs",
 			"transform": { "rotation": [0, 90, 0] }
 		}

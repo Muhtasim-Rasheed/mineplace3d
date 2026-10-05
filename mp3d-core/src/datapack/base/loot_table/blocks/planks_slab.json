@@ -1,11 +1,11 @@
 {
-	"0000": {
+	"half=bottom": {
 		"planks_slab": [1, 1.0, 1, 1.0]
 	},
-	"0001": {
+	"half=top": {
 		"planks_slab": [1, 1.0, 1, 1.0]
 	},
-	"0002": {
+	"half=both": {
 		"planks_slab": [2, 1.0, 2, 1.0]
 	}
 }

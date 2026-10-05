@@ -1,8 +1,8 @@
 {
-	"0000": {
+	"active=true": {
 		"machine_runner_block": [1, 1.0, 1, 1.0]
 	},
-	"0001": {
+	"active=false": {
 		"machine_runner_block": [1, 1.0, 1, 1.0]
 	}
 }

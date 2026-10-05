@@ -2,7 +2,7 @@
 
 use glam::{IVec3, Mat4, Vec2, Vec3};
 use glow::HasContext;
-use mp3d_core::block::{BlockId, BlockState, block_registry};
+use mp3d_core::block::{BlockState, block_registry};
 
 use crate::{
     abs::{InstanceData, Mesh, ShaderProgram},
@@ -12,10 +12,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParticleSprite {
-    Block {
-        block: BlockId,
-        state: u16,
-    },
+    Block(BlockState),
     #[allow(dead_code)]
     Texture {
         texture: String,
@@ -70,11 +67,10 @@ impl ParticleSystem {
         self.particles.push(particle);
     }
 
-    pub fn block_break(&mut self, position: IVec3, block: BlockId, block_state: &BlockState) {
-        if !block_registry().get(block).unwrap().visible {
+    pub fn block_break(&mut self, position: IVec3, block: BlockState) {
+        if !block_registry().get(block.block).unwrap().visible {
             return;
         }
-        let state_data = block_state.data();
         for _ in 0..64 {
             let position = position.as_vec3()
                 + Vec3::new(
@@ -96,10 +92,7 @@ impl ParticleSystem {
                 age: 0.0,
                 size,
                 has_gravity: true,
-                sprite: ParticleSprite::Block {
-                    block,
-                    state: state_data,
-                },
+                sprite: ParticleSprite::Block(block),
             });
         }
     }
@@ -169,18 +162,14 @@ pub struct ParticleInstance {
 impl ParticleInstance {
     pub fn from(particle: &Particle, assets: &Assets) -> Option<Self> {
         match particle.sprite {
-            ParticleSprite::Block { block, state } => {
+            ParticleSprite::Block(block) => {
                 let Some([uv_min, uv_max]) = assets
                     .block_models
-                    .get(&(block, state))
+                    .get(&block)
                     .and_then(|m| m.particle.as_ref())
                     .and_then(|p| assets.block_textures.get_uv(p, [Vec2::ZERO, Vec2::ONE]))
                 else {
-                    log::warn!(
-                        "Failed to get UV coordinates for block '{}', state '{}'",
-                        block_registry().get(block).unwrap().ident,
-                        state
-                    );
+                    log::warn!("Failed to get UV coordinates for {block:?}",);
                     return None;
                 };
                 Some(Self {

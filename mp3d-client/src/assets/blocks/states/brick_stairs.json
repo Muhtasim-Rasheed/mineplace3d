@@ -1,15 +1,15 @@
 {
 	"states": {
-		"0000": { "model": "brick_stairs" },
-		"0001": {
+		"facing=north": { "model": "brick_stairs" },
+		"facing=south": {
 			"model": "brick_stairs",
 			"transform": { "rotation": [0, 180, 0] }
 		},
-		"0002": {
+		"facing=east": {
 			"model": "brick_stairs",
 			"transform": { "rotation": [0, -90, 0] }
 		},
-		"0003": {
+		"facing=west": {
 			"model": "brick_stairs",
 			"transform": { "rotation": [0, 90, 0] }
 		}

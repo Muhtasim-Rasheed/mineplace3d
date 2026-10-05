@@ -482,19 +482,13 @@ impl<C: Connection> Client<C> {
                 S2CMessage::BlocksUpdated { updates } => {
                     for update in updates {
                         if update.kind == mp3d_core::protocol::BlockUpdateKind::Removed {
-                            let Some((old_block, old_state)) =
-                                self.world.get_block_at(update.position)
-                            else {
+                            let Some(old_state) = self.world.get_block_at(update.position) else {
                                 continue;
                             };
-                            particle_system.block_break(update.position, old_block, old_state);
+                            particle_system.block_break(update.position, old_state);
                         }
-                        self.world.set_block_at(
-                            update.position,
-                            update.block,
-                            update.block_state,
-                            update.urgent,
-                        );
+                        self.world
+                            .set_block_at(update.position, update.state, update.urgent);
                     }
                 }
                 S2CMessage::HotbarChanged { idx } => {
@@ -550,14 +544,13 @@ pub fn cast_ray(
 
     for _ in 0..(max_distance / step) as usize {
         let block_pos = pos.floor().as_ivec3();
-
-        let (block, state) = world.get_block_at(block_pos)?;
-
         let local = pos - block_pos.as_vec3();
 
-        let block_def = block_registry().get(block).unwrap();
+        let state = world.get_block_at(block_pos)?;
+
+        let block_def = block_registry().get(state.block).unwrap();
         if block_def.visible {
-            let ray_intersection = block_def.ray_intersect(local, direction, *state);
+            let ray_intersection = block_def.ray_intersect(local, direction, state);
             if let Some(normal) = ray_intersection {
                 return Some((block_pos, normal));
             }

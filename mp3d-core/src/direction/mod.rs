@@ -54,6 +54,18 @@ impl Direction {
         }
     }
 
+    pub const fn to_str(self) -> &'static str {
+        use Direction::*;
+        match self {
+            North => "north",
+            South => "south",
+            East => "east",
+            West => "west",
+            Up => "up",
+            Down => "down",
+        }
+    }
+
     pub const fn opposite(self) -> Self {
         // No branches in the final compiled binary because of optimization
 

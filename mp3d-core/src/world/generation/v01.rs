@@ -42,11 +42,11 @@ impl Generator {
                         continue;
                     }
                     if global_y < height - 3 {
-                        chunk.set_block(local, *blocks::STONE, BlockState::none());
+                        chunk.set_block(local, BlockState::default_for(*blocks::STONE));
                     } else if global_y < height - 1 {
-                        chunk.set_block(local, *blocks::DIRT, BlockState::none());
+                        chunk.set_block(local, BlockState::default_for(*blocks::DIRT));
                     } else if global_y < height {
-                        chunk.set_block(local, *blocks::GRASS, BlockState::none());
+                        chunk.set_block(local, BlockState::default_for(*blocks::GRASS));
                     }
                 }
             }

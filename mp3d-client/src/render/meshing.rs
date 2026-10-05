@@ -114,23 +114,21 @@ fn should_occlude(
 
 #[inline]
 fn block_is_full_cube(
-    block: Option<(BlockId, &BlockState)>,
-    block_models: &HashMap<(BlockId, u16), crate::resource::block::BlockModel>,
+    block: Option<BlockState>,
+    block_models: &HashMap<BlockState, crate::resource::block::BlockModel>,
 ) -> bool {
-    let Some((block, state)) = block else {
+    let Some(block) = block else {
         return false;
     };
 
-    let block_def = block_registry().get(block).unwrap();
+    let block_def = block_registry().get(block.block).unwrap();
 
     if !block_def.visible {
         return false;
     }
 
-    let ident = (block, state.data());
-
     block_models
-        .get(&ident)
+        .get(&block)
         .is_some_and(|model| model.is_full_cube())
 }
 
@@ -292,7 +290,7 @@ pub fn mesh_world(
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
     chunk_mesh_pool: &mut Vec<Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<(BlockId, u16), crate::resource::block::BlockModel>,
+    block_models: &HashMap<BlockState, crate::resource::block::BlockModel>,
 ) {
     use rayon::prelude::*;
 
@@ -341,7 +339,7 @@ fn mesh_chunk(
     chunk_pos: glam::IVec3,
     world: &ClientWorld,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<(BlockId, u16), crate::resource::block::BlockModel>,
+    block_models: &HashMap<BlockState, crate::resource::block::BlockModel>,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let chunk_origin = chunk_pos * (CHUNK_SIZE as i32);
 
@@ -369,7 +367,7 @@ fn mesh_chunk(
         chunk_origin: IVec3,
         world_pos: IVec3,
         neighbors: [[[Option<&ClientChunk>; 3]; 3]; 3],
-    ) -> Option<(BlockId, &BlockState)> {
+    ) -> Option<BlockState> {
         let local = world_pos - chunk_origin;
 
         let chunk_size = CHUNK_SIZE as i32;
@@ -391,11 +389,6 @@ fn mesh_chunk(
         chunk_ref.get_block(IVec3::new(lx, ly, lz))
     }
 
-    #[inline(always)]
-    fn ident(block: BlockId, state: &BlockState) -> (BlockId, u16) {
-        (block, state.data())
-    }
-
     for x in 0..(CHUNK_SIZE as i32) {
         let world_x = chunk_pos.x * (CHUNK_SIZE as i32) + x;
         for y in 0..(CHUNK_SIZE as i32) {
@@ -403,8 +396,8 @@ fn mesh_chunk(
             for z in 0..(CHUNK_SIZE as i32) {
                 // Check if the block is visible
                 let block_local_pos = glam::IVec3::new(x, y, z);
-                let (block, state) = chunk.get_block(block_local_pos).unwrap();
-                let block_def = block_registry().get(block).unwrap();
+                let block = chunk.get_block(block_local_pos).unwrap();
+                let block_def = block_registry().get(block.block).unwrap();
                 if !block_def.visible {
                     continue;
                 }
@@ -412,13 +405,9 @@ fn mesh_chunk(
                 let world_z = chunk_pos.z * (CHUNK_SIZE as i32) + z;
                 let world_pos = glam::IVec3::new(world_x, world_y, world_z);
 
-                let model = block_models.get(&ident(block, state)).unwrap_or_else(|| {
-                    panic!(
-                        "No model found for block {} with state {}",
-                        block_def.ident,
-                        state.data()
-                    )
-                });
+                let model = block_models
+                    .get(&block)
+                    .unwrap_or_else(|| panic!("No model found for {block:?}"));
 
                 // Create faces for each non-occluded side
                 for dir in Direction::ALL {
@@ -426,17 +415,13 @@ fn mesh_chunk(
 
                     // Create face the neighboring block is air or doesn't occlude this face.
                     let neighbor_block = get_block(chunk_origin, neighbor_pos, neighbors);
-                    let neighbor_state = neighbor_block.map(|(_, state)| state);
-                    let neighbor_block = neighbor_block.map(|(block, _)| block);
-                    let neighbor_model = neighbor_block
-                        .and_then(|b| neighbor_state.map(|s| ident(b, s)))
-                        .and_then(|ident| block_models.get(&ident));
+                    let neighbor_model = neighbor_block.and_then(|ident| block_models.get(&ident));
                     if neighbor_block.is_none() {
                         continue;
                     }
                     if !should_occlude(
-                        block,
-                        neighbor_block.unwrap(),
+                        block.block,
+                        neighbor_block.unwrap().block,
                         dir,
                         model,
                         neighbor_model.unwrap(),

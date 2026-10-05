@@ -45,30 +45,51 @@ impl Saveable for BlockId {
 
 impl Saveable for BlockState {
     fn save(&self, writer: ByteWriter) -> ByteWriter {
-        writer.u32(self.bits())
-    }
-
-    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
-    where
-        Self: Sized,
-    {
-        if version < 0x01 {
-            Ok(BlockState::none())
-        } else {
-            Ok(BlockState::from_bits(reader.u32().ctx("BlockState::bits")?))
+        let props = self.named_props();
+        let mut w = writer.save(&self.block).u8(props.len() as u8);
+        for (name, value) in props {
+            w = w
+                .u8(name.len() as u8)
+                .string(name)
+                .u8(value.len() as u8)
+                .string(&value);
         }
-    }
-}
-
-impl Saveable for (BlockId, BlockState) {
-    fn save(&self, writer: ByteWriter) -> ByteWriter {
-        writer.save(&self.0).save(&self.1)
+        w
     }
 
-    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError>
-    where
-        Self: Sized,
-    {
-        Ok((reader.load(version)?, reader.load(version)?))
+    fn load(reader: &mut ByteReader, version: u8) -> Result<Self, ReadError> {
+        let block: BlockId = reader.load(version)?;
+        let mut state = BlockState::default_for(block);
+
+        if version < 0x01 {
+            return Ok(state);
+        }
+
+        if version < 0x09 {
+            // legacy u32: 16 bits data | 16 bits type
+            let bits = reader.u32().ctx("BlockState::bits")?;
+            let data = (bits >> 16) as u16;
+            if let Some(f) = block_registry().get(block).unwrap().from_legacy_state {
+                state = f(state, data);
+            }
+            return Ok(state);
+        }
+
+        let count = reader.u8().ctx("BlockState::prop_count")?;
+        for _ in 0..count {
+            let nlen = reader.u8().ctx("BlockState::prop_name_len")? as usize;
+            let name = reader.string(nlen).ctx("BlockState::prop_name")?;
+            let vlen = reader.u8().ctx("BlockState::prop_value_len")? as usize;
+            let value = reader.string(vlen).ctx("BlockState::prop_value")?;
+            if !state.set_str(&name, &value) {
+                log::warn!(
+                    "{}: ignoring unknown property {}={}",
+                    block_registry().get(block).unwrap().ident,
+                    name,
+                    value
+                );
+            }
+        }
+        Ok(state)
     }
 }

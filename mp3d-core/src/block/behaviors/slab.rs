@@ -1,14 +1,13 @@
 use glam::IVec3;
 
 use crate::{
-    block::{BlockId, BlockState},
+    block::{BlockId, BlockState, blockstate::SlabHalf},
     direction::Direction,
     entity::EntityId,
     world::World,
 };
 
 pub fn on_click(
-    id: BlockId,
     world: &mut World,
     entity_id: EntityId,
     block_pos: IVec3,
@@ -18,17 +17,21 @@ pub fn on_click(
     let Some((item_count, place_block)) = world.hotbar_stack_info(entity_id) else {
         return false;
     };
-    if state == BlockState::slab(0) && face == Direction::Up
-        || state == BlockState::slab(1) && face == Direction::Down
+    if state.get::<SlabHalf>("half").unwrap() == SlabHalf::Bottom && face == Direction::Up
+        || state.get::<SlabHalf>("half").unwrap() == SlabHalf::Top && face == Direction::Down
     {
         if item_count == 0 {
             return false;
         }
 
         if let Some(block) = place_block
-            && **block == id
+            && **block == state.block
         {
-            world.try_place_block(entity_id, block_pos, **block, BlockState::slab(2));
+            world.try_place_block(
+                entity_id,
+                block_pos,
+                BlockState::default_for(state.block).maybe_with("half", SlabHalf::Both),
+            );
         }
         true
     } else {
@@ -36,10 +39,10 @@ pub fn on_click(
     }
 }
 
-pub fn on_place(_: BlockId, _: &mut World, _: EntityId, _: IVec3, face: Direction) -> BlockState {
+pub fn on_place(id: BlockId, _: &mut World, _: EntityId, _: IVec3, face: Direction) -> BlockState {
     if face == Direction::Down {
-        BlockState::slab(1)
+        BlockState::default_for(id).maybe_with("half", SlabHalf::Top)
     } else {
-        BlockState::slab(0)
+        BlockState::default_for(id).maybe_with("half", SlabHalf::Bottom)
     }
 }

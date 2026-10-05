@@ -70,16 +70,16 @@ impl Generator {
                             global_z as f32 * 12.0 + 100.0,
                         ) > 0.5;
                         if granite {
-                            chunk.set_block(local, *blocks::GRANITE, BlockState::none());
+                            chunk.set_block(local, BlockState::default_for(*blocks::GRANITE));
                         } else {
-                            chunk.set_block(local, *blocks::STONE, BlockState::none());
+                            chunk.set_block(local, BlockState::default_for(*blocks::STONE));
                         }
                     } else if global_y < height - 1 {
-                        chunk.set_block(local, *blocks::DIRT, BlockState::none());
+                        chunk.set_block(local, BlockState::default_for(*blocks::DIRT));
                     } else if global_y < height {
-                        chunk.set_block(local, *blocks::GRASS, BlockState::none());
+                        chunk.set_block(local, BlockState::default_for(*blocks::GRASS));
                     } else if global_y == height && should_spawn_short_grass {
-                        chunk.set_block(local, *blocks::SHORT_GRASS, BlockState::none());
+                        chunk.set_block(local, BlockState::default_for(*blocks::SHORT_GRASS));
                     }
                 }
             }

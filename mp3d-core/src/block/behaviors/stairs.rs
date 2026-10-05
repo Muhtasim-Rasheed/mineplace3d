@@ -8,11 +8,11 @@ use crate::{
 };
 
 pub fn on_place(
-    _: BlockId,
+    id: BlockId,
     world: &mut World,
     entity_id: EntityId,
     _: IVec3,
     _: Direction,
 ) -> BlockState {
-    BlockState::stairs(player_cardinal(world, entity_id))
+    BlockState::default_for(id).maybe_with("facing", player_cardinal(world, entity_id))
 }

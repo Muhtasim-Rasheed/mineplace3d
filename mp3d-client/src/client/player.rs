@@ -122,12 +122,12 @@ impl LocalPlayer {
         while traveled <= desired_distance {
             let block_pos = pos.floor().as_ivec3();
 
-            if let Some((block, state)) = world.get_block_at(block_pos) {
+            if let Some(state) = world.get_block_at(block_pos) {
                 let local = pos - block_pos.as_vec3();
 
-                let block_def = block_registry().get(block).unwrap();
+                let block_def = block_registry().get(state.block).unwrap();
                 if block_def.visible
-                    && let Some(normal) = block_def.ray_intersect(local, backward, *state)
+                    && let Some(normal) = block_def.ray_intersect(local, backward, state)
                 {
                     let hit_normal = normal.as_vec3();
                     return pos + hit_normal * padding;

@@ -1,10 +1,10 @@
 {
 	"states": {
-		"0000": { "model": "stone_slab" },
-		"0001": {
+		"half=bottom": { "model": "stone_slab" },
+		"half=top": {
 			"model": "stone_slab",
 			"transform": { "translation": [0, 0.5, 0] }
 		},
-		"0002": { "model": "stone" }
+		"half=both": { "model": "stone" }
 	}
 }

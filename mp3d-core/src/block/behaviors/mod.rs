@@ -1,6 +1,7 @@
 use glam::Vec3;
 
 use crate::{
+    block::blockstate::HorizontalDir,
     direction::Direction,
     entity::{EntityId, components::Rotation},
     world::World,
@@ -13,7 +14,7 @@ pub mod facing;
 pub mod slab;
 pub mod stairs;
 
-fn player_cardinal(world: &World, id: EntityId) -> Direction {
+fn player_cardinal(world: &World, id: EntityId) -> HorizontalDir {
     let Some(yaw) = world
         .ecs
         .get_component_copied::<Rotation>(id)
@@ -25,15 +26,15 @@ fn player_cardinal(world: &World, id: EntityId) -> Direction {
     let player_fwd = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
     if player_fwd.x.abs() > player_fwd.z.abs() {
         if player_fwd.x > 0.0 {
-            Direction::East
+            HorizontalDir(Direction::East)
         } else {
-            Direction::West
+            HorizontalDir(Direction::West)
         }
     } else {
         if player_fwd.z > 0.0 {
-            Direction::South
+            HorizontalDir(Direction::South)
         } else {
-            Direction::North
+            HorizontalDir(Direction::North)
         }
     }
 }

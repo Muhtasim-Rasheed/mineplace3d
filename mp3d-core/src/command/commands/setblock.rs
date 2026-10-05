@@ -3,10 +3,9 @@
 use glam::Vec3;
 
 use crate::{
-    block::{BlockState, block_registry},
     command::{
         ArgStream, Command, CommandArg, CommandContext,
-        parser::{Coord3, Word},
+        parser::{Coord3, GreedyString},
     },
     entity::components::{Position, Rotation},
     textcomponent::TextComponent,
@@ -17,10 +16,10 @@ pub struct SetBlockCommand;
 const DESC: &str = r#"
 `setblock` - Set a block at the specified coordinates, optionally specifying blockstate aswell.
 
-Usage: `/setblock block_ident x y z [state_data]`
+Usage: `/setblock x y z block_ident[state_property=state_value...]`
 The block identifier is a string that identifies a block. A coordinate can be a number (e.g. "100.5"), be relative from the player's position (e.g. "~4") or scale on the player's forward direction (e.g. "^10"). Finally, the state_data is a 16-bit integer that defines the blocks behavior and appearance.
 
-Example: `/setblock stone_slab ~ ~10 ~ 1` places a top-slab 10 blocks above the player.
+Example: `/setblock ~ ~10 ~ stone_slab[half=top]` places a top-slab 10 blocks above the player.
 "#;
 
 impl Command for SetBlockCommand {
@@ -62,37 +61,21 @@ impl Command for SetBlockCommand {
             yaw_rad.cos() * pitch_rad.cos(),
         );
 
-        let ident = Word::parse(&mut args)?;
         let coord3 = Coord3::parse(&mut args)?;
-        let state_data = <Option<u16>>::parse(&mut args)?;
+        let state_str = GreedyString::parse(&mut args)?;
         args.ensure_empty()?;
 
-        let reg = block_registry();
-        let block = reg.get_id(&ident.0).ok_or("Unknown block identifier")?;
-        let block_def = reg.get(block).unwrap();
-        let ivec3 = coord3.as_ivec3(pos, fwd);
-        let state = if let Some(state_data) = state_data {
-            if BlockState::possible_data_values(block_def.state_type)
-                .unwrap()
-                .contains(&state_data)
-            {
-                BlockState::new(block_def.state_type, state_data)
-            } else {
-                return Err("Invalid block state data for this block".to_string());
-            }
-        } else {
-            BlockState::default_state(block_def.state_type).unwrap()
+        let state = match state_str.0.parse() {
+            Ok(s) => s,
+            Err(e) => return Err(format!("Invalid blockstate: {e}")),
         };
+        let ivec3 = coord3.as_ivec3(pos, fwd);
 
-        ctx.world.urgent_set_block_at(
-            ivec3,
-            block,
-            state,
-            crate::protocol::BlockUpdateKind::Placed,
-        );
+        ctx.world
+            .urgent_set_block_at(ivec3, state, crate::protocol::BlockUpdateKind::Placed);
         Ok(format!(
             "%b7FSet block at {}, {}, {} to {}%r",
-            ivec3.x, ivec3.y, ivec3.z, block_def.ident
+            ivec3.x, ivec3.y, ivec3.z, state_str.0
         )
         .parse()
         .unwrap())

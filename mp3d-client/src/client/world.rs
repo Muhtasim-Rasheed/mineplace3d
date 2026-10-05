@@ -46,7 +46,7 @@ impl ClientWorld {
     }
 
     /// Gets a block at the given world position.
-    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(BlockId, &BlockState)> {
+    pub fn get_block_at(&self, world_pos: IVec3) -> Option<BlockState> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -56,20 +56,14 @@ impl ClientWorld {
     }
 
     /// Sets a block at the given world position.
-    pub fn set_block_at(
-        &mut self,
-        world_pos: IVec3,
-        block: BlockId,
-        state: BlockState,
-        urgent: bool,
-    ) {
+    pub fn set_block_at(&mut self, world_pos: IVec3, state: BlockState, urgent: bool) {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
         let chunk = self.chunks.get_mut(&chunk_pos);
 
         if let Some(chunk) = chunk {
-            chunk.set_block(local_pos, block, state);
+            chunk.set_block(local_pos, state);
             chunk.dirty = true;
             self.remesh_queue.push(chunk_pos, urgent);
         }
@@ -182,13 +176,17 @@ impl CollisionWorld for ClientWorld {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
                     match self.get_block_at(block_pos) {
-                        Some((block, block_state)) => {
-                            if block_registry().get(block).unwrap().collides_with_player(
-                                entity_width,
-                                entity_height,
-                                entity_pos - block_pos.as_vec3(),
-                                *block_state,
-                            ) {
+                        Some(block) => {
+                            if block_registry()
+                                .get(block.block)
+                                .unwrap()
+                                .collides_with_player(
+                                    entity_width,
+                                    entity_height,
+                                    entity_pos - block_pos.as_vec3(),
+                                    block,
+                                )
+                            {
                                 return true;
                             }
                         }

@@ -1,15 +1,11 @@
 use glam::IVec3;
 
 use crate::{
-    block::{BlockId, BlockState},
-    direction::Direction,
-    entity::EntityId,
-    protocol::BlockUpdateKind,
+    block::BlockState, direction::Direction, entity::EntityId, protocol::BlockUpdateKind,
     world::World,
 };
 
 pub fn on_click(
-    id: BlockId,
     world: &mut World,
     _entity_id: EntityId,
     block_pos: IVec3,
@@ -18,8 +14,7 @@ pub fn on_click(
 ) -> bool {
     world.urgent_set_block_at(
         block_pos,
-        id,
-        BlockState::active(!state.is_active().unwrap()),
+        state.maybe_with("active", !state.get::<bool>("active").unwrap()),
         BlockUpdateKind::Interaction,
     );
     true

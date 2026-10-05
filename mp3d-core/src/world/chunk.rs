@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    block::{BlockId, BlockState, CollisionShape, block_registry, blocks},
+    block::{BlockState, CollisionShape, block_registry, blocks},
     direction::Direction,
 };
 
@@ -13,47 +13,40 @@ pub const CHUNK_SIZE: usize = 16;
 
 /// A 16x16x16 chunk of blocks.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Chunk {
-    block_palette: Vec<BlockId>,
+    block_palette: Vec<BlockState>,
     #[serde_as(as = "[_; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]")]
     blocks: [u16; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
-    #[serde_as(as = "[_; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]")]
-    block_states: [BlockState; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
 }
 
 impl Chunk {
     /// Creates a new empty chunk.
     pub fn new() -> Self {
         Chunk {
-            block_palette: vec![*blocks::AIR],
+            block_palette: vec![BlockState::default_for(*blocks::AIR)],
             blocks: [0; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
-            block_states: [BlockState::none(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
         }
     }
 
-    /// Gets a reference to the block and block state at the given local position within the chunk.
-    pub fn get_block(&self, local_pos: IVec3) -> Option<(BlockId, &BlockState)> {
+    /// Gets a reference to the block state at the given local position within the chunk.
+    pub fn get_block(&self, local_pos: IVec3) -> Option<BlockState> {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         let palette_index = *self.blocks.get(index)? as usize;
-        Some((
-            self.block_palette.get(palette_index).copied()?,
-            self.block_states.get(index)?,
-        ))
+        Some(self.block_palette.get(palette_index).copied()?)
     }
 
     /// Sets the block at the given local position within the chunk.
-    pub fn set_block(&mut self, local_pos: IVec3, block: BlockId, state: BlockState) {
+    pub fn set_block(&mut self, local_pos: IVec3, state: BlockState) {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
-        if let Some(palette_index) = self.block_palette.iter().position(|b| *b == block) {
+        if let Some(palette_index) = self.block_palette.iter().position(|s| *s == state) {
             self.blocks[index] = palette_index as u16;
         } else {
-            self.block_palette.push(block);
+            self.block_palette.push(state);
             self.blocks[index] = (self.block_palette.len() - 1) as u16;
         }
-        self.block_states[index] = state;
     }
 
     /// Random ticks N random blocks in the chunk.
@@ -62,7 +55,7 @@ impl Chunk {
         n: usize,
         chunks: &fxhash::FxHashMap<IVec3, Chunk>,
         chunk_pos: IVec3,
-    ) -> Vec<(IVec3, BlockId, BlockState)> {
+    ) -> Vec<(IVec3, BlockState)> {
         let neighbors = [
             IVec3::new(-1, -1, -1), // Y -1 Z -1
             IVec3::new(0, -1, -1),
@@ -94,12 +87,12 @@ impl Chunk {
         ]
         .map(|dir| chunks.get(&(chunk_pos + dir)));
 
-        fn get_block_global<'a>(
-            me: &'a Chunk,
-            neighbors: [Option<&'a Chunk>; 26],
+        fn get_block_global(
+            me: &Chunk,
+            neighbors: [Option<&Chunk>; 26],
             global_pos: IVec3,
             chunk_pos: IVec3,
-        ) -> Option<(BlockId, &'a BlockState)> {
+        ) -> Option<BlockState> {
             let get_chunk_pos = IVec3::new(
                 global_pos.x.div_euclid(CHUNK_SIZE as i32),
                 global_pos.y.div_euclid(CHUNK_SIZE as i32),
@@ -165,24 +158,24 @@ impl Chunk {
             let block = &self.block_palette[palette_index];
             let above_global_pos = global_pos + Direction::Up;
             let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos)
-                .and_then(|(id, bs)| block_registry().get(id).map(|v| (v, bs)));
+                .and_then(|bs| block_registry().get(bs.block).map(|v| (v, bs)));
             let below_global_pos = global_pos + Direction::Down;
             let below_block = get_block_global(self, neighbors, below_global_pos, chunk_pos);
-            if block == &*blocks::DIRT
+            if block.block == *blocks::DIRT
                 && let Some((above_block, _)) = above_block
                 && above_block.collision_shape == CollisionShape::None
             {
                 // DIRT -> GRASS if above cannot be collided with (e.g. AIR)
-                updates.push((global_pos, *blocks::GRASS, BlockState::none()));
+                updates.push((global_pos, BlockState::default_for(*blocks::GRASS)));
             }
-            if block == &*blocks::GRASS
+            if block.block == *blocks::GRASS
                 && let Some((above_block, _)) = above_block
                 && above_block.collision_shape != CollisionShape::None
             {
                 // GRASS -> DIRT if above can be collided with (e.g. GRASS or LOG)
-                updates.push((global_pos, *blocks::DIRT, BlockState::none()));
+                updates.push((global_pos, BlockState::default_for(*blocks::GRASS)));
             }
-            if block == &*blocks::LEAVES {
+            if block.block == *blocks::LEAVES {
                 // LEAVES -> AIR if no LOG in radius of 6 blocks
                 let mut should_become_air = true;
                 for dx in -3..=3 {
@@ -194,8 +187,8 @@ impl Chunk {
                             }
                             let pos = global_pos + delta;
                             let block = get_block_global(self, neighbors, pos, chunk_pos);
-                            if let Some((block, _)) = block
-                                && block == *blocks::LOG
+                            if let Some(block) = block
+                                && block.block == *blocks::LOG
                             {
                                 should_become_air = false;
                                 break;
@@ -204,15 +197,15 @@ impl Chunk {
                     }
                 }
                 if should_become_air {
-                    updates.push((global_pos, *blocks::AIR, BlockState::none()));
+                    updates.push((global_pos, BlockState::default_for(*blocks::AIR)));
                 }
             }
-            if block == &*blocks::SHORT_GRASS
-                && let Some((below_block, _)) = below_block
-                && below_block != *blocks::GRASS
+            if block.block == *blocks::SHORT_GRASS
+                && let Some(below_block) = below_block
+                && below_block.block != *blocks::GRASS
             {
                 // SHORT_GRASS -> AIR if below is not GRASS
-                updates.push((global_pos, *blocks::AIR, BlockState::none()));
+                updates.push((global_pos, BlockState::default_for(*blocks::AIR)));
             }
         }
         updates
@@ -222,5 +215,11 @@ impl Chunk {
 impl Default for Chunk {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Debug for Chunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Chunk").finish()
     }
 }

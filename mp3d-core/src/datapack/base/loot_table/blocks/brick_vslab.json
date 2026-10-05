@@ -1,14 +1,14 @@
 {
-	"0000": {
+	"facing=north": {
 		"brick_vslab": [1, 1.0, 1, 1.0]
 	},
-	"0001": {
+	"facing=south": {
 		"brick_vslab": [1, 1.0, 1, 1.0]
 	},
-	"0002": {
+	"facing=east": {
 		"brick_vslab": [1, 1.0, 1, 1.0]
 	},
-	"0003": {
+	"facing=west": {
 		"brick_vslab": [1, 1.0, 1, 1.0]
 	}
 }

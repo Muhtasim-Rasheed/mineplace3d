@@ -1,15 +1,15 @@
 {
 	"states": {
-		"0000": { "model": "stone_vslab" },
-		"0001": {
+		"facing=north": { "model": "stone_vslab" },
+		"facing=south": {
 			"model": "stone_vslab",
 			"transform": { "rotation": [0, 180, 0] }
 		},
-		"0002": {
+		"facing=east": {
 			"model": "stone_vslab",
 			"transform": { "rotation": [0, -90, 0] }
 		},
-		"0003": {
+		"facing=west": {
 			"model": "stone_vslab",
 			"transform": { "rotation": [0, 90, 0] }
 		}

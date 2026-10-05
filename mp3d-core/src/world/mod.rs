@@ -58,7 +58,7 @@ pub struct World {
     /// A map of chunk positions to a map of local block positions to the new block and block
     /// state. This is used to track changes to chunks that have been modified by the player or
     /// other entities.
-    changes: FxHashMap<IVec3, FxHashMap<IVec3, (BlockId, BlockState)>>,
+    changes: FxHashMap<IVec3, FxHashMap<IVec3, BlockState>>,
 
     game_data: GameData,
 }
@@ -83,7 +83,7 @@ impl World {
     }
 
     /// Gets a block at the given world position.
-    pub fn get_block_at(&self, world_pos: IVec3) -> Option<(BlockId, &BlockState)> {
+    pub fn get_block_at(&self, world_pos: IVec3) -> Option<BlockState> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
         let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -99,7 +99,6 @@ impl World {
     pub fn urgent_set_block_at(
         &mut self,
         world_pos: IVec3,
-        block: BlockId,
         state: BlockState,
         kind: BlockUpdateKind,
     ) {
@@ -109,11 +108,10 @@ impl World {
         self.changes
             .entry(chunk_pos)
             .or_default()
-            .insert(local_pos, (block, state));
+            .insert(local_pos, state);
         self.pending_changes.push(BlockUpdate {
             position: world_pos,
-            block,
-            block_state: state,
+            state,
             urgent: true,
             kind,
         });
@@ -122,7 +120,7 @@ impl World {
         // If it isn't, the diff above will be applied automatically
         // whenever the chunk is generated later.
         if let Some(chunk) = self.chunks.get_mut(&chunk_pos) {
-            chunk.set_block(local_pos, block, state);
+            chunk.set_block(local_pos, state);
         }
     }
 
@@ -133,7 +131,6 @@ impl World {
     pub fn normal_set_block_at(
         &mut self,
         world_pos: IVec3,
-        block: BlockId,
         state: BlockState,
         kind: BlockUpdateKind,
     ) {
@@ -143,11 +140,10 @@ impl World {
         self.changes
             .entry(chunk_pos)
             .or_default()
-            .insert(local_pos, (block, state));
+            .insert(local_pos, state);
         self.pending_changes.push(BlockUpdate {
             position: world_pos,
-            block,
-            block_state: state,
+            state,
             urgent: false,
             kind,
         });
@@ -156,15 +152,15 @@ impl World {
         // If it isn't, the diff above will be applied automatically
         // whenever the chunk is generated later.
         if let Some(chunk) = self.chunks.get_mut(&chunk_pos) {
-            chunk.set_block(local_pos, block, state);
+            chunk.set_block(local_pos, state);
         }
     }
 
     /// Applies block changes on a chunk.
     pub fn apply_changes_on_chunk(&self, chunk: &mut Chunk, chunk_pos: IVec3) {
         if let Some(changes) = self.changes.get(&chunk_pos) {
-            for (local_pos, (block, state)) in changes {
-                chunk.set_block(*local_pos, *block, *state);
+            for (local_pos, state) in changes {
+                chunk.set_block(*local_pos, *state);
             }
         }
     }
@@ -192,7 +188,7 @@ impl World {
             updates.extend_from_slice(&chunk.random_tick(5, &self.chunks, *pos));
         }
         for update in updates {
-            self.normal_set_block_at(update.0, update.1, update.2, BlockUpdateKind::RandomTick);
+            self.normal_set_block_at(update.0, update.1, BlockUpdateKind::RandomTick);
         }
 
         scheduler.run(self, 1.0 / tps as f32);
@@ -217,7 +213,6 @@ impl World {
         &mut self,
         player_entity_id: EntityId,
         pos: IVec3,
-        block: BlockId,
         state: BlockState,
     ) -> bool {
         let Some((player_pos, player_width, player_height)) =
@@ -226,15 +221,15 @@ impl World {
             return false;
         };
 
-        let old_block = self
+        let old_state = self
             .get_block_at(pos)
-            .map(|(b, _)| b)
-            .unwrap_or(*blocks::AIR);
+            .map(|bs| bs)
+            .unwrap_or(BlockState::default_for(*blocks::AIR));
 
-        self.urgent_set_block_at(pos, block, state, BlockUpdateKind::Placed);
+        self.urgent_set_block_at(pos, state, BlockUpdateKind::Placed);
 
         if self.collides(player_pos, player_width, player_height) {
-            self.urgent_set_block_at(pos, old_block, BlockState::none(), BlockUpdateKind::Removed);
+            self.urgent_set_block_at(pos, old_state, BlockUpdateKind::Removed);
             return false;
         }
 
@@ -271,10 +266,10 @@ impl World {
             return;
         };
 
-        if let Some((id, state)) = self.get_block_at(block_pos).map(|(b, s)| (b, *s)) {
-            let def = block_registry().get(id).unwrap();
+        if let Some(state) = self.get_block_at(block_pos) {
+            let def = block_registry().get(state.block).unwrap();
             if let Some(on_click) = &def.on_click {
-                if on_click(id, self, player_entity_id, block_pos, state, face) {
+                if on_click(self, player_entity_id, block_pos, state, face) {
                     return; // hook fully handled the interaction
                 }
             }
@@ -288,12 +283,10 @@ impl World {
             let def = block_registry().get(**block).unwrap();
             let state = if let Some(on_place) = &def.on_place {
                 (on_place)(**block, self, player_entity_id, place_pos, face)
-            } else if let Some(bs) = BlockState::default_state(def.state_type) {
-                bs
             } else {
-                return;
+                BlockState::default_for(**block)
             };
-            self.try_place_block(player_entity_id, place_pos, **block, state);
+            self.try_place_block(player_entity_id, place_pos, state);
         }
     }
 
@@ -309,27 +302,26 @@ impl World {
     }
 
     pub fn break_block(&mut self, player_entity_id: EntityId, block_pos: IVec3) {
-        let (block, state) = match self.get_block_at(block_pos) {
-            Some((b, s)) => (b, *s),
+        let state = match self.get_block_at(block_pos) {
+            Some(bs) => bs,
             None => return,
         };
 
-        let block_def = block_registry().get(block).unwrap();
+        let block_def = block_registry().get(state.block).unwrap();
         if let Some(on_break) = &block_def.on_break {
-            on_break(block, self, player_entity_id, block_pos, state);
+            on_break(self, player_entity_id, block_pos, state);
         }
 
-        let Some(loot_table_entry) = self.game_data.get_block_drops(block) else {
+        let Some(loot_table_entry) = self.game_data.get_block_drops(state.block) else {
             return;
         };
         let drops = &loot_table_entry.drops;
-        let drops = drops.get(&state.data()).cloned().unwrap_or_default();
+        let drops = drops.get(&state.data).cloned().unwrap_or_default();
 
         self.urgent_set_block_at(
             block_pos,
-            *blocks::AIR,
-            crate::block::BlockState::none(),
-            crate::protocol::BlockUpdateKind::Removed,
+            BlockState::default_for(*blocks::AIR),
+            BlockUpdateKind::Removed,
         );
 
         let Some(inv) = self.ecs.get_component_mut::<Inventory>(player_entity_id) else {
@@ -378,10 +370,7 @@ impl CollisionWorld for World {
 
 impl CollisionWorld for FxHashMap<IVec3, Chunk> {
     fn collides(&self, pos: Vec3, width: f32, height: f32) -> bool {
-        fn get_block_at(
-            this: &FxHashMap<IVec3, Chunk>,
-            world_pos: IVec3,
-        ) -> Option<(BlockId, &BlockState)> {
+        fn get_block_at(this: &FxHashMap<IVec3, Chunk>, world_pos: IVec3) -> Option<BlockState> {
             let chunk_pos = world_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
             let local_pos = world_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
@@ -396,13 +385,13 @@ impl CollisionWorld for FxHashMap<IVec3, Chunk> {
             for y in min_block_pos.y..=max_block_pos.y {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
-                    if let Some((block, block_state)) = get_block_at(self, block_pos)
-                        && let Some(block) = block_registry().get(block)
+                    if let Some(block_state) = get_block_at(self, block_pos)
+                        && let Some(block) = block_registry().get(block_state.block)
                         && block.collides_with_player(
                             width,
                             height,
                             pos - block_pos.as_vec3(),
-                            *block_state,
+                            block_state,
                         )
                     {
                         return true;
@@ -418,8 +407,7 @@ impl CollisionWorld for FxHashMap<IVec3, Chunk> {
 /// Position-less and priority-less version of [`BlockUpdate`]
 #[derive(Clone, Debug)]
 pub struct BlockChangeKey {
-    pub block: BlockId,
-    pub block_state: BlockState,
+    pub state: BlockState,
     pub kind: BlockUpdateKind,
 }
 
@@ -447,8 +435,7 @@ impl PendingChanges {
         self.data.insert(
             update.position,
             BlockChangeKey {
-                block: update.block,
-                block_state: update.block_state,
+                state: update.state,
                 kind: update.kind,
             },
         );
@@ -475,16 +462,14 @@ impl Iterator for PendingChanges {
         if let Some(pos) = self.urgent.pop() {
             self.data.remove(&pos).map(|change| BlockUpdate {
                 position: pos,
-                block: change.block,
-                block_state: change.block_state,
+                state: change.state,
                 urgent: true,
                 kind: change.kind,
             })
         } else if let Some(pos) = self.normal.pop() {
             self.data.remove(&pos).map(|change| BlockUpdate {
                 position: pos,
-                block: change.block,
-                block_state: change.block_state,
+                state: change.state,
                 urgent: false,
                 kind: change.kind,
             })
@@ -548,10 +533,8 @@ impl World {
                 chunk_pos.x, chunk_pos.y, chunk_pos.z
             ));
             let mut chunk_writer = ByteWriter::new().u16(changes.len() as u16);
-            for (local_pos, (block, state)) in changes {
-                chunk_writer = chunk_writer
-                    .u8vec3(local_pos.as_u8vec3())
-                    .save(&(*block, *state));
+            for (local_pos, block_state) in changes {
+                chunk_writer = chunk_writer.u8vec3(local_pos.as_u8vec3()).save(block_state);
             }
             std::fs::write(chunk_path, chunk_writer.into_bytes())?;
         }
@@ -617,13 +600,13 @@ impl World {
             .ctx("loading world")?;
         let mut save_reader = ByteReader::new(&save_content);
         match save_reader.u8().ctx("expected save version")? {
-            version if version <= 0x08 => load_v0_to_v8(path, &mut save_reader, version),
+            version if version <= 0x09 => load_v0_to_v9(path, &mut save_reader, version),
             version => Err(ReadErrorKind::InvalidTag(version)).ctx("save version"),
         }
     }
 }
 
-fn load_v0_to_v8(
+fn load_v0_to_v9(
     path: &std::path::Path,
     save_reader: &mut ByteReader,
     version: u8,

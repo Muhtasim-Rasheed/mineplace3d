@@ -1,15 +1,15 @@
 {
 	"states": {
-		"0000": { "model": "glungus_vslab" },
-		"0001": {
+		"facing=north": { "model": "glungus_vslab" },
+		"facing=south": {
 			"model": "glungus_vslab",
 			"transform": { "rotation": [0, 180, 0] }
 		},
-		"0002": {
+		"facing=east": {
 			"model": "glungus_vslab",
 			"transform": { "rotation": [0, -90, 0] }
 		},
-		"0003": {
+		"facing=west": {
 			"model": "glungus_vslab",
 			"transform": { "rotation": [0, 90, 0] }
 		}

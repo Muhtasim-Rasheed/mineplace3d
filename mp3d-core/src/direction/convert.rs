@@ -115,14 +115,6 @@ impl std::fmt::Debug for Direction {
 
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Direction::*;
-        match self {
-            North => write!(f, "north"),
-            South => write!(f, "south"),
-            East => write!(f, "east"),
-            West => write!(f, "west"),
-            Up => write!(f, "up"),
-            Down => write!(f, "down"),
-        }
+        write!(f, "{}", self.to_str())
     }
 }

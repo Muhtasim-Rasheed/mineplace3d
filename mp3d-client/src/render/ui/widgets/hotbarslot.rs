@@ -54,12 +54,8 @@ impl HotbarSlot {
             let block = **block;
             let block_def = block_registry().get(block).unwrap();
             if block_def.visible {
-                let item_block_state =
-                    mp3d_core::block::BlockState::default_state(block_def.state_type).unwrap();
-                let item_block_model = assets
-                    .block_models
-                    .get(&(block, item_block_state.data()))
-                    .unwrap();
+                let item_block_state = mp3d_core::block::BlockState::default_for(block);
+                let item_block_model = assets.block_models.get(&item_block_state).unwrap();
                 commands.extend(item_block_model.draw_commands(
                     &ui.gl,
                     &assets.block_textures,

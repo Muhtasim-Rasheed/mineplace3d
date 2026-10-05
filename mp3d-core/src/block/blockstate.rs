@@ -1,161 +1,245 @@
-use crate::direction::Direction;
+use std::borrow::Cow;
 
-/// Struct to store the block state of a block in the world.
-///
-/// For example, slabs store whether they are the top or bottom half of a block, stairs store their
-/// facing direction, etc. This data is not stored in the block struct itself because it is not shared
-/// between all blocks of the same type, but rather is stored in the chunk data.
-///
-/// Currently, the block state is stored as a 32 bit integer (u32) for simplicity and efficiency. The
-/// type of the block state is stored in the lower 16 bits, and the data is stored in the upper 16
-/// bits. This allows for up to 65536 different block state types, each with up to 65536 different
-/// data values.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct BlockState(u32);
+use crate::{
+    block::{BlockId, block_registry},
+    direction::Direction,
+};
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct BlockState {
+    pub block: BlockId,
+    pub data: u128,
+}
 
 impl BlockState {
-    pub const NONE_TYPE: u16 = 0x0000;
-    pub const SLAB_TYPE: u16 = 0x0001;
-    pub const STAIR_TYPE: u16 = 0x0002;
-    pub const FACING_TYPE: u16 = 0x0003;
-    pub const ACTIVE_TYPE: u16 = 0x0004;
-
-    /// Creates a new block state with the given type and data.
-    #[inline]
-    pub const fn new(state_type: u16, data: u16) -> BlockState {
-        BlockState((state_type as u32) | ((data as u32) << 16))
-    }
-
-    /// Creates a new block state with the given bits.
-    #[inline]
-    pub const fn from_bits(bits: u32) -> BlockState {
-        BlockState(bits)
-    }
-
-    /// Gets the bits of the block state.
-    #[inline]
-    pub const fn bits(&self) -> u32 {
-        self.0
-    }
-
-    /// Gets the type of the block state.
-    #[inline]
-    pub const fn state_type(&self) -> u16 {
-        (self.0 & 0xFFFF) as u16
-    }
-
-    /// Gets the data of the block state.
-    #[inline]
-    pub const fn data(&self) -> u16 {
-        (self.0 >> 16) as u16
-    }
-
-    /// Creates an empty block state with no data.
-    #[inline]
-    pub const fn none() -> BlockState {
-        BlockState::new(Self::NONE_TYPE, 0x0000)
-    }
-
-    /// Creates a slab block state with the given top/bottom value.
-    #[inline]
-    pub const fn slab(data: u16) -> BlockState {
-        BlockState::new(Self::SLAB_TYPE, data)
-    }
-
-    /// Creates a stair block state with the given facing direction
-    #[inline]
-    pub const fn stairs(dir: Direction) -> BlockState {
-        assert!(!matches!(dir, Direction::Up | Direction::Down));
-        BlockState::new(Self::STAIR_TYPE, dir as u16)
-    }
-
-    /// Creates a vertical slab block state with the given facing direction.
-    #[inline]
-    pub const fn facing(dir: Direction) -> BlockState {
-        assert!(!matches!(dir, Direction::Up | Direction::Down));
-        BlockState::new(Self::FACING_TYPE, dir as u16)
-    }
-
-    /// Creates an active/inactive block state with the given active value.
-    #[inline]
-    pub const fn active(is_active: bool) -> BlockState {
-        BlockState::new(Self::ACTIVE_TYPE, is_active as u16)
-    }
-
-    /// Checks if the block state is empty (i.e. has no data).
-    #[inline]
-    pub const fn is_none(&self) -> bool {
-        self.state_type() == Self::NONE_TYPE
-    }
-
-    /// Checks if the block state is a slab and returns whether it is the top or bottom half of the
-    /// block if it is.
-    #[inline]
-    pub const fn is_slab(&self) -> Option<u16> {
-        if self.state_type() == Self::SLAB_TYPE {
-            Some(self.data())
-        } else {
-            None
+    pub fn default_for(block: BlockId) -> Self {
+        Self {
+            block,
+            data: block_registry().get(block).unwrap().default_state,
         }
     }
 
-    /// Checks if the block state is stairs and returns the facing direction if it is.
-    #[inline]
-    pub const fn is_stairs(&self) -> Option<Direction> {
-        if self.state_type() == Self::STAIR_TYPE {
-            Direction::from_u8(self.data() as u8)
-        } else {
-            None
+    pub fn get_str(&self, name: &str) -> Option<Cow<'static, str>> {
+        let def = block_registry().get(self.block).unwrap();
+        let p = def.property(name)?;
+        Some((p.value_name)(p.get(self.data)))
+    }
+
+    pub fn set_str(&mut self, name: &str, value: &str) -> bool {
+        let def = block_registry().get(self.block).unwrap();
+        let Some(p) = def.property(name) else {
+            return false;
+        };
+        let Some(v) = (p.parse)(value) else {
+            return false;
+        };
+        p.set(&mut self.data, v);
+        true
+    }
+
+    pub fn maybe_with_str(mut self, name: &str, value: &str) -> Self {
+        self.set_str(name, value);
+        self
+    }
+
+    pub fn get<T: PropertyValue + 'static>(&self, name: &str) -> Option<T> {
+        let def = block_registry().get(self.block).unwrap();
+        let p = def.property(name)?;
+        let _ = p.check::<T>() || return None;
+        Some(T::from_index(p.get(self.data)))
+    }
+
+    pub fn set<T: PropertyValue + 'static>(&mut self, name: &str, value: T) -> bool {
+        let def = block_registry().get(self.block).unwrap();
+        let Some(p) = def.property(name) else {
+            return false;
+        };
+        let _ = p.check::<T>() || return false;
+        p.set(&mut self.data, value.to_index());
+        true
+    }
+
+    pub fn maybe_with<T: PropertyValue + 'static>(mut self, name: &str, value: T) -> Self {
+        self.set(name, value);
+        self
+    }
+
+    pub fn named_props(&self) -> Vec<(&'static str, Cow<'static, str>)> {
+        let def = block_registry().get(self.block).unwrap();
+        def.state_properties
+            .iter()
+            .filter_map(|p| {
+                let v = p.get(self.data);
+                (v != p.default).then(|| (p.name, (p.value_name)(v)))
+            })
+            .collect()
+    }
+}
+
+impl std::fmt::Debug for BlockState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}[{}]",
+            block_registry().get(self.block).unwrap().ident,
+            self.named_props()
+                .into_iter()
+                .map(|(name, val)| format!("{name}={val}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+}
+
+impl std::str::FromStr for BlockState {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (ident, props) = match s.trim().split_once('[') {
+            Some((ident, rest)) => {
+                let props = rest
+                    .strip_suffix(']')
+                    .ok_or_else(|| "missing closing `]`".to_string())?;
+                (ident, Some(props))
+            }
+            None => (s, None),
+        };
+
+        let block = block_registry()
+            .get_id(ident)
+            .ok_or_else(|| format!("unknown block `{ident}`"))?;
+
+        let mut state = Self::default_for(block);
+
+        let Some(props) = props else {
+            return Ok(state);
+        };
+        if props.is_empty() {
+            return Ok(state);
+        }
+        for prop in props.split(',') {
+            let (name, value) = prop
+                .split_once('=')
+                .ok_or_else(|| format!("invalid property `{prop}`"))?;
+
+            if !state.set_str(name, value) {
+                return Err(format!(
+                    "invalid property `{name}={value}` for block `{ident}`"
+                ));
+            }
+        }
+
+        Ok(state)
+    }
+}
+
+pub trait PropertyValue {
+    const COUNT: u128;
+
+    fn to_index(self) -> u128;
+    fn from_index(i: u128) -> Self;
+    fn name(self) -> Cow<'static, str>;
+    fn parse(s: &str) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+impl PropertyValue for bool {
+    const COUNT: u128 = 2;
+
+    fn to_index(self) -> u128 {
+        self as u128
+    }
+
+    fn from_index(i: u128) -> Self {
+        i != 0
+    }
+
+    fn name(self) -> Cow<'static, str> {
+        (if self { "true" } else { "false" }).into()
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum SlabHalf {
+    Bottom = 0,
+    Top = 1,
+    Both = 2,
+}
+
+impl PropertyValue for SlabHalf {
+    const COUNT: u128 = 3;
+
+    fn to_index(self) -> u128 {
+        self as u128
+    }
+
+    fn from_index(i: u128) -> Self {
+        match i {
+            0 => Self::Bottom,
+            1 => Self::Top,
+            2 => Self::Both,
+            _ => unreachable!(),
         }
     }
 
-    /// Checks if the block state is a vertical slab and returns the facing direction if it is.
-    #[inline]
-    pub const fn is_facing(&self) -> Option<Direction> {
-        if self.state_type() == Self::FACING_TYPE {
-            Direction::from_u8(self.data() as u8)
-        } else {
-            None
+    fn name(self) -> Cow<'static, str> {
+        match self {
+            Self::Bottom => "bottom".into(),
+            Self::Top => "top".into(),
+            Self::Both => "both".into(),
         }
     }
 
-    /// Checks if the block state is active/inactive and returns whether it is active or not.
-    #[inline]
-    pub const fn is_active(&self) -> Option<bool> {
-        if self.state_type() == Self::ACTIVE_TYPE {
-            Some(self.data() != 0)
-        } else {
-            None
-        }
-    }
-
-    /// Returns all possible data values for the given block state type. If the slice is empty,
-    /// then the block state of that type can have any data value (i.e. the data value is not used
-    /// for that block state type). If the block state type is not recognized, then `None` is
-    /// returned.
-    #[inline]
-    pub const fn possible_data_values(state_type: u16) -> Option<&'static [u16]> {
-        match state_type {
-            Self::NONE_TYPE => Some(&[0x0000]),
-            Self::SLAB_TYPE => Some(&[0x0000, 0x0001, 0x0002]),
-            Self::STAIR_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]),
-            Self::FACING_TYPE => Some(&[0x0000, 0x0001, 0x0002, 0x0003]),
-            Self::ACTIVE_TYPE => Some(&[0x0000, 0x0001]),
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "bottom" => Some(Self::Bottom),
+            "top" => Some(Self::Top),
+            "both" => Some(Self::Both),
             _ => None,
         }
     }
+}
 
-    /// Returns a default block state that can be used for displaying blocks in inventories and
-    /// such.
-    #[inline]
-    pub const fn default_state(state_type: u16) -> Option<BlockState> {
-        match state_type {
-            Self::NONE_TYPE => Some(BlockState::none()),
-            Self::SLAB_TYPE => Some(BlockState::slab(0)),
-            Self::STAIR_TYPE => Some(BlockState::stairs(Direction::North)),
-            Self::FACING_TYPE => Some(BlockState::facing(Direction::North)),
-            Self::ACTIVE_TYPE => Some(BlockState::active(false)),
-            _ => None,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct HorizontalDir(pub Direction);
+
+impl PropertyValue for HorizontalDir {
+    const COUNT: u128 = 4;
+
+    fn to_index(self) -> u128 {
+        match self.0 {
+            Direction::North => 0,
+            Direction::South => 1,
+            Direction::East => 2,
+            Direction::West => 3,
+            _ => unreachable!(),
         }
+    }
+
+    fn from_index(i: u128) -> Self {
+        match i {
+            0 => HorizontalDir(Direction::North),
+            1 => HorizontalDir(Direction::South),
+            2 => HorizontalDir(Direction::East),
+            3 => HorizontalDir(Direction::West),
+            _ => unreachable!(),
+        }
+    }
+
+    fn name(self) -> Cow<'static, str> {
+        self.0.to_str().into()
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        s.parse::<Direction>()
+            .ok()
+            .filter(|&d| d != Direction::Up && d != Direction::Down)
+            .map(Self)
     }
 }

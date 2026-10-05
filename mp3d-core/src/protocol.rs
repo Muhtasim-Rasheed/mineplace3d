@@ -7,10 +7,7 @@ use glam::IVec3;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    block::{BlockId, BlockState},
-    direction::Direction,
-    entity::EntityId,
-    textcomponent::TextComponent,
+    block::BlockState, direction::Direction, entity::EntityId, textcomponent::TextComponent,
     world::chunk::Chunk,
 };
 
@@ -51,8 +48,7 @@ pub enum BlockUpdateKind {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlockUpdate {
     pub position: IVec3,
-    pub block: BlockId,
-    pub block_state: BlockState,
+    pub state: BlockState,
     pub urgent: bool,
     pub kind: BlockUpdateKind,
 }

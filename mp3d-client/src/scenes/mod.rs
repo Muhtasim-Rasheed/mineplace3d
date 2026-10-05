@@ -10,7 +10,7 @@ use std::{
 
 use glow::HasContext;
 use image::GenericImageView;
-use mp3d_core::block::{BlockId, BlockState, block_registry};
+use mp3d_core::block::{BlockState, block_registry};
 
 use crate::{
     render::{
@@ -77,7 +77,7 @@ pub type SceneActionResult = Result<(), SceneActionError>;
 /// as block textures and models.
 pub struct Assets {
     pub block_textures: TextureAtlas,
-    pub block_models: HashMap<(BlockId, u16), BlockModel>,
+    pub block_models: HashMap<BlockState, BlockModel>,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
     pub window_icon: crate::abs::Texture,
@@ -98,23 +98,21 @@ impl Assets {
         let mut block_textures = TextureAtlas::new(256, 16);
         let mut block_models = HashMap::new();
         for (block_id, block) in block_registry().iter_enumerate() {
-            let mut possible_state_data_values = BlockState::possible_data_values(block.state_type)
-                .unwrap()
-                .iter()
-                .collect::<std::collections::HashSet<_>>();
+            let mut remaining: std::collections::HashSet<u128> =
+                block.all_state_data().into_iter().collect();
             let blockstate_path = PathBuf::from(format!("blocks/states/{}.json", block.ident));
-            let blockstate_data = resource_manager
-                .read(&blockstate_path)
-                .ok_or_else(|| format!("Failed to load blockstate for block '{}'", block.ident))?;
+            let blockstate_data = resource_manager.read(&blockstate_path).ok_or_else(|| {
+                format!("Failed to load blockstate file for block '{}'", block.ident)
+            })?;
             let blockstate_str = std::str::from_utf8(&blockstate_data).map_err(|e| {
                 format!(
-                    "Failed to parse blockstate for block '{}': {}",
+                    "Failed to parse blockstate file for block '{}': {}",
                     block.ident, e
                 )
             })?;
-            let states = States::load(blockstate_str).map_err(|e| {
+            let states = States::load(block_id, blockstate_str).map_err(|e| {
                 format!(
-                    "Failed to parse blockstate for block '{}': {}",
+                    "Failed to parse blockstate file for block '{}': {}",
                     block.ident, e
                 )
             })?;
@@ -142,24 +140,31 @@ impl Assets {
                     &resource_manager,
                     &mut block_textures,
                 )?;
-                if !possible_state_data_values.contains(&state_data) {
+
+                if !remaining.remove(&state_data) {
                     log::warn!(
-                        "State data value {:#06x} for block '{}' is not valid for its state type",
+                        "State data value {:#x} for block '{}' is invalid or duplicated",
                         state_data,
                         block.ident
                     );
+                    continue;
                 }
-                possible_state_data_values.remove(&state_data);
-                block_models.insert((block_id, state_data), model);
+                block_models.insert(
+                    BlockState {
+                        block: block_id,
+                        data: state_data,
+                    },
+                    model,
+                );
             }
 
-            if !possible_state_data_values.is_empty() {
-                log::error!(
-                    "Not all possible state data values for block '{}' were used in the blockstate file. Unused values: {:?}",
-                    block.ident,
-                    possible_state_data_values
-                );
-                panic!("Invalid blockstate file for block '{}'", block.ident);
+            if !remaining.is_empty() {
+                let mut missing: Vec<_> = remaining.into_iter().collect();
+                missing.sort_unstable();
+                return Err(format!(
+                    "Blockstate file for block '{}' is missing states: {:x?}",
+                    block.ident, missing
+                ));
             }
         }
         block_textures.upload(gl);

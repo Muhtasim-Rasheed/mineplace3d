@@ -1,10 +1,10 @@
 {
 	"states": {
-		"0000": { "model": "glungus_slab" },
-		"0001": {
+		"half=bottom": { "model": "glungus_slab" },
+		"half=top": {
 			"model": "glungus_slab",
 			"transform": { "translation": [0, 0.5, 0] }
 		},
-		"0002": { "model": "glungus" }
+		"half=both": { "model": "glungus" }
 	}
 }

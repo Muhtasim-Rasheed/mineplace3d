@@ -1,15 +1,15 @@
 {
 	"states": {
-		"0000": { "model": "glungus_stairs" },
-		"0001": {
+		"facing=north": { "model": "glungus_stairs" },
+		"facing=south": {
 			"model": "glungus_stairs",
 			"transform": { "rotation": [0, 180, 0] }
 		},
-		"0002": {
+		"facing=east": {
 			"model": "glungus_stairs",
 			"transform": { "rotation": [0, -90, 0] }
 		},
-		"0003": {
+		"facing=west": {
 			"model": "glungus_stairs",
 			"transform": { "rotation": [0, 90, 0] }
 		}

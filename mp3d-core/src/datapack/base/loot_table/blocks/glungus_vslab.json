@@ -1,14 +1,14 @@
 {
-	"0000": {
+	"facing=north": {
 		"glungus_vslab": [1, 1.0, 1, 1.0]
 	},
-	"0001": {
+	"facing=south": {
 		"glungus_vslab": [1, 1.0, 1, 1.0]
 	},
-	"0002": {
+	"facing=east": {
 		"glungus_vslab": [1, 1.0, 1, 1.0]
 	},
-	"0003": {
+	"facing=west": {
 		"glungus_vslab": [1, 1.0, 1, 1.0]
 	}
 }

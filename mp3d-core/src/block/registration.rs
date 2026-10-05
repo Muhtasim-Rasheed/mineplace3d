@@ -1,7 +1,13 @@
+use std::borrow::Cow;
+
+use fxhash::FxHashMap;
 use glam::{IVec3, Vec3};
 
 use crate::{
-    block::{BlockState, CollisionShape},
+    block::{
+        BlockState, CollisionShape,
+        blockstate::{HorizontalDir, PropertyValue, SlabHalf},
+    },
     direction::Direction,
     entity::EntityId,
     registry::{Def, DefId, LazyId, Registry, RegistryToken},
@@ -44,17 +50,64 @@ impl<'de> serde::Deserialize<'de> for BlockId {
 }
 
 pub type OnClick =
-    Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, BlockState, Direction) -> bool + Send + Sync>;
+    Box<dyn Fn(&mut World, EntityId, IVec3, BlockState, Direction) -> bool + Send + Sync>;
 pub type OnPlace =
     Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, Direction) -> BlockState + Send + Sync>;
-pub type OnBreak = Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, BlockState) + Send + Sync>;
+pub type OnBreak = Box<dyn Fn(&mut World, EntityId, IVec3, BlockState) + Send + Sync>;
+
+pub struct PropertyDef {
+    pub name: &'static str,
+    pub bits: u8,
+    pub default: u128,
+    pub value_name: fn(u128) -> Cow<'static, str>,
+    pub parse: fn(&str) -> Option<u128>,
+    pub count: u128,
+    pub shift: u8,
+    pub mask: u128,
+    type_id: std::any::TypeId,
+}
+
+impl PropertyDef {
+    pub fn new<T: PropertyValue + 'static>(name: &'static str, default: T) -> Self {
+        Self {
+            name,
+            bits: (128 - (T::COUNT - 1).leading_zeros()) as u8,
+            default: default.to_index(),
+            value_name: |i| T::from_index(i).name(),
+            parse: |s| T::parse(s).map(T::to_index),
+            count: T::COUNT,
+            shift: 0,
+            mask: 0,
+            type_id: std::any::TypeId::of::<T>(),
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, data: u128) -> u128 {
+        (data >> self.shift) & self.mask
+    }
+
+    #[inline]
+    pub fn set(&self, data: &mut u128, v: u128) {
+        *data = (*data & !(self.mask << self.shift)) | ((v & self.mask) << self.shift);
+    }
+
+    #[inline]
+    pub fn check<T: PropertyValue + 'static>(&self) -> bool {
+        self.type_id == std::any::TypeId::of::<T>()
+    }
+}
 
 pub struct BlockDef {
     pub visible: bool,
     pub collision_shape: CollisionShape,
     pub interact_shape: Option<CollisionShape>,
     pub ident: &'static str,
-    pub state_type: u16,
+
+    pub state_properties: Vec<PropertyDef>,
+    pub state_index: FxHashMap<&'static str, usize>,
+    pub default_state: u128,
+    pub from_legacy_state: Option<fn(BlockState, u16) -> BlockState>,
 
     pub on_click: Option<OnClick>,
     pub on_place: Option<OnPlace>,
@@ -65,6 +118,45 @@ impl Def for BlockDef {
     type Id = BlockId;
     fn ident(&self) -> &'static str {
         self.ident
+    }
+}
+
+impl BlockDef {
+    pub fn property(&self, name: &str) -> Option<&PropertyDef> {
+        self.state_index
+            .get(name)
+            .map(|&i| &self.state_properties[i])
+    }
+
+    pub fn all_state_data(&self) -> Vec<u128> {
+        let mut all = vec![0u128];
+        for p in &self.state_properties {
+            all = all
+                .iter()
+                .flat_map(|&base| (0..p.count).map(move |v| base | (v << p.shift)))
+                .collect();
+        }
+        all
+    }
+
+    fn finalize(&mut self) {
+        let mut shift = 0u32;
+        for (i, d) in self.state_properties.iter_mut().enumerate() {
+            assert!(
+                shift + d.bits as u32 <= 128,
+                "block {} needs more than 128 bits of properties",
+                self.ident
+            );
+            d.shift = shift as u8;
+            d.mask = if d.bits == 128 {
+                u128::MAX
+            } else {
+                (1u128 << d.bits) - 1
+            };
+            self.default_state |= d.default << d.shift;
+            self.state_index.insert(d.name, i);
+            shift += d.bits as u32;
+        }
     }
 }
 
@@ -89,7 +181,8 @@ pub fn init_block_registry() {
     let mut registry = BlockRegistry::new();
 
     for reg in inventory::iter::<BlockRegistration> {
-        let def = (reg.build)();
+        let mut def = (reg.build)();
+        def.finalize();
         let def_ident = def.ident;
         let id = registry
             .register(def)
@@ -113,7 +206,10 @@ macro_rules! define_blocks {
                 $(, visible: $visible:expr)?
                 $(, collision_shape: $collision_shape:expr)?
                 $(, interact_shape: $interact_shape:expr)?
-                $(, state_type: $state_type:expr)?
+
+                $(, state_properties: $state_properties:expr)?
+                $(, from_legacy_state: $from_legacy_state:expr)?
+
                 $(, on_click: $on_click:expr)?
                 $(, on_place: $on_place:expr)?
                 $(, on_break: $on_break:expr)?
@@ -134,7 +230,12 @@ macro_rules! define_blocks {
                             collision_shape: define_blocks!(@collision_shape $( $collision_shape )?),
                             interact_shape: define_blocks!(@interact_shape $( $interact_shape )?),
                             ident: $ident,
-                            state_type: define_blocks!(@state_type $( $state_type )?),
+
+                            state_properties: define_blocks!(@state_properties $( $state_properties )?),
+                            state_index: ::fxhash::FxHashMap::default(),
+                            default_state: 0,
+                            from_legacy_state: define_blocks!(@from_legacy_state $( $from_legacy_state )?),
+
                             on_click: define_blocks!(@on_click $( $on_click )?),
                             on_place: define_blocks!(@on_place $( $on_place )?),
                             on_break: define_blocks!(@on_break $( $on_break )?),
@@ -155,8 +256,11 @@ macro_rules! define_blocks {
     (@interact_shape $interact_shape:expr) => { Some($interact_shape) };
     (@interact_shape) => { None };
 
-    (@state_type $state_type:expr) => { $state_type };
-    (@state_type) => { BlockState::NONE_TYPE };
+    (@state_properties $state_properties:expr) => { $state_properties };
+    (@state_properties) => { vec![] };
+
+    (@from_legacy_state $from_legacy_state:expr) => { Some($from_legacy_state) };
+    (@from_legacy_state) => { None };
 
     (@on_click $on_click:expr) => { Some($on_click) };
     (@on_click) => { None };
@@ -195,87 +299,44 @@ impl BlockDef {
                 crate::aabb_overlap(player_min, player_max, block_min, block_max)
             }
             CollisionShape::Slab => {
-                if let Some(shape) = block_state.is_slab() {
-                    let block_min;
-                    let block_max;
-                    match shape {
-                        0x0000 => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 0.5, 1.0);
-                        }
-                        0x0001 => {
-                            block_min = Vec3::new(0.0, 0.5, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        0x0002 => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        _ => unreachable!(),
-                    }
-                    crate::aabb_overlap(player_min, player_max, block_min, block_max)
-                } else {
-                    false
-                }
+                let Some(shape) = block_state.get::<SlabHalf>("half") else {
+                    return false;
+                };
+                let (block_min, block_max) = match shape {
+                    SlabHalf::Bottom => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.5, 1.0)),
+                    SlabHalf::Top => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                    SlabHalf::Both => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                };
+                crate::aabb_overlap(player_min, player_max, block_min, block_max)
             }
             CollisionShape::Stairs => {
-                if let Some(shape) = block_state.is_stairs() {
-                    let element_a_min = Vec3::new(0.0, 0.0, 0.0);
-                    let element_a_max = Vec3::new(1.0, 0.5, 1.0);
-                    let element_b_min;
-                    let element_b_max;
-                    match shape {
-                        Direction::North => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
-                            element_b_max = Vec3::new(1.0, 1.0, 0.5);
-                        }
-                        Direction::South => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.5);
-                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::East => {
-                            element_b_min = Vec3::new(0.5, 0.5, 0.0);
-                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::West => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
-                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
-                        }
-                        _ => unreachable!(),
-                    }
-                    crate::aabb_overlap(player_min, player_max, element_a_min, element_a_max)
-                        || crate::aabb_overlap(player_min, player_max, element_b_min, element_b_max)
-                } else {
-                    false
-                }
+                let Some(HorizontalDir(shape)) = block_state.get::<HorizontalDir>("facing") else {
+                    return false;
+                };
+                let element_a_min = Vec3::new(0.0, 0.0, 0.0);
+                let element_a_max = Vec3::new(1.0, 0.5, 1.0);
+                let (element_b_min, element_b_max) = match shape {
+                    Direction::North => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 1.0, 0.5)),
+                    Direction::South => (Vec3::new(0.0, 0.5, 0.5), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::East => (Vec3::new(0.5, 0.5, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::West => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(0.5, 1.0, 1.0)),
+                    _ => unreachable!(),
+                };
+                crate::aabb_overlap(player_min, player_max, element_a_min, element_a_max)
+                    || crate::aabb_overlap(player_min, player_max, element_b_min, element_b_max)
             }
             CollisionShape::VSlab => {
-                if let Some(shape) = block_state.is_facing() {
-                    let block_min;
-                    let block_max;
-                    match shape {
-                        Direction::North => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 0.5);
-                        }
-                        Direction::South => {
-                            block_min = Vec3::new(0.0, 0.0, 0.5);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::East => {
-                            block_min = Vec3::new(0.5, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::West => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(0.5, 1.0, 1.0);
-                        }
-                        _ => unreachable!(),
-                    }
-                    crate::aabb_overlap(player_min, player_max, block_min, block_max)
-                } else {
-                    false
-                }
+                let Some(HorizontalDir(shape)) = block_state.get::<HorizontalDir>("facing") else {
+                    return false;
+                };
+                let (block_min, block_max) = match shape {
+                    Direction::North => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 0.5)),
+                    Direction::South => (Vec3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::East => (Vec3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::West => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.5, 1.0, 1.0)),
+                    _ => unreachable!(),
+                };
+                crate::aabb_overlap(player_min, player_max, block_min, block_max)
             }
         }
     }
@@ -300,109 +361,67 @@ impl BlockDef {
                 )
             }
             CollisionShape::Slab => {
-                if let Some(shape) = block_state.is_slab() {
-                    let block_min;
-                    let block_max;
-                    match shape {
-                        0x0000 => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 0.5, 1.0);
-                        }
-                        0x0001 => {
-                            block_min = Vec3::new(0.0, 0.5, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        0x0002 => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        _ => unreachable!(),
-                    }
-                    crate::ray_intersect_aabb(
-                        ray_origin_local,
-                        ray_direction_local,
-                        block_min,
-                        block_max,
-                    )
-                } else {
-                    None
-                }
+                let Some(shape) = block_state.get::<SlabHalf>("half") else {
+                    return None;
+                };
+                let (block_min, block_max) = match shape {
+                    SlabHalf::Bottom => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.5, 1.0)),
+                    SlabHalf::Top => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                    SlabHalf::Both => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                };
+                crate::ray_intersect_aabb(
+                    ray_origin_local,
+                    ray_direction_local,
+                    block_min,
+                    block_max,
+                )
             }
             CollisionShape::Stairs => {
-                if let Some(shape) = block_state.is_stairs() {
-                    let element_a_min = Vec3::new(0.0, 0.0, 0.0);
-                    let element_a_max = Vec3::new(1.0, 0.5, 1.0);
-                    let element_b_min;
-                    let element_b_max;
-                    match shape {
-                        Direction::North => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
-                            element_b_max = Vec3::new(1.0, 1.0, 0.5);
-                        }
-                        Direction::South => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.5);
-                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::East => {
-                            element_b_min = Vec3::new(0.5, 0.5, 0.0);
-                            element_b_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::West => {
-                            element_b_min = Vec3::new(0.0, 0.5, 0.0);
-                            element_b_max = Vec3::new(0.5, 1.0, 1.0);
-                        }
-                        _ => unreachable!(),
-                    }
+                let Some(HorizontalDir(shape)) = block_state.get::<HorizontalDir>("facing") else {
+                    return None;
+                };
+                let element_a_min = Vec3::new(0.0, 0.0, 0.0);
+                let element_a_max = Vec3::new(1.0, 0.5, 1.0);
+                let (element_b_min, element_b_max) = match shape {
+                    Direction::North => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 1.0, 0.5)),
+                    Direction::South => (Vec3::new(0.0, 0.5, 0.5), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::East => (Vec3::new(0.5, 0.5, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::West => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(0.5, 1.0, 1.0)),
+                    _ => unreachable!(),
+                };
+
+                crate::ray_intersect_aabb(
+                    ray_origin_local,
+                    ray_direction_local,
+                    element_a_min,
+                    element_a_max,
+                )
+                .or_else(|| {
                     crate::ray_intersect_aabb(
                         ray_origin_local,
                         ray_direction_local,
-                        element_a_min,
-                        element_a_max,
+                        element_b_min,
+                        element_b_max,
                     )
-                    .or_else(|| {
-                        crate::ray_intersect_aabb(
-                            ray_origin_local,
-                            ray_direction_local,
-                            element_b_min,
-                            element_b_max,
-                        )
-                    })
-                } else {
-                    None
-                }
+                })
             }
             CollisionShape::VSlab => {
-                if let Some(shape) = block_state.is_facing() {
-                    let block_min;
-                    let block_max;
-                    match shape {
-                        Direction::North => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 0.5);
-                        }
-                        Direction::South => {
-                            block_min = Vec3::new(0.0, 0.0, 0.5);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::East => {
-                            block_min = Vec3::new(0.5, 0.0, 0.0);
-                            block_max = Vec3::new(1.0, 1.0, 1.0);
-                        }
-                        Direction::West => {
-                            block_min = Vec3::new(0.0, 0.0, 0.0);
-                            block_max = Vec3::new(0.5, 1.0, 1.0);
-                        }
-                        _ => unreachable!(),
-                    }
-                    crate::ray_intersect_aabb(
-                        ray_origin_local,
-                        ray_direction_local,
-                        block_min,
-                        block_max,
-                    )
-                } else {
-                    None
-                }
+                let Some(HorizontalDir(shape)) = block_state.get::<HorizontalDir>("facing") else {
+                    return None;
+                };
+                let (block_min, block_max) = match shape {
+                    Direction::North => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 0.5)),
+                    Direction::South => (Vec3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::East => (Vec3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0)),
+                    Direction::West => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.5, 1.0, 1.0)),
+                    _ => unreachable!(),
+                };
+                crate::ray_intersect_aabb(
+                    ray_origin_local,
+                    ray_direction_local,
+                    block_min,
+                    block_max,
+                )
             }
         }
     }
