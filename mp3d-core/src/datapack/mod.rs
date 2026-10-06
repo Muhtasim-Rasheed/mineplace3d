@@ -3,7 +3,7 @@
 use fxhash::FxHashMap;
 
 use crate::{
-    block::{BlockId, BlockState, block_registry},
+    block::{BlockId, BlockStateMatcher, block_registry},
     datapack::files::DataSources,
 };
 
@@ -50,27 +50,43 @@ impl TryFrom<(BlockId, RawLootTableEntry)> for LootTableEntry {
     type Error = String;
 
     fn try_from((block_id, value): (BlockId, RawLootTableEntry)) -> Result<Self, Self::Error> {
-        Ok(Self {
-            drops: value
-                .into_iter()
-                .map(|(state_str, raw_drops)| {
-                    let state = parse_state_str(block_id, &state_str)
-                        .map_err(|e| format!("invalid blockstate: {e}"))?;
-                    let drops = raw_drops
-                        .into_iter()
-                        .map(|(k, rv)| {
-                            rv.try_into()
-                                .map_err(|e| format!("{}: {}", &k, e))
-                                .map(|v| (k, v))
-                        })
-                        .collect::<Result<_, _>>();
-                    if let Err(e) = drops {
-                        return Err(e);
-                    }
-                    Ok((state, drops.unwrap()))
-                })
-                .collect::<Result<_, _>>()?,
-        })
+        let rules = value
+            .into_iter()
+            .map(|(state_str, raw_drops)| {
+                let state = BlockStateMatcher::parse(block_id, &state_str)
+                    .map_err(|e| format!("invalid blockstate matcher: {e}"))?;
+                let drops = raw_drops
+                    .into_iter()
+                    .map(|(k, rv)| {
+                        rv.try_into()
+                            .map_err(|e| format!("{}: {}", &k, e))
+                            .map(|v| (k, v))
+                    })
+                    .collect::<Result<_, _>>();
+                if let Err(e) = drops {
+                    return Err(e);
+                }
+                Ok((state, drops.unwrap()))
+            })
+            .collect::<Result<Vec<(_, FxHashMap<_, _>)>, _>>()?;
+        let block = block_registry().get(block_id).unwrap();
+
+        let mut resolved = FxHashMap::default();
+
+        for state_data in block.all_state_data() {
+            let drops = rules
+                .iter()
+                .find_map(|(matcher, drops)| matcher.matches(state_data).then_some(drops))
+                .ok_or_else(|| {
+                    format!(
+                        "no loot table entry matches state {state_data:#x} of '{}'",
+                        block.ident
+                    )
+                })?;
+
+            resolved.insert(state_data, drops.clone());
+        }
+        Ok(Self { drops: resolved })
     }
 }
 
@@ -130,25 +146,4 @@ impl GameData {
 
         self.loot_table.block_entries.get(&id)
     }
-}
-
-fn parse_state_str(block: BlockId, state_str: &str) -> Result<u128, String> {
-    let mut blockstate = BlockState::default_for(block);
-
-    for part in state_str
-        .split(',')
-        .map(str::trim)
-        .filter(|p| !p.is_empty())
-    {
-        let (name, val) = part
-            .split_once('=')
-            .ok_or_else(|| format!("expected '=' in property '{part}'"))?;
-        let (name, val) = (name.trim(), val.trim());
-
-        if !blockstate.set_str(name, val) {
-            return Err(format!("unknown property or invalid value: {name}={val}"));
-        }
-    }
-
-    Ok(blockstate.data)
 }

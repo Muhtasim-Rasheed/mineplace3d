@@ -696,7 +696,7 @@ impl super::Scene for GameScene {
                     &mut self.renderer.chunk_meshes,
                     &mut self.renderer.chunk_mesh_pool,
                     &assets.block_textures,
-                    &assets.block_models,
+                    &assets.block_model_loader,
                 );
             }
         }

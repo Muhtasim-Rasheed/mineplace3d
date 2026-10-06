@@ -164,8 +164,8 @@ impl ParticleInstance {
         match particle.sprite {
             ParticleSprite::Block(block) => {
                 let Some([uv_min, uv_max]) = assets
-                    .block_models
-                    .get(&block)
+                    .block_model_loader
+                    .get(block)
                     .and_then(|m| m.particle.as_ref())
                     .and_then(|p| assets.block_textures.get_uv(p, [Vec2::ZERO, Vec2::ONE]))
                 else {

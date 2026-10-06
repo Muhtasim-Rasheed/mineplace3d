@@ -1,14 +1,10 @@
 //! Blocks for a voxel engine.
 
 use behaviors::*;
-pub use blockstate::BlockState;
+pub use blockstate::*;
 pub use registration::*;
 
-use crate::{
-    block::blockstate::{HorizontalDir, SlabHalf},
-    define_blocks,
-    direction::Direction,
-};
+use crate::{define_blocks, direction::Direction};
 
 pub mod behaviors;
 mod blockstate;

@@ -13,6 +13,7 @@ use mp3d_core::{
 use crate::{
     abs::{Mesh, Vertex},
     client::{chunk::ClientChunk, world::ClientWorld},
+    resource::block::modelstore::BlockModelLoader,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -113,10 +114,7 @@ fn should_occlude(
 }
 
 #[inline]
-fn block_is_full_cube(
-    block: Option<BlockState>,
-    block_models: &HashMap<BlockState, crate::resource::block::BlockModel>,
-) -> bool {
+fn block_is_full_cube(block: Option<BlockState>, block_model_loader: &BlockModelLoader) -> bool {
     let Some(block) = block else {
         return false;
     };
@@ -127,8 +125,8 @@ fn block_is_full_cube(
         return false;
     }
 
-    block_models
-        .get(&block)
+    block_model_loader
+        .get(block)
         .is_some_and(|model| model.is_full_cube())
 }
 
@@ -290,7 +288,7 @@ pub fn mesh_world(
     chunk_meshes: &mut HashMap<IVec3, Mesh>,
     chunk_mesh_pool: &mut Vec<Mesh>,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<BlockState, crate::resource::block::BlockModel>,
+    block_model_loader: &BlockModelLoader,
 ) {
     use rayon::prelude::*;
 
@@ -310,8 +308,13 @@ pub fn mesh_world(
         .par_iter()
         .filter_map(|chunk_pos| {
             if let Some(chunk) = world_ref.chunks.get(chunk_pos) {
-                let (chunk_vertices, chunk_indices) =
-                    mesh_chunk(chunk, *chunk_pos, world_ref, block_textures, block_models);
+                let (chunk_vertices, chunk_indices) = mesh_chunk(
+                    chunk,
+                    *chunk_pos,
+                    world_ref,
+                    block_textures,
+                    block_model_loader,
+                );
                 Some((*chunk_pos, chunk_vertices, chunk_indices))
             } else {
                 None
@@ -339,7 +342,7 @@ fn mesh_chunk(
     chunk_pos: glam::IVec3,
     world: &ClientWorld,
     block_textures: &crate::resource::block::TextureAtlas,
-    block_models: &HashMap<BlockState, crate::resource::block::BlockModel>,
+    block_model_loader: &BlockModelLoader,
 ) -> (Vec<ChunkVertex>, Vec<u32>) {
     let chunk_origin = chunk_pos * (CHUNK_SIZE as i32);
 
@@ -405,8 +408,8 @@ fn mesh_chunk(
                 let world_z = chunk_pos.z * (CHUNK_SIZE as i32) + z;
                 let world_pos = glam::IVec3::new(world_x, world_y, world_z);
 
-                let model = block_models
-                    .get(&block)
+                let model = block_model_loader
+                    .get(block)
                     .unwrap_or_else(|| panic!("No model found for {block:?}"));
 
                 // Create faces for each non-occluded side
@@ -415,7 +418,8 @@ fn mesh_chunk(
 
                     // Create face the neighboring block is air or doesn't occlude this face.
                     let neighbor_block = get_block(chunk_origin, neighbor_pos, neighbors);
-                    let neighbor_model = neighbor_block.and_then(|ident| block_models.get(&ident));
+                    let neighbor_model =
+                        neighbor_block.and_then(|ident| block_model_loader.get(ident));
                     if neighbor_block.is_none() {
                         continue;
                     }
@@ -460,9 +464,10 @@ fn mesh_chunk(
                                         neighbors,
                                     );
 
-                                    let side1_full = block_is_full_cube(side1, block_models);
-                                    let side2_full = block_is_full_cube(side2, block_models);
-                                    let corner_full = block_is_full_cube(corner, block_models);
+                                    let side1_full = block_is_full_cube(side1, block_model_loader);
+                                    let side2_full = block_is_full_cube(side2, block_model_loader);
+                                    let corner_full =
+                                        block_is_full_cube(corner, block_model_loader);
 
                                     aos[vert_idx] =
                                         ao_for_vertex(side1_full, side2_full, corner_full);

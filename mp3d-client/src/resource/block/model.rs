@@ -64,18 +64,17 @@ impl BlockModel {
     /// loading the raw model from the file and then resolving it to a `BlockModel`.
     pub fn from_block(
         model_path: PathBuf,
-        model_file: &str,
         transform: Option<BlockModelTransform>,
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<Self, String> {
-        let raw_model: RawBlockModel = serde_json::from_str(model_file).map_err(|e| {
-            format!(
-                "Failed to parse model JSON for block '{}': {}",
-                model_path.display(),
-                e
-            )
-        })?;
+        let model_file = resource_manager
+            .read(&model_path)
+            .ok_or_else(|| format!("Failed to load model file '{}'", model_path.display()))?;
+        let model_file = std::str::from_utf8(&model_file)
+            .map_err(|e| format!("Failed to parse model file '{}': {e}", model_path.display()))?;
+        let raw_model: RawBlockModel = serde_json::from_str(model_file)
+            .map_err(|e| format!("Failed to parse model file '{}': {e}", model_path.display()))?;
         Self::from_raw(raw_model, transform, resource_manager, atlas)
     }
 

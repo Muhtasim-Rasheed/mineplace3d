@@ -91,6 +91,52 @@ impl std::fmt::Debug for BlockState {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BlockStateMatcher {
+    pub set_bits: u128,
+    pub requirement: u128,
+}
+
+impl BlockStateMatcher {
+    pub fn new(set_bits: u128, requirement: u128) -> Self {
+        Self {
+            set_bits,
+            requirement: requirement & set_bits,
+        }
+    }
+
+    pub fn parse(block: BlockId, state_str: &str) -> Result<Self, String> {
+        let mut blockstate = BlockState::default_for(block);
+        let blockdef = block_registry().get(block).unwrap();
+        let mut set_bits = 0u128;
+
+        for part in state_str
+            .split(',')
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+        {
+            let (name, val) = part
+                .split_once('=')
+                .ok_or_else(|| format!("expected '=' in property '{part}'"))?;
+            let (name, val) = (name.trim(), val.trim());
+
+            if !blockstate.set_str(name, val) {
+                return Err(format!("unknown property or invalid value: {name}={val}"));
+            }
+
+            let prop = blockdef.property(name).unwrap();
+            set_bits |= prop.mask << prop.shift;
+        }
+
+        Ok(Self::new(set_bits, blockstate.data))
+    }
+
+    #[inline]
+    pub fn matches(self, state_data: u128) -> bool {
+        state_data & self.set_bits == self.requirement
+    }
+}
+
 impl std::str::FromStr for BlockState {
     type Err = String;
 

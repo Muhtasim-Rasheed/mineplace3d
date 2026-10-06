@@ -3,7 +3,6 @@
 //! This module serves as a central point for managing different scenes in the game client.
 
 use std::{
-    collections::HashMap,
     path::PathBuf,
     sync::{Arc, RwLock},
 };
@@ -19,7 +18,7 @@ use crate::{
     },
     resource::{
         ResourceManager,
-        block::{BlockModel, States, TextureAtlas},
+        block::{States, TextureAtlas, modelstore::BlockModelLoader},
     },
     scenes::options::ClientConfig,
 };
@@ -77,7 +76,7 @@ pub type SceneActionResult = Result<(), SceneActionError>;
 /// as block textures and models.
 pub struct Assets {
     pub block_textures: TextureAtlas,
-    pub block_models: HashMap<BlockState, BlockModel>,
+    pub block_model_loader: BlockModelLoader,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
     pub window_icon: crate::abs::Texture,
@@ -96,78 +95,51 @@ impl Assets {
     ) -> Result<Self, String> {
         let resource_manager = ResourceManager::new(config.resource_packs());
         let mut block_textures = TextureAtlas::new(256, 16);
-        let mut block_models = HashMap::new();
+        let mut block_model_loader = BlockModelLoader::new();
+
         for (block_id, block) in block_registry().iter_enumerate() {
-            let mut remaining: std::collections::HashSet<u128> =
-                block.all_state_data().into_iter().collect();
             let blockstate_path = PathBuf::from(format!("blocks/states/{}.json", block.ident));
+
             let blockstate_data = resource_manager.read(&blockstate_path).ok_or_else(|| {
                 format!("Failed to load blockstate file for block '{}'", block.ident)
             })?;
+
             let blockstate_str = std::str::from_utf8(&blockstate_data).map_err(|e| {
                 format!(
                     "Failed to parse blockstate file for block '{}': {}",
                     block.ident, e
                 )
             })?;
+
             let states = States::load(block_id, blockstate_str).map_err(|e| {
                 format!(
                     "Failed to parse blockstate file for block '{}': {}",
                     block.ident, e
                 )
             })?;
-            for (state_data, state) in states.states {
-                let model_path = state.model;
-                let model_file = resource_manager.read(&model_path).ok_or_else(|| {
+
+            for state_data in block.all_state_data() {
+                let state = BlockState {
+                    block: block_id,
+                    data: state_data,
+                };
+
+                let state_data = states.resolve(state_data).ok_or_else(|| {
                     format!(
-                        "Failed to load model file '{}' for block '{}'",
-                        model_path.display(),
-                        block.ident
+                        "Blockstate file for block '{}' has no matching state for {:#x}",
+                        block.ident, state_data
                     )
                 })?;
-                let model_file = std::str::from_utf8(&model_file).map_err(|e| {
-                    format!(
-                        "Failed to parse model file '{}' for block '{}': {}",
-                        model_path.display(),
-                        block.ident,
-                        e
-                    )
-                })?;
-                let model = BlockModel::from_block(
-                    model_path,
-                    model_file,
-                    state.transform,
-                    &resource_manager,
-                    &mut block_textures,
-                )?;
 
-                if !remaining.remove(&state_data) {
-                    log::warn!(
-                        "State data value {:#x} for block '{}' is invalid or duplicated",
-                        state_data,
-                        block.ident
-                    );
-                    continue;
-                }
-                block_models.insert(
-                    BlockState {
-                        block: block_id,
-                        data: state_data,
-                    },
-                    model,
-                );
-            }
-
-            if !remaining.is_empty() {
-                let mut missing: Vec<_> = remaining.into_iter().collect();
-                missing.sort_unstable();
-                return Err(format!(
-                    "Blockstate file for block '{}' is missing states: {:x?}",
-                    block.ident, missing
-                ));
+                block_model_loader.insert(state, state_data.model.clone(), state_data.transform);
             }
         }
+
+        block_model_loader
+            .load_all(&resource_manager, &mut block_textures)
+            .map_err(|e| format!("Model parsing error: {e}"))?;
         block_textures.upload(gl);
+
         if let Err(e) = block_textures
             .take_atlas()
             .unwrap()
@@ -183,9 +155,10 @@ impl Assets {
         log::info!(
             "Loaded {} block textures and {} block models for {} blocks",
             block_textures.texture_count(),
-            block_models.len(),
+            block_model_loader.len(),
             block_registry().len()
         );
+
         let font = Font::new(
             crate::abs::Texture::new(
                 gl,
@@ -236,7 +209,7 @@ impl Assets {
         window.set_icon(icon);
         Ok(Self {
             block_textures,
-            block_models,
+            block_model_loader,
             font,
             gui_tex,
             window_icon: window_icon_gpu,
