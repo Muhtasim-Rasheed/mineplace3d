@@ -1,8 +1,0 @@
-{
-	"parent": "cube/col_x",
-	"textures": {
-		"$side": "mover_side",
-		"$e": "mover_front",
-		"$w": "mover_back"
-	}
-}

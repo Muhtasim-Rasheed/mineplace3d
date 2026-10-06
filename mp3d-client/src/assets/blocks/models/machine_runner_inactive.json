@@ -1,6 +1,0 @@
-{
-	"parent": "cube/all",
-	"textures": {
-		"$a": "machine_runner_inactive"
-	}
-}

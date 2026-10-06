@@ -1,6 +1,0 @@
-{
-	"states": {
-		"active=false": { "model": "machine_runner_inactive" },
-		"active=true": { "model": "machine_runner_active" }
-	}
-}

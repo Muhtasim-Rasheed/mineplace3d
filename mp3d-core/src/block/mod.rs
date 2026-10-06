@@ -34,14 +34,6 @@ fn from_legacy_facing(mut state: BlockState, data: u16) -> BlockState {
     state
 }
 
-fn from_legacy_active(mut state: BlockState, data: u16) -> BlockState {
-    match data {
-        0x0001 => state.set("active", true),
-        _ => state.set("active", false),
-    };
-    state
-}
-
 // Definitions of all blocks
 define_blocks! {
     AIR => {
@@ -161,13 +153,6 @@ define_blocks! {
     },
     GOLD => { ident: "gold" },
     DIAMOND => { ident: "diamond" },
-    MACHINE_RUNNER => {
-        ident: "machine_runner",
-        state_properties: vec![PropertyDef::new("active", false)],
-        from_legacy_state: from_legacy_active,
-        on_click: Box::new(active::on_click),
-    },
-    MOVER => { ident: "mover" },
 }
 
 /// Collision shape used for collision detection.
