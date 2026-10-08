@@ -7,7 +7,7 @@
 pub mod chunk;
 pub mod generation;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use fxhash::{FxHashMap, FxHashSet, hash64};
 use glam::{IVec3, Vec3};
@@ -60,6 +60,8 @@ pub struct World {
     /// other entities.
     changes: FxHashMap<IVec3, FxHashMap<IVec3, BlockState>>,
 
+    block_update_tracker: BlockUpdateTracker,
+
     game_data: GameData,
 }
 
@@ -78,6 +80,7 @@ impl World {
             player_cache: HashMap::new(),
             pending_changes: PendingChanges::default(),
             changes: FxHashMap::default(),
+            block_update_tracker: BlockUpdateTracker::default(),
             game_data: GameData::new(),
         }
     }
@@ -116,6 +119,9 @@ impl World {
             kind,
         });
 
+        self.block_update_tracker.track_block(world_pos);
+        self.block_update_tracker.track_neighbors(world_pos);
+
         // Only update the in-memory chunk if it's already loaded.
         // If it isn't, the diff above will be applied automatically
         // whenever the chunk is generated later.
@@ -148,6 +154,9 @@ impl World {
             kind,
         });
 
+        self.block_update_tracker.track_block(world_pos);
+        self.block_update_tracker.track_neighbors(world_pos);
+
         // Only update the in-memory chunk if it's already loaded.
         // If it isn't, the diff above will be applied automatically
         // whenever the chunk is generated later.
@@ -167,11 +176,11 @@ impl World {
 
     /// Loads around specified coordinates in world space.
     pub fn load_around(&mut self, session_id: u64, pos: IVec3) {
-        let cpos = pos / CHUNK_SIZE as i32;
+        let cpos = pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
 
-        for dx in -1..=-1 {
-            for dy in -1..=-1 {
-                for dz in -1..=-1 {
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
                     let cpos = cpos + IVec3::new(dx, dy, dz);
                     if !self.chunks.contains_key(&cpos) {
                         self.generation_pool.request_chunk(session_id, cpos);
@@ -183,6 +192,26 @@ impl World {
 
     /// Updates the world. The optimal TPS (Ticks Per Second) is 48.
     pub fn tick(&mut self, scheduler: &mut Scheduler, tps: u8) {
+        for _ in 0..2000 {
+            let Some(pos) = self.block_update_tracker.pop() else {
+                break;
+            };
+            let propagate = 'run_block_update: {
+                let Some(block) = self.get_block_at(pos) else {
+                    break 'run_block_update false;
+                };
+                let def = block_registry().get(block.block).unwrap();
+                def.on_update
+                    .as_ref()
+                    .map(|f| f(self, pos, block))
+                    .unwrap_or(false)
+            };
+            if propagate {
+                self.block_update_tracker.track_neighbors(pos);
+            }
+        }
+        self.block_update_tracker.finish_tick();
+
         let mut updates = Vec::new();
         for (pos, chunk) in &self.chunks {
             updates.extend_from_slice(&chunk.random_tick(5, &self.chunks, *pos));
@@ -312,17 +341,17 @@ impl World {
             on_break(self, player_entity_id, block_pos, state);
         }
 
-        let Some(loot_table_entry) = self.game_data.get_block_drops(state.block) else {
-            return;
-        };
-        let drops = &loot_table_entry.drops;
-        let drops = drops.get(&state.data).cloned().unwrap_or_default();
-
         self.urgent_set_block_at(
             block_pos,
             BlockState::default_for(*blocks::AIR),
             BlockUpdateKind::Removed,
         );
+
+        let Some(loot_table_entry) = self.game_data.get_block_drops(state.block) else {
+            return;
+        };
+        let drops = &loot_table_entry.drops;
+        let drops = drops.get(&state.data).cloned().unwrap_or_default();
 
         let Some(inv) = self.ecs.get_component_mut::<Inventory>(player_entity_id) else {
             return;
@@ -479,6 +508,36 @@ impl Iterator for PendingChanges {
     }
 }
 
+#[derive(Default)]
+struct BlockUpdateTracker {
+    processed: FxHashSet<IVec3>,
+    queue: VecDeque<IVec3>,
+}
+
+impl BlockUpdateTracker {
+    fn track_block(&mut self, pos: IVec3) {
+        if self.processed.insert(pos) {
+            self.queue.push_back(pos);
+        }
+    }
+
+    fn track_neighbors(&mut self, pos: IVec3) {
+        for dir in Direction::ALL {
+            self.track_block(pos + dir);
+        }
+    }
+
+    fn pop(&mut self) -> Option<IVec3> {
+        self.queue.pop_front()
+    }
+
+    fn finish_tick(&mut self) {
+        if self.queue.is_empty() {
+            self.processed.clear();
+        }
+    }
+}
+
 impl World {
     /// Saves the world to a folder.
     ///
@@ -631,6 +690,7 @@ fn load_v0_to_v9(
         player_cache: HashMap::new(),
         pending_changes: PendingChanges::default(),
         changes: FxHashMap::default(),
+        block_update_tracker: BlockUpdateTracker::default(),
         game_data: GameData::new(),
     };
 

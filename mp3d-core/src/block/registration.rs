@@ -54,6 +54,7 @@ pub type OnClick =
 pub type OnPlace =
     Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, Direction) -> BlockState + Send + Sync>;
 pub type OnBreak = Box<dyn Fn(&mut World, EntityId, IVec3, BlockState) + Send + Sync>;
+pub type OnUpdate = Box<dyn Fn(&mut World, IVec3, BlockState) -> bool + Send + Sync>;
 
 pub struct PropertyDef {
     pub name: &'static str,
@@ -112,6 +113,8 @@ pub struct BlockDef {
     pub on_click: Option<OnClick>,
     pub on_place: Option<OnPlace>,
     pub on_break: Option<OnBreak>,
+
+    pub on_update: Option<OnUpdate>,
 }
 
 impl Def for BlockDef {
@@ -213,6 +216,8 @@ macro_rules! define_blocks {
                 $(, on_click: $on_click:expr)?
                 $(, on_place: $on_place:expr)?
                 $(, on_break: $on_break:expr)?
+
+                $(, on_update: $on_update:expr)?
                 $(,)?
             }
         ),* $(,)?
@@ -239,6 +244,8 @@ macro_rules! define_blocks {
                             on_click: define_blocks!(@on_click $( $on_click )?),
                             on_place: define_blocks!(@on_place $( $on_place )?),
                             on_break: define_blocks!(@on_break $( $on_break )?),
+
+                            on_update: define_blocks!(@on_update $( $on_update )?),
                         },
                         id_slot: &$name,
                     }
@@ -270,6 +277,9 @@ macro_rules! define_blocks {
 
     (@on_break $on_break:expr) => { Some($on_break) };
     (@on_break) => { None };
+
+    (@on_update $on_update:expr) => { Some($on_update) };
+    (@on_update) => { None };
 }
 
 impl BlockDef {

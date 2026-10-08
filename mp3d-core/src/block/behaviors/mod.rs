@@ -11,6 +11,7 @@ pub mod active;
 pub mod and_then;
 pub mod explode;
 pub mod facing;
+pub mod needs_support;
 pub mod slab;
 pub mod stairs;
 

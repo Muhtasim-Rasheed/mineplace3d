@@ -122,6 +122,7 @@ define_blocks! {
         ident: "short_grass",
         collision_shape: CollisionShape::None,
         interact_shape: CollisionShape::FullBlock,
+        on_update: Box::new(needs_support::on_update),
     },
     GLASS => { ident: "glass" },
     BRICKS => { ident: "bricks" },
