@@ -1,0 +1,17 @@
+{
+	"states": {
+		"facing=north,active_timer=0": { "model": "stone_button_inactive" },
+		"facing=south,active_timer=0": { "model": "stone_button_inactive", "transform": { "rotation": [0, 180, 0] } },
+		"facing=east,active_timer=0": { "model": "stone_button_inactive", "transform": { "rotation": [0, -90, 0] } },
+		"facing=west,active_timer=0": { "model": "stone_button_inactive", "transform": { "rotation": [0, 90, 0] } },
+		"facing=up,active_timer=0": { "model": "stone_button_inactive", "transform": { "rotation": [90, 0, 0] } },
+		"facing=down,active_timer=0": { "model": "stone_button_inactive", "transform": { "rotation": [-90, 0, 0] } },
+
+		"facing=north": { "model": "stone_button_active" },
+		"facing=south": { "model": "stone_button_active", "transform": { "rotation": [0, 180, 0] } },
+		"facing=east": { "model": "stone_button_active", "transform": { "rotation": [0, -90, 0] } },
+		"facing=west": { "model": "stone_button_active", "transform": { "rotation": [0, 90, 0] } },
+		"facing=up": { "model": "stone_button_active", "transform": { "rotation": [90, 0, 0] } },
+		"facing=down": { "model": "stone_button_active", "transform": { "rotation": [-90, 0, 0] } }
+	}
+}

@@ -7,6 +7,8 @@ use crate::{
     datapack::files::DataSources,
 };
 
+type FxIndexMap<K, V> = indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<fxhash::FxHasher>>;
+
 pub mod files;
 
 #[derive(serde::Deserialize)]
@@ -40,7 +42,7 @@ impl TryFrom<RawDropEntry> for DropEntry {
     }
 }
 
-type RawLootTableEntry = FxHashMap<String, FxHashMap<String, RawDropEntry>>;
+type RawLootTableEntry = FxIndexMap<String, FxIndexMap<String, RawDropEntry>>;
 
 pub struct LootTableEntry {
     pub drops: FxHashMap<u128, FxHashMap<String, DropEntry>>,

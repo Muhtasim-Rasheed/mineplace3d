@@ -1,0 +1,23 @@
+{
+	"elements": [
+		{
+			"from": [5, 6, 0],
+			"to": [11, 10, 1],
+			"n": {"uv": [0, 0, 6, 4], "texture": "$n", "occludes": false, "cullable": false},
+			"s": {"uv": [0, 0, 6, 4], "texture": "$s", "occludes": false, "cullable": false},
+			"e": {"uv": [0, 0, 1, 4], "texture": "$e", "occludes": false, "cullable": false},
+			"w": {"uv": [0, 0, 1, 4], "texture": "$w", "occludes": false, "cullable": false},
+			"u": {"uv": [0, 0, 6, 1], "texture": "$u", "occludes": false, "cullable": false},
+			"d": {"uv": [0, 0, 6, 1], "texture": "$d", "occludes": false, "cullable": false}
+		}
+	],
+	"textures": {
+		"$particle": "$a",
+		"$n": "$a",
+		"$s": "$a",
+		"$e": "$a",
+		"$w": "$a",
+		"$u": "$a",
+		"$d": "$a"
+	}
+}

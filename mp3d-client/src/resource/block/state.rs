@@ -1,13 +1,15 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use mp3d_core::block::{BlockId, BlockStateMatcher};
 use serde::de::Error;
 
 use crate::resource::block::{model::BlockModelTransform, raw_model::RawBlockModelTransform};
 
+type FxIndexMap<K, V> = indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<fxhash::FxHasher>>;
+
 #[derive(Debug, serde::Deserialize)]
 struct StatesRaw {
-    states: HashMap<String, StateDataRaw>,
+    states: FxIndexMap<String, StateDataRaw>,
 }
 
 #[derive(Debug, serde::Deserialize)]

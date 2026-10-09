@@ -7,8 +7,8 @@ use crate::{
     world::World,
 };
 
-pub fn on_update(world: &mut World, pos: IVec3, _: BlockState) -> bool {
-    let below = world.get_block_at(pos + Direction::Down);
+pub fn on_update(world: &mut World, pos: IVec3, face: Direction) -> bool {
+    let below = world.get_block_at(pos + face);
     if let Some(below) = below
         && block_registry().get(below.block).unwrap().visible
     {

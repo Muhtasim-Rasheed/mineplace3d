@@ -45,7 +45,14 @@ impl BlockState {
     pub fn get<T: PropertyValue + 'static>(&self, name: &str) -> Option<T> {
         let def = block_registry().get(self.block).unwrap();
         let p = def.property(name)?;
-        let _ = p.check::<T>() || return None;
+        if !p.check::<T>() {
+            log::error!(
+                "Tried to get {}[{name}] as value of type {}",
+                def.ident,
+                std::any::type_name::<T>(),
+            );
+            return None;
+        }
         Some(T::from_index(p.get(self.data)))
     }
 
@@ -54,7 +61,14 @@ impl BlockState {
         let Some(p) = def.property(name) else {
             return false;
         };
-        let _ = p.check::<T>() || return false;
+        if !p.check::<T>() {
+            log::error!(
+                "Tried to set {}[{name}] to value of type {}",
+                def.ident,
+                std::any::type_name::<T>(),
+            );
+            return false;
+        };
         p.set(&mut self.data, value.to_index());
         true
     }
@@ -286,6 +300,52 @@ impl PropertyValue for HorizontalDir {
         s.parse::<Direction>()
             .ok()
             .filter(|&d| d != Direction::Up && d != Direction::Down)
+            .map(Self)
+    }
+}
+
+impl PropertyValue for Direction {
+    const COUNT: u128 = 6;
+
+    fn to_index(self) -> u128 {
+        self as u128
+    }
+
+    fn from_index(i: u128) -> Self {
+        Self::from_u8(i as u8).unwrap()
+    }
+
+    fn name(self) -> Cow<'static, str> {
+        self.to_str().into()
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LimitedInt<const MAX: u128>(pub u128);
+
+impl<const MAX: u128> PropertyValue for LimitedInt<MAX> {
+    const COUNT: u128 = MAX + 1;
+
+    fn to_index(self) -> u128 {
+        self.0
+    }
+
+    fn from_index(i: u128) -> Self {
+        Self(i)
+    }
+
+    fn name(self) -> Cow<'static, str> {
+        self.0.to_string().into()
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        s.parse()
+            .ok()
+            .and_then(|v| (v <= MAX).then_some(v))
             .map(Self)
     }
 }

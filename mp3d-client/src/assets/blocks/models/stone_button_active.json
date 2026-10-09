@@ -1,0 +1,6 @@
+{
+	"parent": "button/active",
+	"textures": {
+		"$a": "stone"
+	}
+}

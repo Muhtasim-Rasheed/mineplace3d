@@ -9,11 +9,13 @@ use crate::{
 
 pub mod active;
 pub mod and_then;
+pub mod button;
 pub mod explode;
-pub mod facing;
-pub mod needs_support;
+mod needs_support;
+pub mod short_grass;
 pub mod slab;
 pub mod stairs;
+pub mod vslab;
 
 fn player_cardinal(world: &World, id: EntityId) -> HorizontalDir {
     let Some(yaw) = world

@@ -7,7 +7,7 @@
 pub mod chunk;
 pub mod generation;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use fxhash::{FxHashMap, FxHashSet, hash64};
 use glam::{IVec3, Vec3};
@@ -61,6 +61,7 @@ pub struct World {
     changes: FxHashMap<IVec3, FxHashMap<IVec3, BlockState>>,
 
     block_update_tracker: BlockUpdateTracker,
+    scheduled_updates: BTreeMap<u64, Vec<IVec3>>,
 
     game_data: GameData,
 }
@@ -81,6 +82,7 @@ impl World {
             pending_changes: PendingChanges::default(),
             changes: FxHashMap::default(),
             block_update_tracker: BlockUpdateTracker::default(),
+            scheduled_updates: BTreeMap::new(),
             game_data: GameData::new(),
         }
     }
@@ -190,8 +192,25 @@ impl World {
         }
     }
 
+    /// Schedules an update to happen at the given block position after a specified amount of ticks.
+    pub fn schedule_update(&mut self, pos: IVec3, delay_ticks: u64) {
+        self.scheduled_updates
+            .entry(self.time + delay_ticks)
+            .or_default()
+            .push(pos);
+    }
+
     /// Updates the world. The optimal TPS (Ticks Per Second) is 48.
     pub fn tick(&mut self, scheduler: &mut Scheduler, tps: u8) {
+        while let Some(entry) = self.scheduled_updates.first_entry() {
+            if *entry.key() > self.time {
+                break;
+            }
+            for pos in entry.remove() {
+                self.block_update_tracker.track_block(pos);
+            }
+        }
+
         for _ in 0..2000 {
             let Some(pos) = self.block_update_tracker.pop() else {
                 break;
@@ -691,6 +710,7 @@ fn load_v0_to_v9(
         pending_changes: PendingChanges::default(),
         changes: FxHashMap::default(),
         block_update_tracker: BlockUpdateTracker::default(),
+        scheduled_updates: BTreeMap::new(),
         game_data: GameData::new(),
     };
 

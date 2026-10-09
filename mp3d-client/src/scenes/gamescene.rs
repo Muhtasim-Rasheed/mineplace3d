@@ -18,7 +18,7 @@ use mp3d_core::{
 use crate::{
     abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},
     client::{
-        Client, Connection, CurrentGUI, connectionkind::ConnectionKind,
+        Client, Connection, CurrentGUI, cast_ray, connectionkind::ConnectionKind,
         localconnection::LocalConnection, tcpconnection::TcpConnection,
     },
     render::{
@@ -860,6 +860,8 @@ impl super::Scene for GameScene {
                     let block_pos = self.client.player.position.as_ivec3();
                     let chunk = block_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
                     let chunk_local = block_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+                    let looking_at = cast_ray(&self.client.world, &self.client.player, 5.0)
+                        .map(|(p, _)| (p, self.client.world.get_block_at(p).unwrap()));
 
                     let text = format!(
                         r#"Mineplace3D v{}
@@ -871,7 +873,9 @@ Yaw: {:.2} Pitch: {:.2} Dir: {} ({:?})
 
 Block: X: {} Y: {} Z: {}
 Chunk: X: {} Y: {} Z: {}
-Chunk local: X: {} Y: {} Z: {}"#,
+Chunk local: X: {} Y: {} Z: {}
+
+{}"#,
                         env!("CARGO_PKG_VERSION"),
                         self.ui.fps as u32,
                         self.client.player.position.x,
@@ -890,6 +894,12 @@ Chunk local: X: {} Y: {} Z: {}"#,
                         chunk_local.x,
                         chunk_local.y,
                         chunk_local.z,
+                        looking_at
+                            .map(|(p, b)| format!(
+                                "Looking at block: {:?} @ X: {} Y: {} Z: {}",
+                                b, p.x, p.y, p.z
+                            ))
+                            .unwrap_or_default(),
                     );
 
                     for mut cmd in assets.font.text(&text, TextParams::default()) {

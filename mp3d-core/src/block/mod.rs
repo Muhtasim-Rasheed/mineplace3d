@@ -61,7 +61,7 @@ define_blocks! {
         collision_shape: CollisionShape::VSlab,
         state_properties: vec![PropertyDef::new("facing", HorizontalDir(Direction::North))],
         from_legacy_state: from_legacy_facing,
-        on_place: Box::new(facing::on_place),
+        on_place: Box::new(vslab::on_place),
     },
     COBBLESTONE => { ident: "cobblestone" },
     GRANITE => { ident: "granite" },
@@ -88,7 +88,7 @@ define_blocks! {
         collision_shape: CollisionShape::VSlab,
         state_properties: vec![PropertyDef::new("facing", HorizontalDir(Direction::North))],
         from_legacy_state: from_legacy_facing,
-        on_place: Box::new(facing::on_place),
+        on_place: Box::new(vslab::on_place),
     },
     GLUNGUS => { ident: "glungus", on_click: Box::new(explode::on_click) },
     GLUNGUS_SLAB => {
@@ -116,13 +116,13 @@ define_blocks! {
         state_properties: vec![PropertyDef::new("facing", HorizontalDir(Direction::North))],
         from_legacy_state: from_legacy_facing,
         on_click: Box::new(explode::on_click),
-        on_place: Box::new(facing::on_place),
+        on_place: Box::new(vslab::on_place),
     },
     SHORT_GRASS => {
         ident: "short_grass",
         collision_shape: CollisionShape::None,
         interact_shape: CollisionShape::FullBlock,
-        on_update: Box::new(needs_support::on_update),
+        on_update: Box::new(short_grass::on_update),
     },
     GLASS => { ident: "glass" },
     BRICKS => { ident: "bricks" },
@@ -146,24 +146,32 @@ define_blocks! {
         collision_shape: CollisionShape::VSlab,
         state_properties: vec![PropertyDef::new("facing", HorizontalDir(Direction::North))],
         from_legacy_state: from_legacy_facing,
-        on_place: Box::new(facing::on_place),
+        on_place: Box::new(vslab::on_place),
     },
     GOLD => { ident: "gold" },
     DIAMOND => { ident: "diamond" },
+    STONE_BUTTON => {
+        ident: "stone_button",
+        collision_shape: CollisionShape::None,
+        interact_shape: CollisionShape::FullBlock,
+        state_properties: vec![PropertyDef::new("facing", Direction::North), PropertyDef::new("active_timer", LimitedInt::<24>(0))],
+        on_click: Box::new(button::on_click),
+        on_place: Box::new(button::on_place),
+        on_update: Box::new(button::on_update),
+    },
 }
 
 /// Collision shape used for collision detection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum CollisionShape {
     /// No collision.
-    None = 0,
+    None,
     /// A full cube.
-    FullBlock = 1,
+    FullBlock,
     /// A slab (whether it's top or bottom is determined by the block state).
-    Slab = 2,
+    Slab,
     /// A stair (the facing direction is determined by the block state).
-    Stairs = 3,
+    Stairs,
     /// A vertical slab (the facing direction is determined by the block state).
-    VSlab = 4,
+    VSlab,
 }
