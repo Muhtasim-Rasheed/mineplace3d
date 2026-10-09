@@ -1,0 +1,17 @@
+{
+	"states": {
+		"facing=north,active=false": { "model": "glungus_wire_inactive" },
+		"facing=south,active=false": { "model": "glungus_wire_inactive", "transform": { "rotation": [0, 180, 0] } },
+		"facing=east,active=false": { "model": "glungus_wire_inactive", "transform": { "rotation": [0, -90, 0] } },
+		"facing=west,active=false": { "model": "glungus_wire_inactive", "transform": { "rotation": [0, 90, 0] } },
+		"facing=up,active=false": { "model": "glungus_wire_inactive", "transform": { "rotation": [90, 0, 0] } },
+		"facing=down,active=false": { "model": "glungus_wire_inactive", "transform": { "rotation": [-90, 0, 0] } },
+
+		"facing=north": { "model": "glungus_wire_active" },
+		"facing=south": { "model": "glungus_wire_active", "transform": { "rotation": [0, 180, 0] } },
+		"facing=east": { "model": "glungus_wire_active", "transform": { "rotation": [0, -90, 0] } },
+		"facing=west": { "model": "glungus_wire_active", "transform": { "rotation": [0, 90, 0] } },
+		"facing=up": { "model": "glungus_wire_active", "transform": { "rotation": [90, 0, 0] } },
+		"facing=down": { "model": "glungus_wire_active", "transform": { "rotation": [-90, 0, 0] } }
+	}
+}

@@ -21,8 +21,8 @@ pub struct RawBlockModelTransform {
 pub struct RawBlockElement {
     pub from: [f32; 3],
     pub to: [f32; 3],
-    /// An omitted direction has no geometry. This lets models describe open cuboids and
-    /// planes without supplying dummy, invisible faces.
+    // An omitted direction has no geometry. This lets models describe open cuboids and
+    // planes without supplying dummy, invisible faces.
     pub n: Option<RawBlockFace>,
     pub s: Option<RawBlockFace>,
     pub e: Option<RawBlockFace>,
@@ -35,6 +35,7 @@ pub struct RawBlockElement {
 pub struct RawBlockFace {
     pub uv: [f32; 4],
     pub texture: TextureRef,
+    pub transform: Option<RawBlockModelTransform>,
     pub occludes: Option<bool>,
     pub cullable: Option<bool>,
 }

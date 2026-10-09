@@ -1,7 +1,11 @@
 {
-	"parent": "cube/col_y",
+	"parent": "cube/cube",
 	"textures": {
-		"$side": "log_side",
+		"$particle": "log_end",
+		"$n": "log_side",
+		"$s": "log_side",
+		"$e": "log_side",
+		"$w": "log_side",
 		"$u": "log_end",
 		"$d": "log_end"
 	}

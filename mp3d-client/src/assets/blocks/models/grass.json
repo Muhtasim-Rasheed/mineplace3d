@@ -1,7 +1,11 @@
 {
-	"parent": "cube/col_y",
+	"parent": "cube/cube",
 	"textures": {
-		"$side": "grass_side",
+		"$particle": "dirt",
+		"$n": "grass_side",
+		"$s": "grass_side",
+		"$e": "grass_side",
+		"$w": "grass_side",
 		"$u": "grass_top",
 		"$d": "dirt"
 	}

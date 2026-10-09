@@ -20,6 +20,16 @@ pub fn on_click(
         block_state.maybe_with("active_timer", LimitedInt::<24>(24)),
         BlockUpdateKind::Interaction,
     );
+    for dir in Direction::ALL {
+        let neighbor_pos = block_pos + dir;
+        if let Some(state) = world.get_block_at(neighbor_pos) {
+            world.urgent_set_block_at(
+                neighbor_pos,
+                state.maybe_with("active", true),
+                BlockUpdateKind::Tick,
+            );
+        }
+    }
     true
 }
 
@@ -42,6 +52,17 @@ pub fn on_update(world: &mut World, pos: IVec3, block_state: BlockState) -> bool
     );
     if timer.0 > 1 {
         world.schedule_update(pos, 1);
+    } else {
+        for dir in Direction::ALL {
+            let neighbor_pos = pos + dir;
+            if let Some(state) = world.get_block_at(neighbor_pos) {
+                world.urgent_set_block_at(
+                    neighbor_pos,
+                    state.maybe_with("active", false),
+                    BlockUpdateKind::Tick,
+                );
+            }
+        }
     }
     false // set_block already notifies neighbors
 }

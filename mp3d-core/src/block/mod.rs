@@ -159,6 +159,12 @@ define_blocks! {
         on_place: Box::new(button::on_place),
         on_update: Box::new(button::on_update),
     },
+    GLUNGUS_WIRE => {
+        ident: "glungus_wire",
+        state_properties: vec![PropertyDef::new("facing", Direction::North), PropertyDef::new("active", false)],
+        on_place: Box::new(glungus_wire::on_place),
+        on_update: Box::new(glungus_wire::on_update),
+    },
 }
 
 /// Collision shape used for collision detection.

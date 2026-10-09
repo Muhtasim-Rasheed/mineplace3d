@@ -38,8 +38,10 @@ pub enum BlockUpdateKind {
     Placed,
     /// A block was removed by a player.
     Removed,
-    /// A block was updated.
+    /// A block was updated through random ticks.
     RandomTick,
+    /// A block was updated through propagated or scheduled ticks.
+    Tick,
     /// A block was affected by an interaction result.
     Interaction,
 }

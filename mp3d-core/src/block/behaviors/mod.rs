@@ -11,6 +11,7 @@ pub mod active;
 pub mod and_then;
 pub mod button;
 pub mod explode;
+pub mod glungus_wire;
 mod needs_support;
 pub mod short_grass;
 pub mod slab;

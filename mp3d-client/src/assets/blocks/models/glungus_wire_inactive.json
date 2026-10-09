@@ -1,0 +1,23 @@
+{
+	"elements": [
+		{
+			"from": [0, 0, 0],
+			"to": [16, 16, 16],
+			"n": {"uv": [0, 0, 16, 16], "texture": "$n"},
+			"s": {"uv": [0, 0, 16, 16], "texture": "$s"},
+			"e": {"uv": [0, 0, 16, 16], "texture": "$e"},
+			"w": {"uv": [16, 0, 0, 16], "texture": "$w"},
+			"u": {"uv": [0, 0, 16, 16], "texture": "$u", "transform": {"rotation": [0, 90, 0]}},
+			"d": {"uv": [0, 0, 16, 16], "texture": "$d", "transform": {"rotation": [0, 90, 0]}}
+		}
+	],
+	"textures": {
+		"$particle": "glungus_wire_side_inactive",
+		"$n": "glungus_wire_end_inactive",
+		"$s": "glungus_wire_end_inactive",
+		"$e": "glungus_wire_side_inactive",
+		"$w": "glungus_wire_side_inactive",
+		"$u": "glungus_wire_side_inactive",
+		"$d": "glungus_wire_side_inactive"
+	}
+}

@@ -51,6 +51,18 @@ fn face_corners(from: Vec3, to: Vec3, face: Direction) -> [Vec3; 4] {
     }
 }
 
+fn axis_value(dir: Direction, v: Vec3) -> f32 {
+    match dir {
+        Direction::North | Direction::South => v.z,
+        Direction::East | Direction::West => v.x,
+        Direction::Up | Direction::Down => v.y,
+    }
+}
+
+fn is_positive(dir: Direction) -> bool {
+    matches!(dir, Direction::South | Direction::East | Direction::Up)
+}
+
 /// A block model, containing all the information needed to render a block.
 pub struct BlockModel {
     pub elements: Vec<BlockElement>,
@@ -292,7 +304,7 @@ impl BlockModel {
     ) -> Vec<crate::render::ui::uirenderer::DrawCommand> {
         let mut commands = Vec::new();
         for element in &self.elements {
-            for face in element.faces.iter().flatten() {
+            for face in &element.faces {
                 let [uv_min, uv_max] = atlas.get_uv(&face.texture_name, face.uv).unwrap();
 
                 let uvs = [
@@ -385,7 +397,7 @@ impl std::ops::Mul for BlockModelTransform {
 /// A single cuboid element of a block model, defined by two opposite corners and the faces that
 /// make up the cuboid. Each face has its own texture and UV coordinates.
 pub struct BlockElement {
-    pub faces: [Option<BlockFace>; 6],
+    pub faces: Vec<BlockFace>,
 }
 
 impl BlockElement {
@@ -401,27 +413,23 @@ impl BlockElement {
         let from = Vec3::from(raw.from) / 16.0;
         let to = Vec3::from(raw.to) / 16.0;
 
-        let faces: [Option<BlockFace>; 6] = [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
+        let faces: Vec<BlockFace> = [raw.n, raw.s, raw.e, raw.w, raw.u, raw.d]
             .into_iter()
             .enumerate()
-            .map(|(i, raw_face)| {
-                raw_face
-                    .map(|raw_face| {
-                        BlockFace::from_raw(
-                            raw_face,
-                            textures,
-                            resource_manager,
-                            atlas,
-                            (from, to),
-                            Direction::try_from(i as u8).unwrap(),
-                            transform,
-                        )
-                    })
-                    .transpose()
+            .filter_map(|(i, raw_face)| {
+                raw_face.map(|raw_face| {
+                    BlockFace::from_raw(
+                        raw_face,
+                        textures,
+                        resource_manager,
+                        atlas,
+                        (from, to),
+                        Direction::try_from(i as u8).unwrap(),
+                        transform,
+                    )
+                })
             })
-            .collect::<Result<Vec<_>, _>>()?
-            .try_into()
-            .map_err(|_| "Expected exactly 6 faces".to_string())?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(BlockElement { faces })
     }
@@ -437,6 +445,7 @@ pub struct BlockFace {
     pub texture_name: String,
     pub occludes: bool,
     pub cullable: bool,
+    pub cull_dir: Option<Direction>,
     pub occlusion_face: Option<OcclusionFace>,
 }
 
@@ -471,7 +480,11 @@ impl BlockFace {
             .add_texture(texture_path.1.clone(), image)
             .ok_or("Atlas is full, cannot add more textures")?;
 
-        let transform = transform.map_or(Affine3A::IDENTITY, Into::into);
+        let transform_a = transform.map_or(Affine3A::IDENTITY, Into::into);
+        let transform_b = raw
+            .transform
+            .map_or(Affine3A::IDENTITY, |v| BlockModelTransform::from(v).into());
+        let transform = transform_a * transform_b;
         let vertices =
             face_corners(aabb.0, aabb.1, face).map(|corner| transform.transform_point3(corner));
         let normal = transform.transform_vector3(face.into());
@@ -479,12 +492,31 @@ impl BlockFace {
             Vec2::from_slice(&raw.uv[0..2]) / super::TEXTURE_SIZE as f32,
             Vec2::from_slice(&raw.uv[2..4]) / super::TEXTURE_SIZE as f32,
         ];
-        let mut occlusion_face = None;
-        let cardinal = normal.abs().max_element() > 0.999 && normal.abs().min_element() < 0.001;
-        if cardinal {
-            let rect = [Vec2::new(aabb.0.x, aabb.0.y), Vec2::new(aabb.1.x, aabb.1.y)];
-            occlusion_face = Some(OcclusionFace { rect });
-        }
+
+        let cull_dir = Direction::ALL
+            .into_iter()
+            .find(|d| Vec3::from(*d).dot(normal) > 0.999);
+        let occlusion_face = cull_dir.and_then(|d| {
+            let target = if is_positive(d) { 1.0 } else { 0.0 };
+            if !vertices
+                .iter()
+                .all(|v| (axis_value(d, *v) - target).abs() < 1e-4)
+            {
+                return None;
+            }
+            let mut min = Vec2::splat(f32::MAX);
+            let mut max = Vec2::splat(f32::MIN);
+            for v in &vertices {
+                let p = match d {
+                    Direction::North | Direction::South => Vec2::new(v.x, v.y),
+                    Direction::East | Direction::West => Vec2::new(v.z, v.y),
+                    Direction::Up | Direction::Down => Vec2::new(v.x, v.z),
+                };
+                min = min.min(p);
+                max = max.max(p);
+            }
+            Some(OcclusionFace { rect: [min, max] })
+        });
 
         Ok(BlockFace {
             vertices,
@@ -493,6 +525,7 @@ impl BlockFace {
             texture_name: texture_path.1,
             occludes: raw.occludes.unwrap_or(true),
             cullable: raw.cullable.unwrap_or(true),
+            cull_dir,
             occlusion_face,
         })
     }

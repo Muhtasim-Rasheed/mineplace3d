@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 use glam::{IVec3, Vec2, Vec3};
 use glow::HasContext;
 use mp3d_core::{
-    block::{BlockId, BlockState, block_registry},
+    block::{BlockState, block_registry},
     direction::Direction,
     world::chunk::CHUNK_SIZE,
 };
@@ -13,7 +13,7 @@ use mp3d_core::{
 use crate::{
     abs::{Mesh, Vertex},
     client::{chunk::ClientChunk, world::ClientWorld},
-    resource::block::modelstore::BlockModelLoader,
+    resource::block::{BlockFace, modelstore::BlockModelLoader},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -53,64 +53,34 @@ impl Vertex for ChunkVertex {
     }
 }
 
-/// Determines if the face of block `a` is completely covered by block `b` on the given face index.
+/// True if rect `b` completely covers rect `a`.
 #[inline]
 fn covers(a_min: Vec2, a_max: Vec2, b_min: Vec2, b_max: Vec2) -> bool {
-    a_min.cmple(b_min).all() && a_max.cmpge(b_max).all()
+    b_min.cmple(a_min).all() && b_max.cmpge(a_max).all()
 }
 
-/// Determines if a certain face of block `a` should be occluded by block `b`.
-#[inline]
-fn should_occlude(
-    a: BlockId,
-    b: BlockId,
-    face: Direction,
-    a_model: &crate::resource::block::BlockModel,
+/// True if `a_face` (which points in `dir`) hidden by anything in the neighboring model
+fn face_occluded(
+    a_face: &BlockFace,
+    dir: Direction,
     b_model: &crate::resource::block::BlockModel,
 ) -> bool {
-    let a_def = block_registry().get(a).unwrap();
-    let b_def = block_registry().get(b).unwrap();
-
-    if !a_def.visible {
-        unreachable!("Invisible blocks have no faces");
-    }
-    if !b_def.visible {
+    let Some(a_occ) = &a_face.occlusion_face else {
         return false;
-    }
+    };
+    let opp = dir.opposite();
 
-    for a_el in &a_model.elements {
-        let Some(a_face) = &a_el.faces[face as usize] else {
-            continue;
-        };
-
-        let Some(a_occ) = &a_face.occlusion_face else {
-            continue;
-        };
-
-        if !a_face.cullable {
-            continue;
-        }
-
-        for b_el in &b_model.elements {
-            let Some(b_face) = &b_el.faces[face.opposite() as usize] else {
-                continue;
-            };
-
-            let Some(b_occ) = &b_face.occlusion_face else {
-                continue;
-            };
-
-            if !b_face.occludes {
-                continue;
-            }
-
-            if covers(a_occ.rect[0], a_occ.rect[1], b_occ.rect[0], b_occ.rect[1]) {
-                return true;
-            }
-        }
-    }
-
-    false
+    b_model
+        .elements
+        .iter()
+        .flat_map(|e| &e.faces)
+        .any(|b_face| {
+            b_face.cull_dir == Some(opp)
+                && b_face.occludes
+                && b_face.occlusion_face.as_ref().is_some_and(|b_occ| {
+                    covers(a_occ.rect[0], a_occ.rect[1], b_occ.rect[0], b_occ.rect[1])
+                })
+        })
 }
 
 #[inline]
@@ -412,108 +382,85 @@ fn mesh_chunk(
                     .get(block)
                     .unwrap_or_else(|| panic!("No model found for {block:?}"));
 
-                // Create faces for each non-occluded side
-                for dir in Direction::ALL {
-                    let neighbor_pos = world_pos + dir;
-
-                    // Create face the neighboring block is air or doesn't occlude this face.
-                    let neighbor_block = get_block(chunk_origin, neighbor_pos, neighbors);
-                    let neighbor_model =
-                        neighbor_block.and_then(|ident| block_model_loader.get(ident));
-                    if neighbor_block.is_none() {
-                        continue;
-                    }
-                    if !should_occlude(
-                        block.block,
-                        neighbor_block.unwrap().block,
-                        dir,
-                        model,
-                        neighbor_model.unwrap(),
-                    ) {
-                        for el in &model.elements {
-                            // The elements' faces are ordered as NSEWUD and we are using a
-                            // right handed coordinate system with +X = east, +Y = up, +Z =
-                            // south.
-                            let Some(face) = &el.faces[dir as usize] else {
+                for el in &model.elements {
+                    for face in &el.faces {
+                        if let (Some(dir), true) = (face.cull_dir, face.cullable) {
+                            let neighbor_pos = world_pos + dir;
+                            let Some(neighbor_block) =
+                                get_block(chunk_origin, neighbor_pos, neighbors)
+                            else {
                                 continue;
                             };
-
-                            let block_world_pos = IVec3::new(world_x, world_y, world_z);
-
-                            // AO for the 4 vertices of this face
-                            let mut aos = [3u8; 4];
-
-                            if model.is_full_cube() {
-                                for vert_idx in 0..4 {
-                                    let [side1_off, side2_off, corner_off] =
-                                        AO_NEIGHBORS[dir as usize][vert_idx];
-
-                                    let side1 = get_block(
-                                        chunk_origin,
-                                        block_world_pos + side1_off,
-                                        neighbors,
-                                    );
-                                    let side2 = get_block(
-                                        chunk_origin,
-                                        block_world_pos + side2_off,
-                                        neighbors,
-                                    );
-                                    let corner = get_block(
-                                        chunk_origin,
-                                        block_world_pos + corner_off,
-                                        neighbors,
-                                    );
-
-                                    let side1_full = block_is_full_cube(side1, block_model_loader);
-                                    let side2_full = block_is_full_cube(side2, block_model_loader);
-                                    let corner_full =
-                                        block_is_full_cube(corner, block_model_loader);
-
-                                    aos[vert_idx] =
-                                        ao_for_vertex(side1_full, side2_full, corner_full);
+                            let n_def = block_registry().get(neighbor_block.block).unwrap();
+                            if n_def.visible {
+                                if let Some(n_model) = block_model_loader.get(neighbor_block) {
+                                    if face_occluded(face, dir, n_model) {
+                                        continue;
+                                    }
                                 }
                             }
+                        }
 
-                            let model_uv = face.uv;
-                            let [uv_min, uv_max] =
-                                block_textures.get_uv(&face.texture_name, model_uv).unwrap();
+                        let mut aos = [3u8; 4];
+                        if let (true, Some(dir)) = (model.is_full_cube(), face.cull_dir) {
+                            for vert_idx in 0..4 {
+                                let [side1_off, side2_off, corner_off] =
+                                    AO_NEIGHBORS[dir as usize][vert_idx];
 
-                            let base_index = vertices.len() as u32;
-                            let uvs = [
-                                Vec2::new(uv_max.x, uv_max.y),
-                                Vec2::new(uv_min.x, uv_max.y),
-                                Vec2::new(uv_min.x, uv_min.y),
-                                Vec2::new(uv_max.x, uv_min.y),
-                            ];
-                            let normal = face.normal;
-                            for (i, vert) in face.vertices.iter().enumerate() {
-                                vertices.push(ChunkVertex {
-                                    position: *vert + world_pos.as_vec3(),
-                                    normal,
-                                    uv: uvs[i],
-                                    ao: aos[i],
-                                });
+                                let side1 =
+                                    get_block(chunk_origin, world_pos + side1_off, neighbors);
+                                let side2 =
+                                    get_block(chunk_origin, world_pos + side2_off, neighbors);
+                                let corner =
+                                    get_block(chunk_origin, world_pos + corner_off, neighbors);
+
+                                let side1_full = block_is_full_cube(side1, block_model_loader);
+                                let side2_full = block_is_full_cube(side2, block_model_loader);
+                                let corner_full = block_is_full_cube(corner, block_model_loader);
+
+                                aos[vert_idx] = ao_for_vertex(side1_full, side2_full, corner_full);
                             }
+                        }
 
-                            if aos[0] + aos[2] < aos[1] + aos[3] {
-                                indices.extend_from_slice(&[
-                                    base_index,
-                                    base_index + 1,
-                                    base_index + 3,
-                                    base_index + 1,
-                                    base_index + 2,
-                                    base_index + 3,
-                                ]);
-                            } else {
-                                indices.extend_from_slice(&[
-                                    base_index,
-                                    base_index + 1,
-                                    base_index + 2,
-                                    base_index,
-                                    base_index + 2,
-                                    base_index + 3,
-                                ]);
-                            }
+                        let model_uv = face.uv;
+                        let [uv_min, uv_max] =
+                            block_textures.get_uv(&face.texture_name, model_uv).unwrap();
+
+                        let base_index = vertices.len() as u32;
+                        let uvs = [
+                            Vec2::new(uv_max.x, uv_max.y),
+                            Vec2::new(uv_min.x, uv_max.y),
+                            Vec2::new(uv_min.x, uv_min.y),
+                            Vec2::new(uv_max.x, uv_min.y),
+                        ];
+                        let normal = face.normal;
+                        for (i, vert) in face.vertices.iter().enumerate() {
+                            vertices.push(ChunkVertex {
+                                position: *vert + world_pos.as_vec3(),
+                                normal,
+                                uv: uvs[i],
+                                ao: aos[i],
+                            });
+                        }
+
+                        if aos[0] + aos[2] < aos[1] + aos[3] {
+                            indices.extend_from_slice(&[
+                                base_index,
+                                base_index + 1,
+                                base_index + 3,
+                                base_index + 1,
+                                base_index + 2,
+                                base_index + 3,
+                            ]);
+                        } else {
+                            indices.extend_from_slice(&[
+                                base_index,
+                                base_index + 1,
+                                base_index + 2,
+                                base_index,
+                                base_index + 2,
+                                base_index + 3,
+                            ]);
                         }
                     }
                 }
