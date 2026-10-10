@@ -211,10 +211,8 @@ impl World {
             }
         }
 
-        for _ in 0..2000 {
-            let Some(pos) = self.block_update_tracker.pop() else {
-                break;
-            };
+        let wave = self.block_update_tracker.take_wave();
+        for pos in wave {
             let propagate = 'run_block_update: {
                 let Some(block) = self.get_block_at(pos) else {
                     break 'run_block_update false;
@@ -229,7 +227,6 @@ impl World {
                 self.block_update_tracker.track_neighbors(pos);
             }
         }
-        self.block_update_tracker.finish_tick();
 
         let mut updates = Vec::new();
         for (pos, chunk) in &self.chunks {
@@ -529,13 +526,13 @@ impl Iterator for PendingChanges {
 
 #[derive(Default)]
 struct BlockUpdateTracker {
-    processed: FxHashSet<IVec3>,
+    queued: FxHashSet<IVec3>,
     queue: VecDeque<IVec3>,
 }
 
 impl BlockUpdateTracker {
     fn track_block(&mut self, pos: IVec3) {
-        if self.processed.insert(pos) {
+        if self.queued.insert(pos) {
             self.queue.push_back(pos);
         }
     }
@@ -546,14 +543,9 @@ impl BlockUpdateTracker {
         }
     }
 
-    fn pop(&mut self) -> Option<IVec3> {
-        self.queue.pop_front()
-    }
-
-    fn finish_tick(&mut self) {
-        if self.queue.is_empty() {
-            self.processed.clear();
-        }
+    fn take_wave(&mut self) -> VecDeque<IVec3> {
+        self.queued.clear();
+        std::mem::take(&mut self.queue)
     }
 }
 
