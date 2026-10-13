@@ -67,7 +67,7 @@ impl ECS {
         let mut storages = Vec::with_capacity(registry.len());
         for i in 0..registry.len() {
             let id = registry.valid_id(i).expect("registry/index out of sync");
-            let def = registry.get(id).unwrap();
+            let def = registry.get(id);
             storages.push(UnsafeCell::new((def.make_storage)()));
         }
         Self {
@@ -93,7 +93,7 @@ impl ECS {
     }
 
     pub fn spawn_entity(&mut self, def_id: EntityDefId, pos: Vec3) -> EntityId {
-        let def = entity_registry().get(def_id).unwrap();
+        let def = entity_registry().get(def_id);
         let details = (def.template)();
         let entity = self.spawn_from_details(&details);
         // SAFETY: The mutable borrow is dropped at the end of the statement, so it's fine to create

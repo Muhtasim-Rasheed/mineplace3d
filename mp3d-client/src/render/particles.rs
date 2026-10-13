@@ -68,7 +68,7 @@ impl ParticleSystem {
     }
 
     pub fn block_break(&mut self, position: IVec3, block: BlockState) {
-        if !block_registry().get(block.block).unwrap().visible {
+        if !block_registry().get(block.block).visible {
             return;
         }
         for _ in 0..64 {

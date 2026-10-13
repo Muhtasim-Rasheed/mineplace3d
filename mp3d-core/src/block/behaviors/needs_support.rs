@@ -10,7 +10,7 @@ use crate::{
 pub fn on_update(world: &mut World, pos: IVec3, face: Direction) -> bool {
     let below = world.get_block_at(pos + face);
     if let Some(below) = below
-        && block_registry().get(below.block).unwrap().visible
+        && block_registry().get(below.block).visible
     {
         return false;
     }

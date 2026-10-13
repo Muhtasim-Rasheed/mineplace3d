@@ -5,7 +5,6 @@
 use crate::{
     define_entities,
     entity::components::{Component, ComponentId, component_registry},
-    registry::Def,
     serialize::{
         read::{ByteReader, ReadError, ReadErrorExt},
         write::ByteWriter,
@@ -57,7 +56,7 @@ impl EntityDetails {
         let registry = component_registry();
         let mut writer = ByteWriter::new().u16(self.components.len() as u16);
         for (id, data) in &self.components {
-            let ident = registry.get(*id).unwrap().ident();
+            let ident = registry.get(*id).ident;
             writer = writer
                 .u16(ident.len() as u16)
                 .string(ident)

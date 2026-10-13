@@ -15,18 +15,18 @@ impl BlockState {
     pub fn default_for(block: BlockId) -> Self {
         Self {
             block,
-            data: block_registry().get(block).unwrap().default_state,
+            data: block_registry().get(block).default_state,
         }
     }
 
     pub fn get_str(&self, name: &str) -> Option<Cow<'static, str>> {
-        let def = block_registry().get(self.block).unwrap();
+        let def = block_registry().get(self.block);
         let p = def.property(name)?;
         Some((p.value_name)(p.get(self.data)))
     }
 
     pub fn set_str(&mut self, name: &str, value: &str) -> bool {
-        let def = block_registry().get(self.block).unwrap();
+        let def = block_registry().get(self.block);
         let Some(p) = def.property(name) else {
             return false;
         };
@@ -43,7 +43,7 @@ impl BlockState {
     }
 
     pub fn get<T: PropertyValue + 'static>(&self, name: &str) -> Option<T> {
-        let def = block_registry().get(self.block).unwrap();
+        let def = block_registry().get(self.block);
         let p = def.property(name)?;
         if !p.check::<T>() {
             log::error!(
@@ -57,7 +57,7 @@ impl BlockState {
     }
 
     pub fn set<T: PropertyValue + 'static>(&mut self, name: &str, value: T) -> bool {
-        let def = block_registry().get(self.block).unwrap();
+        let def = block_registry().get(self.block);
         let Some(p) = def.property(name) else {
             return false;
         };
@@ -79,7 +79,7 @@ impl BlockState {
     }
 
     pub fn named_props(&self) -> Vec<(&'static str, Cow<'static, str>)> {
-        let def = block_registry().get(self.block).unwrap();
+        let def = block_registry().get(self.block);
         def.state_properties
             .iter()
             .filter_map(|p| {
@@ -95,7 +95,7 @@ impl std::fmt::Debug for BlockState {
         write!(
             f,
             "{}[{}]",
-            block_registry().get(self.block).unwrap().ident,
+            block_registry().get(self.block).ident,
             self.named_props()
                 .into_iter()
                 .map(|(name, val)| format!("{name}={val}"))
@@ -121,7 +121,7 @@ impl BlockStateMatcher {
 
     pub fn parse(block: BlockId, state_str: &str) -> Result<Self, String> {
         let mut blockstate = BlockState::default_for(block);
-        let blockdef = block_registry().get(block).unwrap();
+        let blockdef = block_registry().get(block);
         let mut set_bits = 0u128;
 
         for part in state_str

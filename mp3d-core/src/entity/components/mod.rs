@@ -303,7 +303,7 @@ pub struct HasDefId(pub EntityDefId);
 
 impl HasDefId {
     fn to_bytes(&self) -> Vec<u8> {
-        let ident = entity_registry().get(self.0).unwrap().ident;
+        let ident = entity_registry().get(self.0).ident;
         ByteWriter::new()
             .u16(ident.len() as u16)
             .string(ident)

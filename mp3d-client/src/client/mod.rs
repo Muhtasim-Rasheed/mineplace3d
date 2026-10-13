@@ -548,7 +548,7 @@ pub fn cast_ray(
 
         let state = world.get_block_at(block_pos)?;
 
-        let block_def = block_registry().get(state.block).unwrap();
+        let block_def = block_registry().get(state.block);
         if block_def.visible {
             let ray_intersection = block_def.ray_intersect(local, direction, state);
             if let Some(normal) = ray_intersection {

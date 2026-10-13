@@ -5,7 +5,7 @@ use crate::serialize::write::ByteWriter;
 
 impl Saveable for ItemId {
     fn save(&self, writer: ByteWriter) -> ByteWriter {
-        let ident = item_registry().get(*self).unwrap().ident;
+        let ident = item_registry().get(*self).ident;
         writer.u8(ident.len() as u8).string(ident)
     }
 

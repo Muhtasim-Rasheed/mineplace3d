@@ -71,7 +71,7 @@ impl TryFrom<(BlockId, RawLootTableEntry)> for LootTableEntry {
                 Ok((state, drops.unwrap()))
             })
             .collect::<Result<Vec<(_, FxHashMap<_, _>)>, _>>()?;
-        let block = block_registry().get(block_id).unwrap();
+        let block = block_registry().get(block_id);
 
         let mut resolved = FxHashMap::default();
 
@@ -122,7 +122,7 @@ impl GameData {
             return self.loot_table.block_entries.get(&id);
         }
 
-        let str_id = block_registry().get(id).unwrap().ident;
+        let str_id = block_registry().get(id).ident;
 
         let path = std::path::PathBuf::from(format!("loot_table/blocks/{}.json", str_id));
 

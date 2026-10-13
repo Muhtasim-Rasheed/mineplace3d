@@ -104,7 +104,7 @@ impl<Entry: Def> Registry<Entry> {
         self.str_to_id.get(str_id).copied()
     }
 
-    pub fn get(&self, id: Entry::Id) -> Option<&Entry> {
-        self.entries.get(id.get())
+    pub fn get(&self, id: Entry::Id) -> &Entry {
+        self.entries.get(id.get()).unwrap()
     }
 }

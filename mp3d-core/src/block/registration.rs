@@ -32,7 +32,7 @@ impl serde::Serialize for BlockId {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(block_registry().get(*self).unwrap().ident)
+        serializer.serialize_str(block_registry().get(*self).ident)
     }
 }
 

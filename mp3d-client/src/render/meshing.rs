@@ -89,7 +89,7 @@ fn block_is_full_cube(block: Option<BlockState>, block_model_loader: &BlockModel
         return false;
     };
 
-    let block_def = block_registry().get(block.block).unwrap();
+    let block_def = block_registry().get(block.block);
 
     if !block_def.visible {
         return false;
@@ -370,7 +370,7 @@ fn mesh_chunk(
                 // Check if the block is visible
                 let block_local_pos = glam::IVec3::new(x, y, z);
                 let block = chunk.get_block(block_local_pos).unwrap();
-                let block_def = block_registry().get(block.block).unwrap();
+                let block_def = block_registry().get(block.block);
                 if !block_def.visible {
                     continue;
                 }
@@ -391,7 +391,7 @@ fn mesh_chunk(
                             else {
                                 continue;
                             };
-                            let n_def = block_registry().get(neighbor_block.block).unwrap();
+                            let n_def = block_registry().get(neighbor_block.block);
                             if n_def.visible {
                                 if let Some(n_model) = block_model_loader.get(neighbor_block) {
                                     if face_occluded(face, dir, n_model) {

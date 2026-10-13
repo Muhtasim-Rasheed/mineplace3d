@@ -9,7 +9,7 @@ use crate::{
 
 impl Saveable for BlockId {
     fn save(&self, writer: ByteWriter) -> ByteWriter {
-        let ident = block_registry().get(*self).unwrap().ident;
+        let ident = block_registry().get(*self).ident;
         writer.u8(ident.len() as u8).string(ident)
     }
 
@@ -69,7 +69,7 @@ impl Saveable for BlockState {
             // legacy u32: 16 bits data | 16 bits type
             let bits = reader.u32().ctx("BlockState::bits")?;
             let data = (bits >> 16) as u16;
-            if let Some(f) = block_registry().get(block).unwrap().from_legacy_state {
+            if let Some(f) = block_registry().get(block).from_legacy_state {
                 state = f(state, data);
             }
             return Ok(state);
@@ -84,7 +84,7 @@ impl Saveable for BlockState {
             if !state.set_str(&name, &value) {
                 log::warn!(
                     "{}: ignoring unknown property {}={}",
-                    block_registry().get(block).unwrap().ident,
+                    block_registry().get(block).ident,
                     name,
                     value
                 );

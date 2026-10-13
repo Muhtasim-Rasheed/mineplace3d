@@ -217,7 +217,7 @@ impl World {
                 let Some(block) = self.get_block_at(pos) else {
                     break 'run_block_update false;
                 };
-                let def = block_registry().get(block.block).unwrap();
+                let def = block_registry().get(block.block);
                 def.on_update
                     .as_ref()
                     .map(|f| f(self, pos, block))
@@ -312,7 +312,7 @@ impl World {
         };
 
         if let Some(state) = self.get_block_at(block_pos) {
-            let def = block_registry().get(state.block).unwrap();
+            let def = block_registry().get(state.block);
             if let Some(on_click) = &def.on_click {
                 if on_click(self, player_entity_id, block_pos, state, face) {
                     return; // hook fully handled the interaction
@@ -325,7 +325,7 @@ impl World {
             return;
         }
         if let Some(block) = place_block {
-            let def = block_registry().get(**block).unwrap();
+            let def = block_registry().get(**block);
             let state = if let Some(on_place) = &def.on_place {
                 (on_place)(**block, self, player_entity_id, place_pos, face)
             } else {
@@ -342,7 +342,7 @@ impl World {
         let inv = self.ecs.get_component::<Inventory>(entity)?;
         let hotbar = self.ecs.get_component::<SelectedHotbarSlot>(entity)?;
         let stack = inv.hotbar_slot(hotbar.0);
-        let assoc_block = item_registry().get(stack.item).unwrap().assoc_block;
+        let assoc_block = item_registry().get(stack.item).assoc_block;
         Some((stack.count, assoc_block))
     }
 
@@ -352,7 +352,7 @@ impl World {
             None => return,
         };
 
-        let block_def = block_registry().get(state.block).unwrap();
+        let block_def = block_registry().get(state.block);
         if let Some(on_break) = &block_def.on_break {
             on_break(self, player_entity_id, block_pos, state);
         }
@@ -431,13 +431,14 @@ impl CollisionWorld for FxHashMap<IVec3, Chunk> {
                 for z in min_block_pos.z..=max_block_pos.z {
                     let block_pos = IVec3::new(x, y, z);
                     if let Some(block_state) = get_block_at(self, block_pos)
-                        && let Some(block) = block_registry().get(block_state.block)
-                        && block.collides_with_player(
-                            width,
-                            height,
-                            pos - block_pos.as_vec3(),
-                            block_state,
-                        )
+                        && block_registry()
+                            .get(block_state.block)
+                            .collides_with_player(
+                                width,
+                                height,
+                                pos - block_pos.as_vec3(),
+                                block_state,
+                            )
                     {
                         return true;
                     }

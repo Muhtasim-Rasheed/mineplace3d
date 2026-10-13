@@ -125,7 +125,7 @@ impl LocalPlayer {
             if let Some(state) = world.get_block_at(block_pos) {
                 let local = pos - block_pos.as_vec3();
 
-                let block_def = block_registry().get(state.block).unwrap();
+                let block_def = block_registry().get(state.block);
                 if block_def.visible
                     && let Some(normal) = block_def.ray_intersect(local, backward, state)
                 {

@@ -158,16 +158,16 @@ impl Chunk {
             let block = &self.block_palette[palette_index];
             let above_global_pos = global_pos + Direction::Up;
             let above_block = get_block_global(self, neighbors, above_global_pos, chunk_pos)
-                .and_then(|bs| block_registry().get(bs.block).map(|v| (v, bs)));
+                .map(|bs| block_registry().get(bs.block));
             if block.block == *blocks::DIRT
-                && let Some((above_block, _)) = above_block
+                && let Some(above_block) = above_block
                 && above_block.collision_shape == CollisionShape::None
             {
                 // DIRT -> GRASS if above cannot be collided with (e.g. AIR)
                 updates.push((global_pos, BlockState::default_for(*blocks::GRASS)));
             }
             if block.block == *blocks::GRASS
-                && let Some((above_block, _)) = above_block
+                && let Some(above_block) = above_block
                 && above_block.collision_shape != CollisionShape::None
             {
                 // GRASS -> DIRT if above can be collided with (e.g. GRASS or LOG)

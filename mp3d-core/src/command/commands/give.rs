@@ -45,7 +45,7 @@ impl Command for GiveCommand {
 
         let reg = item_registry();
         let item = reg.get_id(&ident.0).ok_or("Unknown item identifier")?;
-        let item_def = reg.get(item).unwrap();
+        let item_def = reg.get(item);
         if let Some(inv) = ctx.world.ecs.get_component_mut::<Inventory>(sender) {
             inv.add_stack(item, count);
 

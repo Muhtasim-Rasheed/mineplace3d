@@ -177,20 +177,16 @@ impl CollisionWorld for ClientWorld {
                     let block_pos = IVec3::new(x, y, z);
                     match self.get_block_at(block_pos) {
                         Some(block) => {
-                            if block_registry()
-                                .get(block.block)
-                                .unwrap()
-                                .collides_with_player(
-                                    entity_width,
-                                    entity_height,
-                                    entity_pos - block_pos.as_vec3(),
-                                    block,
-                                )
-                            {
+                            if block_registry().get(block.block).collides_with_player(
+                                entity_width,
+                                entity_height,
+                                entity_pos - block_pos.as_vec3(),
+                                block,
+                            ) {
                                 return true;
                             }
                         }
-                        None => return true, // unloaded/unknown chunk — assume solid, don't let the player in
+                        None => return true,
                     }
                 }
             }

@@ -50,9 +50,9 @@ impl HotbarSlot {
     ) -> Vec<DrawCommand> {
         let mut commands = Vec::new();
         let item = stack.item;
-        if let Some(block) = item_registry().get(item).unwrap().assoc_block {
+        if let Some(block) = item_registry().get(item).assoc_block {
             let block = **block;
-            let block_def = block_registry().get(block).unwrap();
+            let block_def = block_registry().get(block);
             if block_def.visible {
                 let item_block_state = mp3d_core::block::BlockState::default_for(block);
                 let item_block_model = assets.block_model_loader.get(item_block_state).unwrap();

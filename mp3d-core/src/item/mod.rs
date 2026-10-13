@@ -55,7 +55,7 @@ pub struct ItemStack {
 
 impl ItemStack {
     pub fn new(item: ItemId, count: u16) -> Self {
-        let item_def = item_registry().get(item).unwrap();
+        let item_def = item_registry().get(item);
         Self {
             item,
             count: count.min(item_def.max_stack),
@@ -77,7 +77,7 @@ impl ItemStack {
     /// the max stack size of the item. The method returns the remainder item stack that couldn't
     /// be added if the count exceeds the max stack size.
     pub fn add(&mut self, count: u16) -> ItemStack {
-        let item_def = item_registry().get(self.item).unwrap();
+        let item_def = item_registry().get(self.item);
         let available_space = item_def.max_stack - self.count;
         let to_add = count.min(available_space);
         self.count += to_add;
@@ -281,7 +281,7 @@ impl Inventory {
     /// Adds a specified count of items of a given item to the inventory, splitting it into
     /// multiple stacks if necessary.
     pub fn add_stack(&mut self, item: ItemId, mut count: u16) {
-        let item_def = item_registry().get(item).unwrap();
+        let item_def = item_registry().get(item);
         let n_stacks = count.div_ceil(item_def.max_stack);
         for _ in 0..n_stacks {
             let stack_count = count.min(item_def.max_stack);
