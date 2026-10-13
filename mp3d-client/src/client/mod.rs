@@ -177,8 +177,8 @@ impl<C: Connection> Client<C> {
             CurrentGUI::None => {
                 let mouse_delta = update_context.mouse.delta;
                 let previous_yaw = self.player.yaw;
-                self.player.yaw -= mouse_delta.x * 0.1 * sensitivity;
-                self.player.pitch += mouse_delta.y * 0.1 * sensitivity;
+                self.player.yaw -= mouse_delta.x * 0.2 * sensitivity;
+                self.player.pitch += mouse_delta.y * 0.2 * sensitivity;
                 self.player.pitch = self.player.pitch.clamp(-89.0, 89.0);
                 self.player.yaw = self.player.yaw.rem_euclid(360.0);
                 self.player.delta_yaw = self.player.yaw - previous_yaw;
