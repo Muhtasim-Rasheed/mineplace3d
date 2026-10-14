@@ -53,6 +53,11 @@ pub struct LocalPlayer {
     pub yaw: f32,
     pub delta_yaw: f32,
     pub pitch: f32,
+    pub delta_pitch: f32,
+    pub was_moving_last_frame: bool,
+    pub target_position: Option<Vec3>,
+    pub target_yaw: Option<f32>,
+    pub target_pitch: Option<f32>,
     pub fov: f32,
     pub flying: bool,
     pub on_ground: bool,
@@ -71,6 +76,11 @@ impl Default for LocalPlayer {
             yaw: 0.0,
             delta_yaw: 0.0,
             pitch: 0.0,
+            delta_pitch: 0.0,
+            was_moving_last_frame: false,
+            target_position: None,
+            target_yaw: None,
+            target_pitch: None,
             fov: 90.0,
             flying: false,
             on_ground: false,
@@ -224,36 +234,33 @@ impl LocalPlayer {
     pub fn update_from_snapshot(&mut self, snapshot: &[u8]) -> Result<(), ReadError> {
         let details = EntityDetails::from_bytes(snapshot)?;
 
-        let server_pos = details.get::<Position>().map(|Position(p)| p);
-        let server_rot = details
-            .get::<Rotation>()
-            .map(|Rotation { yaw, pitch }| (yaw, pitch));
-
-        if let Some(pos) = server_pos {
-            let delta = pos - self.position;
-            if delta.length_squared() > SNAP_DISTANCE * SNAP_DISTANCE {
+        if let Some(Position(pos)) = details.get::<Position>() {
+            if (pos - self.position).length_squared() > SNAP_DISTANCE * SNAP_DISTANCE {
                 self.position = pos;
+                self.target_position = None;
             } else {
-                self.position += delta * 0.15;
+                self.target_position = Some(pos);
             }
         }
 
         let previous_yaw = self.yaw;
-        if let Some((yaw, pitch)) = server_rot {
-            let angle_diff_yaw = angle_delta(self.yaw, yaw).abs();
-            let angle_diff_pitch = angle_delta(self.pitch, pitch).abs();
-            if angle_diff_yaw > SNAP_ANGLE {
+        let previous_pitch = self.pitch;
+        if let Some(Rotation { yaw, pitch }) = details.get::<Rotation>() {
+            if angle_delta(self.yaw, yaw).abs() > SNAP_ANGLE {
                 self.yaw = yaw;
+                self.target_yaw = None;
             } else {
-                self.yaw += angle_diff_yaw * 0.15;
+                self.target_yaw = Some(yaw);
             }
-            if angle_diff_pitch > SNAP_ANGLE {
+            if angle_delta(self.pitch, pitch).abs() > SNAP_ANGLE {
                 self.pitch = pitch;
+                self.target_pitch = None;
             } else {
-                self.pitch += angle_diff_pitch * 0.15;
+                self.target_pitch = Some(pitch);
             }
         }
         self.delta_yaw = self.yaw - previous_yaw;
+        self.delta_pitch = self.pitch - previous_pitch;
 
         if let Some(inv) = details.get::<Inventory>() {
             self.inventory.borrow_mut().update_from_inventory(inv);
@@ -275,7 +282,46 @@ impl LocalPlayer {
         Ok(())
     }
 
+    pub fn smooth_toward_server(&mut self, dt: f32) {
+        const RATE: f32 = 12.0;
+        let t = 1.0 - (-RATE * dt).exp();
+
+        if let Some(target) = self.target_position {
+            self.position += (target - self.position) * t;
+            if (target - self.position).length_squared() < 1e-6 {
+                self.position = target;
+                self.target_position = None;
+            }
+        }
+
+        let previous_yaw = self.yaw;
+        let previous_pitch = self.pitch;
+
+        if let Some(target) = self.target_yaw {
+            let d = angle_delta(self.yaw, target);
+            self.yaw += d * t;
+            if d.abs() < 0.01 {
+                self.yaw = target;
+                self.target_yaw = None;
+            }
+        }
+
+        if let Some(target) = self.target_pitch {
+            let d = angle_delta(self.pitch, target);
+            self.pitch += d * t;
+            if d.abs() < 0.01 {
+                self.pitch = target;
+                self.target_pitch = None;
+            }
+        }
+
+        self.delta_yaw = self.yaw - previous_yaw;
+        self.delta_pitch = self.pitch - previous_pitch;
+    }
+
     pub fn optimistic(&mut self, dt: f32, world: &ClientWorld) {
+        self.smooth_toward_server(dt);
+
         if !world
             .chunks
             .contains_key(&(self.position.as_ivec3() / CHUNK_SIZE as i32))

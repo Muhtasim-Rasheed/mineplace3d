@@ -11,8 +11,8 @@ const DESC: &str = r#"
 `help` - Output all commands in a page format without descriptions, or output the description of a specific command.
 
 Usage: `/help <page | command>`
-  - `/help page` Output page `page`.
-  - `/help command` Output details on a command.
+  - `/help <page>` Output page `page`.
+  - `/help <command>` Output details on a command.
 
 Example: `/help 2` outputs the second page of the command list, and `/help tp` outputs the description of the `tp` command.
 "#;

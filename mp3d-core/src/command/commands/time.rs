@@ -13,8 +13,8 @@ There is no day / night system yet, so this command really doesn't do anything o
 
 Usage: `/time [<get | add | sub>]`
   - `/time get` Output current time.
-  - `/time add inc` Increment time by `inc`.
-  - `/time sub dec` Decrement time by `dec`.
+  - `/time add <inc>` Increment time by `inc`.
+  - `/time sub <dec>` Decrement time by `dec`.
   - `/time` Default to `/time get`.
 
 Example: `/time` outputs current time.

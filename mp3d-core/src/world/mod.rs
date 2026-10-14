@@ -55,9 +55,8 @@ pub struct World {
     /// be sent to players.
     pub(crate) pending_changes: PendingChanges,
 
-    /// A map of chunk positions to a map of local block positions to the new block and block
-    /// state. This is used to track changes to chunks that have been modified by the player or
-    /// other entities.
+    /// A map of chunk positions to a map of local block positions to the new block state. This is
+    /// used to track changes to chunks that have been modified by the player or other entities.
     changes: FxHashMap<IVec3, FxHashMap<IVec3, BlockState>>,
 
     block_update_tracker: BlockUpdateTracker,

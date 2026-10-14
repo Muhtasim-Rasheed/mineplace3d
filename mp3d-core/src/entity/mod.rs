@@ -113,6 +113,16 @@ impl EntityDetails {
     }
 }
 
+impl std::fmt::Debug for EntityDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("EntityDetails");
+        for (id, bytes) in &self.components {
+            s.field(component_registry().get(*id).ident, bytes);
+        }
+        s.finish()
+    }
+}
+
 pub struct EntityDetailsBuilder {
     components: Vec<(ComponentId, Vec<u8>)>,
 }

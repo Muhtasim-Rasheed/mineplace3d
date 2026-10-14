@@ -16,7 +16,7 @@ pub struct SetBlockCommand;
 const DESC: &str = r#"
 `setblock` - Set a block at the specified coordinates, optionally specifying blockstate aswell.
 
-Usage: `/setblock x y z block_ident[state_property=state_value...]`
+Usage: `/setblock <x y z> <block_ident[state_property=state_value...]>`
 The block identifier is a string that identifies a block. A coordinate can be a number (e.g. "100.5"), be relative from the player's position (e.g. "~4") or scale on the player's forward direction (e.g. "^10"). Finally, the state_data is a 16-bit integer that defines the blocks behavior and appearance.
 
 Example: `/setblock ~ ~10 ~ stone_slab[half=top]` places a top-slab 10 blocks above the player.

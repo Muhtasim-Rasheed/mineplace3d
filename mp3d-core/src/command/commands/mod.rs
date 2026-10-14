@@ -3,6 +3,7 @@ use crate::command::CommandManager;
 mod clear;
 mod give;
 mod help;
+mod lookat;
 mod say;
 mod seed;
 mod setblock;
@@ -22,6 +23,7 @@ pub fn init_command_mgr(mgr: &mut CommandManager) {
     mgr.register(spawn::SpawnCommand);
     mgr.register(tp::TpCommand);
     mgr.register(tps::TpsCommand);
+    mgr.register(lookat::LookAtCommand);
     mgr.register(test::TestCommand);
     mgr.register(time::TimeCommand);
 }

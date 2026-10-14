@@ -378,7 +378,17 @@ impl<C: Connection> Client<C> {
 
         self.player.input.yaw = self.player.yaw;
         self.player.input.pitch = self.player.pitch;
-        send_or_bail!(self, C2SMessage::Move(self.player.input));
+        if self.player.velocity.length_squared() > 0.001
+            || self.player.input.sneak
+            || self.player.delta_yaw > 0.001
+            || self.player.delta_pitch > 0.001
+        {
+            send_or_bail!(self, C2SMessage::Move(self.player.input));
+            self.player.was_moving_last_frame = true;
+        } else if self.player.was_moving_last_frame {
+            send_or_bail!(self, C2SMessage::Move(self.player.input));
+            self.player.was_moving_last_frame = false;
+        }
 
         let needed_chunks = self.world.needs_chunks(self.player.position.as_ivec3());
         self.world
