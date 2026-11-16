@@ -6,7 +6,7 @@ pub use registration::*;
 
 use crate::{define_blocks, direction::Direction};
 
-pub mod behaviors;
+mod behaviors;
 mod blockstate;
 mod registration;
 mod save_impls;
@@ -150,21 +150,6 @@ define_blocks! {
     },
     GOLD => { ident: "gold" },
     DIAMOND => { ident: "diamond" },
-    STONE_BUTTON => {
-        ident: "stone_button",
-        collision_shape: CollisionShape::None,
-        interact_shape: CollisionShape::FullBlock,
-        state_properties: vec![PropertyDef::new("facing", Direction::North), PropertyDef::new("active_timer", LimitedInt::<24>(0))],
-        on_click: Box::new(button::on_click),
-        on_place: Box::new(button::on_place),
-        on_update: Box::new(button::on_update),
-    },
-    GLUNGUS_WIRE => {
-        ident: "glungus_wire",
-        state_properties: vec![PropertyDef::new("facing", Direction::North), PropertyDef::new("active", false)],
-        on_place: Box::new(glungus_wire::on_place),
-        on_update: Box::new(glungus_wire::on_update),
-    },
 }
 
 /// Collision shape used for collision detection.
