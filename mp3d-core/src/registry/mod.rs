@@ -27,6 +27,12 @@ impl<Id: DefId> LazyId<Id> {
     }
 }
 
+impl<Id: DefId> Default for LazyId<Id> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Id: DefId> std::ops::Deref for LazyId<Id> {
     type Target = Id;
     fn deref(&self) -> &Self::Target {
@@ -106,5 +112,11 @@ impl<Entry: Def> Registry<Entry> {
 
     pub fn get(&self, id: Entry::Id) -> &Entry {
         self.entries.get(id.get()).unwrap()
+    }
+}
+
+impl<Entry: Def> Default for Registry<Entry> {
+    fn default() -> Self {
+        Self::new()
     }
 }

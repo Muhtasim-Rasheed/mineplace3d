@@ -267,7 +267,6 @@ impl World {
 
         let old_state = self
             .get_block_at(pos)
-            .map(|bs| bs)
             .unwrap_or(BlockState::default_for(*blocks::AIR));
 
         self.urgent_set_block_at(pos, state, BlockUpdateKind::Placed);
@@ -312,10 +311,10 @@ impl World {
 
         if let Some(state) = self.get_block_at(block_pos) {
             let def = block_registry().get(state.block);
-            if let Some(on_click) = &def.on_click {
-                if on_click(self, player_entity_id, block_pos, state, face) {
-                    return; // hook fully handled the interaction
-                }
+            if let Some(on_click) = &def.on_click
+                && on_click(self, player_entity_id, block_pos, state, face)
+            {
+                return; // hook fully handled the interaction
             }
         }
 
@@ -763,7 +762,7 @@ fn load_v0_to_v9(
             let entity_data_len = entities_reader.u32().ctx("entity data length")? as usize;
             let entity_data = entities_reader.take(entity_data_len).ctx("entity data")?;
 
-            let details = EntityDetails::from_bytes(&entity_data)?;
+            let details = EntityDetails::from_bytes(entity_data)?;
 
             world.ecs.spawn_from_details(&details);
         }

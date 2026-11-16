@@ -26,7 +26,7 @@ impl CommandArg for Subcommand {
             Some("pass") => Ok(Self::Pass),
             Some("error") => Ok(Self::Error),
             Some(s) => Err(format!("Invalid test mode '{}'", s)),
-            None => Err(format!("Expected a test mode but got nothing")),
+            None => Err("Expected a test mode but got nothing".to_string()),
         }
     }
 }

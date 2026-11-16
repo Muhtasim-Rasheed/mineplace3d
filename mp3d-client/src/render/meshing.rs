@@ -392,13 +392,11 @@ fn mesh_chunk(
                                 continue;
                             };
                             let n_def = block_registry().get(neighbor_block.block);
-                            if n_def.visible {
-                                if let Some(n_model) = block_model_loader.get(neighbor_block) {
-                                    if face_occluded(face, dir, n_model) {
+                            if n_def.visible
+                                && let Some(n_model) = block_model_loader.get(neighbor_block)
+                                    && face_occluded(face, dir, n_model) {
                                         continue;
                                     }
-                                }
-                            }
                         }
 
                         let mut aos = [3u8; 4];

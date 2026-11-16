@@ -65,18 +65,20 @@ pub fn init_component_registry() {
 }
 
 #[macro_export]
-macro_rules! define_component {
-    ($name:ident, $ty:ty, ($to_fn:expr, $from_fn:expr), $ident:expr) => {
+macro_rules! impl_component {
+    (
+        name: $name:ident,
+        ident: $ident:literal,
+        ty: $ty:ty,
+        $to_bytes:item
+        $from_bytes:item
+    ) => {
         impl $crate::entity::components::Component for $ty {
             fn component_id() -> $crate::entity::components::ComponentId {
                 *$name
             }
-            fn to_bytes(&self) -> Vec<u8> {
-                $to_fn(self)
-            }
-            fn from_bytes(bytes: &[u8]) -> Result<Self, $crate::serialize::read::ReadError> {
-                $from_fn(bytes)
-            }
+            $to_bytes
+            $from_bytes
         }
 
         pub static $name: $crate::registry::LazyId<$crate::entity::components::registration::ComponentId> =

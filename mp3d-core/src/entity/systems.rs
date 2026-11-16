@@ -22,7 +22,7 @@ pub fn movement_system(world: &mut World, dt: f32) {
             position: pos.0,
             velocity: vel.0,
             on_ground: on_ground.0,
-            flying: flying.as_ref().map_or(false, |v| v.0),
+            flying: flying.as_ref().is_some_and(|v| v.0),
         };
         let state = step(
             state,

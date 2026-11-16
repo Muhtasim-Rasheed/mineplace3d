@@ -49,12 +49,12 @@ impl<'de> serde::Deserialize<'de> for BlockId {
     }
 }
 
-pub type OnClick =
-    Box<dyn Fn(&mut World, EntityId, IVec3, BlockState, Direction) -> bool + Send + Sync>;
-pub type OnPlace =
-    Box<dyn Fn(BlockId, &mut World, EntityId, IVec3, Direction) -> BlockState + Send + Sync>;
-pub type OnBreak = Box<dyn Fn(&mut World, EntityId, IVec3, BlockState) + Send + Sync>;
-pub type OnUpdate = Box<dyn Fn(&mut World, IVec3, BlockState) -> bool + Send + Sync>;
+trait_aliases::trait_aliases! {
+    pub trait OnClick = Fn(&mut World, EntityId, IVec3, BlockState, Direction) -> bool + Send + Sync + 'static;
+    pub trait OnPlace = Fn(BlockId, &mut World, EntityId, IVec3, Direction) -> BlockState + Send + Sync + 'static;
+    pub trait OnBreak = Fn(&mut World, EntityId, IVec3, BlockState) + Send + Sync + 'static;
+    pub trait OnUpdate = Fn(&mut World, IVec3, BlockState) -> bool + Send + Sync + 'static;
+}
 
 pub struct PropertyDef {
     pub name: &'static str,
@@ -110,11 +110,10 @@ pub struct BlockDef {
     pub default_state: u128,
     pub from_legacy_state: Option<fn(BlockState, u16) -> BlockState>,
 
-    pub on_click: Option<OnClick>,
-    pub on_place: Option<OnPlace>,
-    pub on_break: Option<OnBreak>,
-
-    pub on_update: Option<OnUpdate>,
+    pub on_click: Option<Box<dyn OnClick>>,
+    pub on_place: Option<Box<dyn OnPlace>>,
+    pub on_break: Option<Box<dyn OnBreak>>,
+    pub on_update: Option<Box<dyn OnUpdate>>,
 }
 
 impl Def for BlockDef {
@@ -371,9 +370,7 @@ impl BlockDef {
                 )
             }
             CollisionShape::Slab => {
-                let Some(shape) = block_state.get::<SlabHalf>("half") else {
-                    return None;
-                };
+                let shape = block_state.get::<SlabHalf>("half")?;
                 let (block_min, block_max) = match shape {
                     SlabHalf::Bottom => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.5, 1.0)),
                     SlabHalf::Top => (Vec3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 1.0, 1.0)),
@@ -387,9 +384,7 @@ impl BlockDef {
                 )
             }
             CollisionShape::Stairs => {
-                let Some(HorizontalDir(shape)) = block_state.get::<HorizontalDir>("facing") else {
-                    return None;
-                };
+                let HorizontalDir(shape) = block_state.get::<HorizontalDir>("facing")?;
                 let element_a_min = Vec3::new(0.0, 0.0, 0.0);
                 let element_a_max = Vec3::new(1.0, 0.5, 1.0);
                 let (element_b_min, element_b_max) = match shape {
@@ -416,9 +411,7 @@ impl BlockDef {
                 })
             }
             CollisionShape::VSlab => {
-                let Some(HorizontalDir(shape)) = block_state.get::<HorizontalDir>("facing") else {
-                    return None;
-                };
+                let HorizontalDir(shape) = block_state.get::<HorizontalDir>("facing")?;
                 let (block_min, block_max) = match shape {
                     Direction::North => (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 0.5)),
                     Direction::South => (Vec3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 1.0, 1.0)),

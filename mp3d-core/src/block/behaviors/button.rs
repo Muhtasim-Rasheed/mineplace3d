@@ -39,7 +39,9 @@ pub fn on_place(id: BlockId, _: &mut World, _: EntityId, _: IVec3, face: Directi
 
 pub fn on_update(world: &mut World, pos: IVec3, block_state: BlockState) -> bool {
     let face = block_state.get::<Direction>("facing").unwrap();
-    let _ = needs_support::on_update(world, pos, face) && return true; // if block was removed, exit
+    if needs_support::on_update(world, pos, face) {
+        return true;
+    }
 
     let timer = block_state.get::<LimitedInt<24>>("active_timer").unwrap();
     if timer.0 == 0 {

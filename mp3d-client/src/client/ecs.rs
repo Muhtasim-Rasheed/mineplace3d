@@ -26,10 +26,6 @@ impl ClientEcs {
         self.entities.remove(&id);
     }
 
-    pub fn get<T: Component>(&self, id: EntityId) -> Option<T> {
-        self.entities.get(&id)?.get::<T>()
-    }
-
     pub fn query<Q: ClientQuery>(&self) -> impl Iterator<Item = (EntityId, Q::Item)> + '_ {
         self.entities
             .iter()

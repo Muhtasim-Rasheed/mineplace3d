@@ -86,3 +86,9 @@ impl ByteWriter {
         self.data
     }
 }
+
+impl Default for ByteWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}

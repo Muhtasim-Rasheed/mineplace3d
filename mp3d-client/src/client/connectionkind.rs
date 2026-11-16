@@ -4,7 +4,7 @@ use crate::client::{Connection, localconnection::LocalConnection, tcpconnection:
 
 pub enum ConnectionKind {
     SinglePlayer {
-        connection: LocalConnection,
+        connection: Box<LocalConnection>,
         world_path: std::path::PathBuf,
     },
     Multiplayer {

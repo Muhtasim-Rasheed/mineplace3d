@@ -173,15 +173,10 @@ impl FrameReader {
 
 impl Connection for TcpConnection {
     fn send(&mut self, message: C2SMessage) -> bool {
-        if self
+        self
             .outbound_tx
             .send(OutboundEvent::Message(message))
             .is_err()
-        {
-            true
-        } else {
-            false
-        }
     }
 
     fn flush(&mut self) {

@@ -106,11 +106,11 @@ impl GameScene {
         username: String,
     ) -> Self {
         let c = ConnectionKind::SinglePlayer {
-            connection: LocalConnection::new(mp3d_core::server::Server::new(
+            connection: Box::new(LocalConnection::new(mp3d_core::server::Server::new(
                 true,
                 seed,
                 world_path.clone(),
-            )),
+            ))),
             world_path,
         };
         GameScene::setup(c, gl, assets, window_size, username, None)
@@ -125,10 +125,10 @@ impl GameScene {
         username: String,
     ) -> Result<Self, ReadError> {
         let c = ConnectionKind::SinglePlayer {
-            connection: LocalConnection::new(mp3d_core::server::Server::load(
+            connection: Box::new(LocalConnection::new(mp3d_core::server::Server::load(
                 true,
                 world_path.clone(),
-            )?),
+            )?)),
             world_path,
         };
         Ok(GameScene::setup(c, gl, assets, window_size, username, None))
@@ -531,7 +531,7 @@ impl super::Scene for GameScene {
                     } = &self.client.connection
                     {
                         log::info!("Saving world...");
-                        std::fs::create_dir_all(&world_path)
+                        std::fs::create_dir_all(world_path)
                             .expect("Failed to create world directory");
                         connection.server.save().expect("Failed to save world");
                     }
@@ -554,7 +554,7 @@ impl super::Scene for GameScene {
                     } = &self.client.connection
                     {
                         log::info!("Saving world...");
-                        std::fs::create_dir_all(&world_path)
+                        std::fs::create_dir_all(world_path)
                             .expect("Failed to create world directory");
                         connection.server.save().expect("Failed to save world");
                     }
@@ -594,7 +594,7 @@ impl super::Scene for GameScene {
                     } = &self.client.connection
                     {
                         log::info!("Saving world...");
-                        std::fs::create_dir_all(&world_path)
+                        std::fs::create_dir_all(world_path)
                             .expect("Failed to create world directory");
                         connection.server.save().expect("Failed to save world");
                     }
@@ -628,7 +628,7 @@ impl super::Scene for GameScene {
             }
 
             if self.tick_acc >= tick_time {
-                self.tick_acc = self.tick_acc % tick_time;
+                self.tick_acc %= tick_time;
             }
         }
 
@@ -855,16 +855,15 @@ impl super::Scene for GameScene {
 
             // DEBUG - TEXT & GRAPHS
 
-            if self.ui.show_hud {
-                if self.ui.debug_opened {
-                    let block_pos = self.client.player.position.as_ivec3();
-                    let chunk = block_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
-                    let chunk_local = block_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
-                    let looking_at = cast_ray(&self.client.world, &self.client.player, 5.0)
-                        .map(|(p, _)| (p, self.client.world.get_block_at(p).unwrap()));
+            if self.ui.show_hud && self.ui.debug_opened {
+                let block_pos = self.client.player.position.as_ivec3();
+                let chunk = block_pos.div_euclid(IVec3::splat(CHUNK_SIZE as i32));
+                let chunk_local = block_pos.rem_euclid(IVec3::splat(CHUNK_SIZE as i32));
+                let looking_at = cast_ray(&self.client.world, &self.client.player, 5.0)
+                    .map(|(p, _)| (p, self.client.world.get_block_at(p).unwrap()));
 
-                    let text = format!(
-                        r#"Mineplace3D v{}
+                let text = format!(
+                    r#"Mineplace3D v{}
 
 {} FPS
 
@@ -876,77 +875,117 @@ Chunk: X: {} Y: {} Z: {}
 Chunk local: X: {} Y: {} Z: {}
 
 {}"#,
-                        env!("CARGO_PKG_VERSION"),
-                        self.ui.fps as u32,
-                        self.client.player.position.x,
-                        self.client.player.position.y,
-                        self.client.player.position.z,
-                        self.client.player.yaw,
-                        self.client.player.pitch,
-                        mp3d_core::direction::Direction::from(self.client.player.forward()),
-                        mp3d_core::direction::Direction::from(self.client.player.forward()),
-                        block_pos.x,
-                        block_pos.y,
-                        block_pos.z,
-                        chunk.x,
-                        chunk.y,
-                        chunk.z,
-                        chunk_local.x,
-                        chunk_local.y,
-                        chunk_local.z,
-                        looking_at
-                            .map(|(p, b)| format!(
-                                "Looking at block: {:?} @ X: {} Y: {} Z: {}",
-                                b, p.x, p.y, p.z
-                            ))
-                            .unwrap_or_default(),
-                    );
+                    env!("CARGO_PKG_VERSION"),
+                    self.ui.fps as u32,
+                    self.client.player.position.x,
+                    self.client.player.position.y,
+                    self.client.player.position.z,
+                    self.client.player.yaw,
+                    self.client.player.pitch,
+                    mp3d_core::direction::Direction::from(self.client.player.forward()),
+                    mp3d_core::direction::Direction::from(self.client.player.forward()),
+                    block_pos.x,
+                    block_pos.y,
+                    block_pos.z,
+                    chunk.x,
+                    chunk.y,
+                    chunk.z,
+                    chunk_local.x,
+                    chunk_local.y,
+                    chunk_local.z,
+                    looking_at
+                        .map(|(p, b)| format!(
+                            "Looking at block: {:?} @ X: {} Y: {} Z: {}",
+                            b, p.x, p.y, p.z
+                        ))
+                        .unwrap_or_default(),
+                );
 
-                    for mut cmd in assets.font.text(&text, TextParams::default()) {
-                        match &mut cmd {
-                            DrawCommand::Quad { rect, .. } => {
-                                rect[0] += Vec2::new(10.0, 10.0);
-                                rect[1] += Vec2::new(10.0, 10.0);
-                            }
-                            DrawCommand::Mesh { vertices, .. } => {
-                                for v in vertices {
-                                    v.position += Vec3::new(10.0, 10.0, 0.0);
-                                }
+                for mut cmd in assets.font.text(&text, TextParams::default()) {
+                    match &mut cmd {
+                        DrawCommand::Quad { rect, .. } => {
+                            rect[0] += Vec2::new(10.0, 10.0);
+                            rect[1] += Vec2::new(10.0, 10.0);
+                        }
+                        DrawCommand::Mesh { vertices, .. } => {
+                            for v in vertices {
+                                v.position += Vec3::new(10.0, 10.0, 0.0);
                             }
                         }
-                        ui.add_command(cmd);
                     }
+                    ui.add_command(cmd);
+                }
 
-                    // draw the fps graph on the top right side and also show the current, average, min
-                    // and max fps
-                    let graph_x = self.screen_size.x as f32 - FPS_GRAPH_WIDTH - 10.0;
-                    let bar_width = FPS_GRAPH_WIDTH / FPS_HISTORY_LEN as f32;
-                    let max_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::max);
-                    let min_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::min);
-                    let average_fps =
-                        self.ui.fps_history.iter().sum::<f32>() / FPS_HISTORY_LEN as f32;
-                    for (i, fps) in self.ui.fps_history.iter().enumerate() {
-                        let x = graph_x + i as f32 / FPS_HISTORY_LEN as f32 * FPS_GRAPH_WIDTH;
-                        let y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT - (fps / max_fps * FPS_GRAPH_HEIGHT);
-                        let bar_height = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT - y;
-                        ui.add_command(DrawCommand::Quad {
-                            rect: [Vec2::new(x, y), Vec2::new(x + bar_width, y + bar_height)],
-                            uv_rect: DEFAULT_UV_RECT,
-                            mode: UIRenderMode::Color(Vec4::new(0.0, 1.0, 0.0, 0.6)),
-                            layer: 0,
-                        });
+                // draw the fps graph on the top right side and also show the current, average, min
+                // and max fps
+                let graph_x = self.screen_size.x as f32 - FPS_GRAPH_WIDTH - 10.0;
+                let bar_width = FPS_GRAPH_WIDTH / FPS_HISTORY_LEN as f32;
+                let max_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::max);
+                let min_fps = self.ui.fps_history.iter().cloned().fold(f32::NAN, f32::min);
+                let average_fps = self.ui.fps_history.iter().sum::<f32>() / FPS_HISTORY_LEN as f32;
+                for (i, fps) in self.ui.fps_history.iter().enumerate() {
+                    let x = graph_x + i as f32 / FPS_HISTORY_LEN as f32 * FPS_GRAPH_WIDTH;
+                    let y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT - (fps / max_fps * FPS_GRAPH_HEIGHT);
+                    let bar_height = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT - y;
+                    ui.add_command(DrawCommand::Quad {
+                        rect: [Vec2::new(x, y), Vec2::new(x + bar_width, y + bar_height)],
+                        uv_rect: DEFAULT_UV_RECT,
+                        mode: UIRenderMode::Color(Vec4::new(0.0, 1.0, 0.0, 0.6)),
+                        layer: 0,
+                    });
+                }
+
+                let stats_text = format!(
+                    "FPS: {:.2}\nAvg: {:.2}\nMin: {:.2}\nMax: {:.2}",
+                    self.ui.fps, average_fps, min_fps, max_fps
+                );
+                let measurement = assets
+                    .font
+                    .measure_text(&stats_text, ColorlessTextParams::default());
+                let text_x = self.screen_size.x as f32 - measurement.x - 10.0;
+                let text_y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT + 10.0;
+                for mut cmd in assets.font.text(&stats_text, TextParams::default()) {
+                    match &mut cmd {
+                        DrawCommand::Quad { rect, .. } => {
+                            rect[0] += Vec2::new(text_x, text_y);
+                            rect[1] += Vec2::new(text_x, text_y);
+                        }
+                        DrawCommand::Mesh { vertices, .. } => {
+                            for v in vertices {
+                                v.position += Vec3::new(text_x, text_y, 0.0);
+                            }
+                        }
                     }
+                    ui.add_command(cmd);
+                }
 
-                    let stats_text = format!(
-                        "FPS: {:.2}\nAvg: {:.2}\nMin: {:.2}\nMax: {:.2}",
-                        self.ui.fps, average_fps, min_fps, max_fps
-                    );
-                    let measurement = assets
-                        .font
-                        .measure_text(&stats_text, ColorlessTextParams::default());
-                    let text_x = self.screen_size.x as f32 - measurement.x - 10.0;
-                    let text_y = FPS_GRAPH_Y + FPS_GRAPH_HEIGHT + 10.0;
-                    for mut cmd in assets.font.text(&stats_text, TextParams::default()) {
+                // profiler horizontal bar graph
+                let total_time: f32 = self
+                    .renderer
+                    .profiler
+                    .smoothed_entries
+                    .iter()
+                    .map(|entry| entry.duration.as_secs_f32() * 1000.0)
+                    .sum();
+                let graph_height = 35.0 * self.renderer.profiler.entries.len() as f32;
+                let graph_x = self.screen_size.x as f32 - PROFILER_GRAPH_WIDTH - 10.0;
+                let mut current_y = self.screen_size.y as f32 - graph_height - 10.0;
+                for entry in self.renderer.profiler.smoothed_entries.iter() {
+                    let entry_time = entry.duration.as_secs_f32() * 1000.0;
+                    let bar_width = entry_time / total_time * PROFILER_GRAPH_WIDTH;
+                    ui.add_command(DrawCommand::Quad {
+                        rect: [
+                            Vec2::new(graph_x, current_y),
+                            Vec2::new(graph_x + bar_width, current_y + 30.0),
+                        ],
+                        uv_rect: DEFAULT_UV_RECT,
+                        mode: UIRenderMode::Color(Vec4::new(0.0, 0.0, 1.0, 0.6)),
+                        layer: 0,
+                    });
+                    let entry_text = format!("{}: {:.2} ms", entry.name, entry_time);
+                    let text_x = graph_x + 5.0;
+                    let text_y = current_y + 1.0;
+                    for mut cmd in assets.font.text(&entry_text, TextParams::default()) {
                         match &mut cmd {
                             DrawCommand::Quad { rect, .. } => {
                                 rect[0] += Vec2::new(text_x, text_y);
@@ -960,49 +999,7 @@ Chunk local: X: {} Y: {} Z: {}
                         }
                         ui.add_command(cmd);
                     }
-
-                    // profiler horizontal bar graph
-                    let total_time: f32 = self
-                        .renderer
-                        .profiler
-                        .smoothed_entries
-                        .iter()
-                        .map(|entry| entry.duration.as_secs_f32() * 1000.0)
-                        .sum();
-                    let graph_height = 35.0 * self.renderer.profiler.entries.len() as f32;
-                    let graph_x = self.screen_size.x as f32 - PROFILER_GRAPH_WIDTH - 10.0;
-                    let mut current_y = self.screen_size.y as f32 - graph_height - 10.0;
-                    for entry in self.renderer.profiler.smoothed_entries.iter() {
-                        let entry_time = entry.duration.as_secs_f32() * 1000.0;
-                        let bar_width = entry_time / total_time * PROFILER_GRAPH_WIDTH;
-                        ui.add_command(DrawCommand::Quad {
-                            rect: [
-                                Vec2::new(graph_x, current_y),
-                                Vec2::new(graph_x + bar_width, current_y + 30.0),
-                            ],
-                            uv_rect: DEFAULT_UV_RECT,
-                            mode: UIRenderMode::Color(Vec4::new(0.0, 0.0, 1.0, 0.6)),
-                            layer: 0,
-                        });
-                        let entry_text = format!("{}: {:.2} ms", entry.name, entry_time);
-                        let text_x = graph_x + 5.0;
-                        let text_y = current_y + 1.0;
-                        for mut cmd in assets.font.text(&entry_text, TextParams::default()) {
-                            match &mut cmd {
-                                DrawCommand::Quad { rect, .. } => {
-                                    rect[0] += Vec2::new(text_x, text_y);
-                                    rect[1] += Vec2::new(text_x, text_y);
-                                }
-                                DrawCommand::Mesh { vertices, .. } => {
-                                    for v in vertices {
-                                        v.position += Vec3::new(text_x, text_y, 0.0);
-                                    }
-                                }
-                            }
-                            ui.add_command(cmd);
-                        }
-                        current_y += 35.0;
-                    }
+                    current_y += 35.0;
                 }
             }
 

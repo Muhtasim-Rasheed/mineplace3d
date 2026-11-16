@@ -226,11 +226,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             connection_id,
                             message,
                         } => {
-                            if let Some(reply) = server.handle_message(connection_id, message) {
-                                if let Some(sender) = outbound_senders.get(&connection_id) {
+                            if let Some(reply) = server.handle_message(connection_id, message)
+                                && let Some(sender) = outbound_senders.get(&connection_id) {
                                     sender.send(reply).ok();
                                 }
-                            }
                             if let Some(&session_id) = server.connections.get(&connection_id) {
                                 session_to_connection
                                     .entry(session_id)

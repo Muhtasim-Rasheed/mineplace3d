@@ -1,11 +1,11 @@
 use glam::Vec3;
 
 use crate::{
-    define_component,
     entity::{
         EntityId, MoveInput,
         registration::{EntityDefId, entity_registry},
     },
+    impl_component,
     item::Inventory,
     serialize::{
         read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
@@ -95,6 +95,12 @@ impl<T> ComponentStorage<T> {
     }
 }
 
+impl<T> Default for ComponentStorage<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub trait ErasedStorage: Any {
     fn remove(&mut self, entity: EntityId);
     fn snapshot(&self, entity: EntityId) -> Option<Vec<u8>>;
@@ -126,12 +132,13 @@ impl<T: Component> ErasedStorage for ComponentStorage<T> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Position(pub Vec3);
-
-impl Position {
+impl_component! {
+    name: POSITION,
+    ident: "position",
+    ty: Position,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().vec3(self.0).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .vec3()
@@ -142,12 +149,13 @@ impl Position {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Velocity(pub Vec3);
-
-impl Velocity {
+impl_component! {
+    name: VELOCITY,
+    ident: "velocity",
+    ty: Velocity,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().vec3(self.0).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .vec3()
@@ -161,12 +169,13 @@ pub struct Rotation {
     pub yaw: f32,
     pub pitch: f32,
 }
-
-impl Rotation {
+impl_component! {
+    name: ROTATION,
+    ident: "rotation",
+    ty: Rotation,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().f32(self.yaw).f32(self.pitch).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
@@ -178,12 +187,13 @@ impl Rotation {
 
 #[derive(Debug, Clone, Copy)]
 pub struct OnGround(pub bool);
-
-impl OnGround {
+impl_component! {
+    name: ON_GROUND,
+    ident: "on_ground",
+    ty: OnGround,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().bool(self.0).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .bool()
@@ -194,15 +204,16 @@ impl OnGround {
 
 #[derive(Debug, Clone)]
 pub struct Username(pub String);
-
-impl Username {
+impl_component! {
+    name: USERNAME,
+    ident: "username",
+    ty: Username,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new()
             .u16(self.0.len() as u16)
             .string(&self.0)
             .into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         let len = reader.u16().ctx("username length")? as usize;
@@ -210,11 +221,13 @@ impl Username {
     }
 }
 
-impl Inventory {
+impl_component! {
+    name: INVENTORY,
+    ident: "inventory",
+    ty: Inventory,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().save(self).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes).load(crate::serialize::SAVE_VERSION)
     }
@@ -223,11 +236,13 @@ impl Inventory {
 #[derive(Debug, Clone, Copy)]
 pub struct SelectedHotbarSlot(pub usize);
 
-impl SelectedHotbarSlot {
+impl_component! {
+    name: SELECTED_HOTBAR_SLOT,
+    ident: "selected_hotbar_slot",
+    ty: SelectedHotbarSlot,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().u8(self.0 as u8).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         match ByteReader::new(bytes).u8() {
             Ok(v) if v < 9 => Ok(Self(v as usize)),
@@ -241,11 +256,13 @@ impl SelectedHotbarSlot {
 #[derive(Debug, Clone, Copy)]
 pub struct Flying(pub bool);
 
-impl Flying {
+impl_component! {
+    name: FLYING,
+    ident: "flying",
+    ty: Flying,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().bool(self.0).into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .bool()
@@ -259,15 +276,16 @@ pub struct Hitbox {
     pub width: f32,
     pub height: f32,
 }
-
-impl Hitbox {
+impl_component! {
+    name: HITBOX,
+    ident: "hitbox",
+    ty: Hitbox,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new()
             .f32(self.width)
             .f32(self.height)
             .into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
@@ -277,7 +295,10 @@ impl Hitbox {
     }
 }
 
-impl MoveInput {
+impl_component! {
+    name: MOVE_INPUT,
+    ident: "move_input",
+    ty: MoveInput,
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new()
             .f32(self.forward)
@@ -286,7 +307,6 @@ impl MoveInput {
             .bool(self.sneak)
             .into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
@@ -300,8 +320,10 @@ impl MoveInput {
 
 #[derive(Debug, Clone, Copy)]
 pub struct HasDefId(pub EntityDefId);
-
-impl HasDefId {
+impl_component! {
+    name: HAS_DEF_ID,
+    ident: "has_def_id",
+    ty: HasDefId,
     fn to_bytes(&self) -> Vec<u8> {
         let ident = entity_registry().get(self.0).ident;
         ByteWriter::new()
@@ -309,7 +331,6 @@ impl HasDefId {
             .string(ident)
             .into_bytes()
     }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .registry_id(entity_registry())
@@ -317,70 +338,3 @@ impl HasDefId {
             .map(Self)
     }
 }
-
-define_component!(
-    POSITION,
-    Position,
-    (Position::to_bytes, Position::from_bytes),
-    "position"
-);
-define_component!(
-    VELOCITY,
-    Velocity,
-    (Velocity::to_bytes, Velocity::from_bytes),
-    "velocity"
-);
-define_component!(
-    ROTATION,
-    Rotation,
-    (Rotation::to_bytes, Rotation::from_bytes),
-    "rotation"
-);
-define_component!(
-    ON_GROUND,
-    OnGround,
-    (OnGround::to_bytes, OnGround::from_bytes),
-    "on_ground"
-);
-define_component!(
-    USERNAME,
-    Username,
-    (Username::to_bytes, Username::from_bytes),
-    "username"
-);
-define_component!(
-    INVENTORY,
-    Inventory,
-    (Inventory::to_bytes, Inventory::from_bytes),
-    "inventory"
-);
-define_component!(
-    SELECTED_HOTBAR_SLOT,
-    SelectedHotbarSlot,
-    (SelectedHotbarSlot::to_bytes, SelectedHotbarSlot::from_bytes),
-    "selected_hotbar_slot"
-);
-define_component!(
-    FLYING,
-    Flying,
-    (Flying::to_bytes, Flying::from_bytes),
-    "flying"
-);
-define_component!(
-    HITBOX,
-    Hitbox,
-    (Hitbox::to_bytes, Hitbox::from_bytes),
-    "hitbox"
-);
-define_component!(
-    MOVE_INPUT,
-    MoveInput,
-    (MoveInput::to_bytes, MoveInput::from_bytes),
-    "move_input"
-);
-define_component!(
-    HAS_DEF_ID,
-    HasDefId,
-    (HasDefId::to_bytes, HasDefId::from_bytes),
-    "has_def_id"
-);

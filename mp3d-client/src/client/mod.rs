@@ -302,7 +302,7 @@ impl<C: Connection> Client<C> {
                 }
 
                 let input = &update_context.keyboard.text_input;
-                if input.len() > 0 {
+                if !input.is_empty() {
                     if let Some(ghost_idx) = gui.ghost.take() {
                         // Unwrap is fine here as we check for bounds when handling Up and Down
                         gui.message = chat_hist.get(ghost_idx).unwrap().to_string();

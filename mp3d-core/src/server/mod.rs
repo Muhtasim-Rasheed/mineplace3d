@@ -330,9 +330,9 @@ impl Server {
                 }
             }
             C2SMessage::SendMessage { message } => {
-                let user_id = match self.connections.get(&connection_id) {
-                    Some(uid) => *uid,
-                    None => return None,
+                let user_id = {
+                    let uid = self.connections.get(&connection_id)?;
+                    *uid
                 };
                 let mut ctx = CommandContext {
                     connections: &self.connections,

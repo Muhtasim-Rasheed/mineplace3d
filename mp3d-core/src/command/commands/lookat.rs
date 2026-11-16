@@ -31,7 +31,7 @@ impl CommandArg for Subcommand {
             Some("pos") => Coord3::parse(args).map(Self::Pos),
             Some("dir") => Ok(Self::Dir(f32::parse(args)?, f32::parse(args)?)),
             Some(s) => Err(format!("Unknown subcommand '{}'", s)),
-            None => Err(format!("Expected a subcommand but got nothing")),
+            None => Err("Expected a subcommand but got nothing".to_string()),
         }
     }
 }

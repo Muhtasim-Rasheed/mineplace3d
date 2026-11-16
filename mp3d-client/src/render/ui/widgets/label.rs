@@ -41,11 +41,6 @@ impl Label {
         self.wrap = Some(wrap_width);
         self
     }
-
-    pub fn has_shadow(mut self, has_shadow: bool) -> Self {
-        self.has_shadow = has_shadow;
-        self
-    }
 }
 
 impl Widget for Label {

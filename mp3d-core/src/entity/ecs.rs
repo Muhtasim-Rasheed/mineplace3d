@@ -84,6 +84,7 @@ impl ECS {
             .expect("registry/ECS out of sync")
     }
 
+    #[expect(clippy::mut_from_ref)]
     unsafe fn get_unchecked_mut<T: Component>(&self) -> &mut ComponentStorage<T> {
         let cell = &self.storages[T::component_id().get()];
         (unsafe { &mut *cell.get() })
@@ -130,10 +131,10 @@ impl ECS {
     pub fn entity_details(&self, entity: EntityId) -> EntityDetails {
         let registry = component_registry();
         let mut components = Vec::new();
-        for i in 0..self.storages.len() {
+        for (i, storage) in self.storages.iter().enumerate() {
             if let Some(id) = registry.valid_id(i) {
                 // SAFETY: read-only, one storage at a time
-                if let Some(bytes) = unsafe { (*self.storages[i].get()).snapshot(entity) } {
+                if let Some(bytes) = unsafe { (*storage.get()).snapshot(entity) } {
                     components.push((id, bytes));
                 }
             }
@@ -193,6 +194,12 @@ impl ECS {
         // this ECS while this &mut self borrow is alive, so calling the
         // otherwise-unchecked get_unchecked_mut is sound.
         unsafe { self.get_unchecked_mut::<T>().get_mut(entity) }
+    }
+}
+
+impl Default for ECS {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -335,5 +342,11 @@ impl Scheduler {
         for system in &mut self.systems {
             system.run(world, dt);
         }
+    }
+}
+
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new()
     }
 }

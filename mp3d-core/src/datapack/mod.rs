@@ -61,7 +61,7 @@ impl TryFrom<(BlockId, RawLootTableEntry)> for LootTableEntry {
                     .into_iter()
                     .map(|(k, rv)| {
                         rv.try_into()
-                            .map_err(|e| format!("{}: {}", &k, e))
+                            .map_err(|e| format!("{}: {}", k, e))
                             .map(|v| (k, v))
                     })
                     .collect::<Result<_, _>>();

@@ -39,7 +39,7 @@ impl PackSelection {
                         Column::new(10.0)
                             .viewport_height(window_size.1 as f32 - 200.0)
                             .with(Button::new("Base Game").disabled())
-                            .with_many(loaded_packs.into_iter().map(|v| Button::new(&v))),
+                            .with_many(loaded_packs.iter().map(|v| Button::new(v))),
                     ),
             )
             .with(Button::new("Done").size(Vec2::new(250.0, 70.0)));

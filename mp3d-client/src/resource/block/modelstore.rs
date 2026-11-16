@@ -29,9 +29,9 @@ impl From<BlockModelTransform> for TransformKey {
 impl From<TransformKey> for BlockModelTransform {
     fn from(transform: TransformKey) -> Self {
         Self {
-            rotation: Vec3::from_array(transform.rotation.map(|v| f32::from_bits(v))),
-            translation: Vec3::from_array(transform.translation.map(|v| f32::from_bits(v))),
-            scale: Vec3::from_array(transform.scale.map(|v| f32::from_bits(v))),
+            rotation: Vec3::from_array(transform.rotation.map(f32::from_bits)),
+            translation: Vec3::from_array(transform.translation.map(f32::from_bits)),
+            scale: Vec3::from_array(transform.scale.map(f32::from_bits)),
         }
     }
 }
@@ -59,7 +59,9 @@ impl BlockModelLoader {
         path: PathBuf,
         transform: Option<BlockModelTransform>,
     ) -> bool {
-        let _ = !self.finished || return false; // if finished, return false
+        if self.finished {
+            return false;
+        };
         self.paths
             .entry((path, transform.map(TransformKey::from)))
             .or_default()
@@ -72,7 +74,9 @@ impl BlockModelLoader {
         resource_manager: &ResourceManager,
         atlas: &mut TextureAtlas,
     ) -> Result<bool, String> {
-        let _ = !self.finished || return Ok(false); // if finished, return Ok(false)
+        if self.finished {
+            return Ok(false);
+        }
         for ((path, transform_key), states) in std::mem::take(&mut self.paths) {
             let model = BlockModel::from_block(
                 path,
@@ -94,16 +98,8 @@ impl BlockModelLoader {
         self.models.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.models.is_empty()
-    }
-
     pub fn get(&self, state: BlockState) -> Option<&BlockModel> {
         let index = *self.map.get(&state)?;
         self.models.get(index)
-    }
-
-    pub fn finished(&self) -> bool {
-        self.finished
     }
 }

@@ -25,8 +25,7 @@ impl<'a> CommandContext<'a> {
                     "Connection {} doesn't have an associated session id",
                     self.connection_id
                 )
-            })
-            .map(|v| *v)
+            }).copied()
     }
 
     pub fn get_sender_session(&mut self) -> Result<&mut PlayerSession, String> {

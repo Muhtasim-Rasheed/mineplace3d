@@ -34,7 +34,7 @@ impl Chunk {
         let index = local_pos.x as usize
             + CHUNK_SIZE * (local_pos.y as usize + CHUNK_SIZE * local_pos.z as usize);
         let palette_index = *self.blocks.get(index)? as usize;
-        Some(self.block_palette.get(palette_index).copied()?)
+        self.block_palette.get(palette_index).copied()
     }
 
     /// Sets the block at the given local position within the chunk.

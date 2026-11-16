@@ -19,8 +19,8 @@ impl Saveable for BlockId {
     {
         let ident_str = if version >= 0x06 {
             let ident_len = reader.u8().ctx("Block::ident_len")? as usize;
-            let ident_str = reader.string(ident_len).ctx("Block::ident")?;
-            ident_str
+            
+            reader.string(ident_len).ctx("Block::ident")?
         } else {
             reader.u8().ctx("Block::visible")?;
             let ident_len = reader.u8().ctx("Block::ident_len")? as usize;
