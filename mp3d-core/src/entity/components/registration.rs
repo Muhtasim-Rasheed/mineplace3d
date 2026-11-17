@@ -20,7 +20,7 @@ impl DefId for ComponentId {
 pub struct ComponentDef {
     pub ident: &'static str,
     pub serialize: fn(&dyn Any) -> Vec<u8>,
-    pub deserialize: fn(&[u8]) -> Box<dyn Any + Send + Sync>,
+    pub deserialize: fn(&[u8], u8) -> Box<dyn Any + Send + Sync>,
     pub make_storage: fn() -> Box<dyn ErasedStorage>,
 }
 
@@ -93,7 +93,7 @@ macro_rules! impl_component {
                             any.downcast_ref::<$ty>().expect("component type mismatch")
                         )
                     },
-                    deserialize: |bytes| Box::new(<$ty as $crate::entity::components::Component>::from_bytes(bytes)),
+                    deserialize: |bytes, version| Box::new(<$ty as $crate::entity::components::Component>::from_bytes(bytes, version)),
                     make_storage: || Box::new($crate::entity::components::ComponentStorage::<$ty>::new()) as Box<dyn ErasedStorage>,
                 },
                 id_slot: &$name,

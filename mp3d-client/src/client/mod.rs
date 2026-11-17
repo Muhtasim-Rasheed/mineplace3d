@@ -467,6 +467,7 @@ impl<C: Connection> Client<C> {
                     if Some(entity_id) == self.entity_id {
                         log::error!("Help! The server is trying to erase me!");
                     } else {
+                        log::debug!("Entity despawned with ID ({entity_id})");
                         self.world.ecs.despawn(entity_id);
                     }
                 }

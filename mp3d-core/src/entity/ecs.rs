@@ -12,6 +12,7 @@ use crate::{
         registration::{EntityDefId, entity_registry},
     },
     registry::DefId,
+    uniquequeue::UniqueQueue,
     world::World,
 };
 
@@ -59,6 +60,8 @@ impl EntityAllocator {
 pub struct ECS {
     pub e_alloc: EntityAllocator,
     storages: Vec<UnsafeCell<Box<dyn ErasedStorage>>>,
+    spawned_entities: UniqueQueue<EntityId>,
+    despawned_entities: UniqueQueue<EntityId>,
 }
 
 impl ECS {
@@ -73,6 +76,8 @@ impl ECS {
         Self {
             e_alloc: EntityAllocator::default(),
             storages,
+            spawned_entities: UniqueQueue::new(),
+            despawned_entities: UniqueQueue::new(),
         }
     }
 
@@ -115,6 +120,7 @@ impl ECS {
                 log::warn!("failed to apply component during spawn: {e}");
             }
         }
+        self.spawned_entities.push(entity);
         entity
     }
 
@@ -125,6 +131,7 @@ impl ECS {
         for storage in &mut self.storages {
             storage.get_mut().remove(entity);
         }
+        self.despawned_entities.push(entity);
         self.e_alloc.despawn(entity)
     }
 
@@ -194,6 +201,16 @@ impl ECS {
         // this ECS while this &mut self borrow is alive, so calling the
         // otherwise-unchecked get_unchecked_mut is sound.
         unsafe { self.get_unchecked_mut::<T>().get_mut(entity) }
+    }
+
+    pub fn spawned_entities(&mut self) -> impl Iterator<Item = (EntityId, EntityDetails)> {
+        std::mem::take(&mut self.spawned_entities)
+            .into_iter()
+            .map(|id| (id, self.entity_details(id)))
+    }
+
+    pub fn despawned_entities(&mut self) -> impl Iterator<Item = EntityId> {
+        std::mem::take(&mut self.despawned_entities).into_iter()
     }
 }
 

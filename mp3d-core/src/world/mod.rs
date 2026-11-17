@@ -21,7 +21,7 @@ use crate::{
         components::*,
         ecs::{ECS, Scheduler},
     },
-    item::{Inventory, item_registry, items},
+    item::{Inventory, ItemStack, item_registry, items},
     physics::CollisionWorld,
     protocol::{BlockUpdate, BlockUpdateKind},
     registry::LazyId,
@@ -367,10 +367,6 @@ impl World {
         let drops = &loot_table_entry.drops;
         let drops = drops.get(&state.data).cloned().unwrap_or_default();
 
-        let Some(inv) = self.ecs.get_component_mut::<Inventory>(player_entity_id) else {
-            return;
-        };
-
         for (item, drop_entry) in drops {
             let count = if drop_entry.max == drop_entry.min {
                 drop_entry.min
@@ -386,6 +382,10 @@ impl World {
                 }
             };
 
+            if count == 0 {
+                return;
+            }
+
             let item = match item_registry().get_id(&item) {
                 Some(i) => i,
                 None => {
@@ -398,9 +398,15 @@ impl World {
                 }
             };
 
-            // TODO: implement item entities, for now just add the items directly to the player's
-            // inventory
-            inv.add_stack(item, count as u16);
+            let stack = ItemStack::new(item, count);
+            let mut item_entity = crate::entity::item::item_template();
+            let extra_components = EntityDetails::builder()
+                .with(Position(block_pos.as_vec3() + Vec3::splat(0.5)))
+                .with(stack)
+                .with(HasDefId(*crate::entity::entities::ITEM))
+                .build();
+            item_entity.merge(&extra_components);
+            self.ecs.spawn_from_details(&item_entity);
         }
     }
 }

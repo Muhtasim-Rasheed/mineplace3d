@@ -12,13 +12,13 @@ type FxIndexMap<K, V> = indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<f
 pub mod files;
 
 #[derive(serde::Deserialize)]
-struct RawDropEntry(u32, f32, u32, f32);
+struct RawDropEntry(u16, f32, u16, f32);
 
 #[derive(Clone)]
 pub struct DropEntry {
-    pub min: u32,
+    pub min: u16,
     pub min_chance: f32,
-    pub max: u32,
+    pub max: u16,
     pub max_chance: f32,
 }
 

@@ -1,17 +1,25 @@
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct UniqueQueue<T> {
     queue: std::collections::VecDeque<T>,
     set: std::collections::HashSet<T>,
 }
 
-impl<T: std::hash::Hash + Eq + Copy> UniqueQueue<T> {
+impl<T> Default for UniqueQueue<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> UniqueQueue<T> {
     pub fn new() -> Self {
         Self {
             queue: std::collections::VecDeque::new(),
             set: std::collections::HashSet::new(),
         }
     }
+}
 
+impl<T: std::hash::Hash + Eq + Copy> UniqueQueue<T> {
     pub fn push(&mut self, item: T) {
         if self.set.insert(item) {
             self.queue.push_back(item);
@@ -53,5 +61,13 @@ impl<T: std::hash::Hash + Eq + Copy> UniqueQueue<T> {
             }
         }
         items
+    }
+}
+
+impl<T> IntoIterator for UniqueQueue<T> {
+    type Item = T;
+    type IntoIter = std::collections::vec_deque::IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.queue.into_iter()
     }
 }

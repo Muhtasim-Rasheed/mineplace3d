@@ -6,7 +6,7 @@ use crate::{
         registration::{EntityDefId, entity_registry},
     },
     impl_component,
-    item::Inventory,
+    item::{Inventory, ItemStack},
     serialize::{
         read::{ByteReader, ReadError, ReadErrorExt, ReadErrorKind},
         write::ByteWriter,
@@ -22,7 +22,7 @@ pub trait Component: Any + Send + Sync + 'static {
     where
         Self: Sized;
     fn to_bytes(&self) -> Vec<u8>;
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError>
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError>
     where
         Self: Sized;
 }
@@ -117,7 +117,10 @@ impl<T: Component> ErasedStorage for ComponentStorage<T> {
         self.get(entity).map(|c| c.to_bytes())
     }
     fn apply(&mut self, entity: EntityId, bytes: &[u8]) -> Result<(), ReadError> {
-        self.insert(entity, T::from_bytes(bytes)?);
+        self.insert(
+            entity,
+            T::from_bytes(bytes, crate::serialize::SAVE_VERSION)?,
+        );
         Ok(())
     }
     fn as_any(&self) -> &dyn Any {
@@ -139,7 +142,7 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().vec3(self.0).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .vec3()
             .ctx("position component")
@@ -156,7 +159,7 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().vec3(self.0).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .vec3()
             .ctx("velocity component")
@@ -176,7 +179,7 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().f32(self.yaw).f32(self.pitch).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
             yaw: reader.f32().ctx("Rotation::yaw")?,
@@ -194,7 +197,7 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().bool(self.0).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .bool()
             .ctx("on_ground component")
@@ -214,7 +217,7 @@ impl_component! {
             .string(&self.0)
             .into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         let len = reader.u16().ctx("username length")? as usize;
         reader.string(len).ctx("username component").map(Self)
@@ -228,8 +231,8 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().save(self).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
-        ByteReader::new(bytes).load(crate::serialize::SAVE_VERSION)
+    fn from_bytes(bytes: &[u8], version: u8) -> Result<Self, ReadError> {
+        ByteReader::new(bytes).load(version)
     }
 }
 
@@ -243,7 +246,7 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().u8(self.0 as u8).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         match ByteReader::new(bytes).u8() {
             Ok(v) if v < 9 => Ok(Self(v as usize)),
             Ok(v) => Err(ReadErrorKind::IndexOutOfRange { value: v, max: 8 })
@@ -255,7 +258,6 @@ impl_component! {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Flying(pub bool);
-
 impl_component! {
     name: FLYING,
     ident: "flying",
@@ -263,7 +265,7 @@ impl_component! {
     fn to_bytes(&self) -> Vec<u8> {
         ByteWriter::new().bool(self.0).into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .bool()
             .ctx("flying component")
@@ -286,7 +288,7 @@ impl_component! {
             .f32(self.height)
             .into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
             width: reader.f32().ctx("Hitbox::width")?,
@@ -307,7 +309,7 @@ impl_component! {
             .bool(self.sneak)
             .into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         let mut reader = ByteReader::new(bytes);
         Ok(Self {
             forward: reader.f32().ctx("MoveInput::forward")?,
@@ -331,10 +333,22 @@ impl_component! {
             .string(ident)
             .into_bytes()
     }
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ReadError> {
+    fn from_bytes(bytes: &[u8], _version: u8) -> Result<Self, ReadError> {
         ByteReader::new(bytes)
             .registry_id(entity_registry())
             .ctx("has_def_id component")
             .map(Self)
+    }
+}
+
+impl_component! {
+    name: ITEM_STACK,
+    ident: "item_stack",
+    ty: ItemStack,
+    fn to_bytes(&self) -> Vec<u8> {
+        ByteWriter::new().save(self).into_bytes()
+    }
+    fn from_bytes(bytes: &[u8], version: u8) -> Result<Self, ReadError> {
+        ByteReader::new(bytes).load(version)
     }
 }

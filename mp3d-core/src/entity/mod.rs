@@ -77,7 +77,7 @@ impl EntityDetails {
     pub fn get<T: Component>(&self) -> Option<T> {
         let id = T::component_id();
         let (_, bytes) = self.components.iter().find(|(cid, _)| *cid == id)?;
-        T::from_bytes(bytes).ok()
+        T::from_bytes(bytes, crate::serialize::SAVE_VERSION).ok()
     }
 
     pub fn diff(&self, new: &EntityDetails) -> EntityDetails {
@@ -173,6 +173,7 @@ impl From<crate::protocol::MoveInstructions> for MoveInput {
 pub mod cat;
 pub mod components;
 pub mod ecs;
+pub mod item;
 pub mod registration;
 pub mod systems;
 
@@ -183,4 +184,8 @@ define_entities! {
         ident: "cat",
         template: crate::entity::cat::cat_template,
     },
+    ITEM => {
+        ident: "item",
+        template: crate::entity::item::item_template,
+    }
 }

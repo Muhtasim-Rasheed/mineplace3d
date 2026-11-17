@@ -91,7 +91,9 @@ impl Server {
     pub fn new(singleplayer: bool, seed: i32, save_path: PathBuf) -> Server {
         let mut command_manager = CommandManager::new();
         commands::init_command_mgr(&mut command_manager);
-        let scheduler = Scheduler::new().add_system(systems::movement_system);
+        let scheduler = Scheduler::new()
+            .add_system(systems::moving)
+            .add_system(systems::picking_up_item);
         Self {
             sessions: FxHashMap::default(),
             connections: FxHashMap::default(),
@@ -247,19 +249,23 @@ impl Server {
                         self.entity_to_user.insert(entity_id, user_id);
                         let render_distance = 8.0 * MAX_RENDER_DIST as f32;
 
-                        for other_entity in self.world.entities_in_range(
-                            entitydet.get::<Position>().unwrap().0,
-                            render_distance,
-                        ) {
-                            if other_entity == entity_id {
-                                continue; // don't send the joining player their own entity twice
-                            }
+                        if !self.singleplayer {
+                            // we dont want the client to get confused when it sees two
+                            // EntitySpawned for the same entity id from here and from Server::tick
+                            for other_entity in self.world.entities_in_range(
+                                entitydet.get::<Position>().unwrap().0,
+                                render_distance,
+                            ) {
+                                if other_entity == entity_id {
+                                    continue; // don't send the joining player their own entity twice
+                                }
 
-                            let details = self.world.ecs.entity_details(other_entity);
-                            session.pending_messages.push(S2CMessage::EntitySpawned {
-                                entity_id: other_entity,
-                                entity_details: details.to_bytes(),
-                            });
+                                let details = self.world.ecs.entity_details(other_entity);
+                                session.pending_messages.push(S2CMessage::EntitySpawned {
+                                    entity_id: other_entity,
+                                    entity_details: details.to_bytes(),
+                                });
+                            }
                         }
                         self.sessions.insert(user_id, session);
                         broadcast_message(
@@ -491,6 +497,25 @@ impl Server {
             }
         }
 
+        for (id, details) in self.world.ecs.spawned_entities() {
+            broadcast_message(
+                &mut self.sessions,
+                None,
+                S2CMessage::EntitySpawned {
+                    entity_id: id,
+                    entity_details: details.to_bytes(),
+                },
+            );
+        }
+
+        for id in self.world.ecs.despawned_entities() {
+            broadcast_message(
+                &mut self.sessions,
+                None,
+                S2CMessage::EntityDespawned { entity_id: id },
+            );
+        }
+
         self.replication_tick();
     }
 }
@@ -507,7 +532,9 @@ impl Server {
     pub fn load(singleplayer: bool, save_path: PathBuf) -> Result<Self, ReadError> {
         let mut command_manager = CommandManager::new();
         commands::init_command_mgr(&mut command_manager);
-        let scheduler = Scheduler::new().add_system(systems::movement_system);
+        let scheduler = Scheduler::new()
+            .add_system(systems::moving)
+            .add_system(systems::picking_up_item);
         Ok(Self {
             sessions: FxHashMap::default(),
             connections: FxHashMap::default(),
