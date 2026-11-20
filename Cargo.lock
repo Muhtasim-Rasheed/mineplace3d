@@ -1134,6 +1134,7 @@ dependencies = [
  "indexmap 2.14.2",
  "log",
  "mp3d-core",
+ "obj-rs",
  "postcard",
  "rand 0.10.0",
  "rayon",
@@ -1254,6 +1255,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "obj-rs"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8247fd8f66340ad9c969f96e63a80a2f74b04e5403d92584b75e046006f4c7e1"
+dependencies = [
+ "num-traits",
+ "serde",
 ]
 
 [[package]]

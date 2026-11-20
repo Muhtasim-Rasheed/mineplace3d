@@ -3,6 +3,7 @@
 //! Reads model files and textures and prepares them for rendering.
 
 pub mod block;
+pub mod entity;
 pub mod fontsettings;
 pub mod pack;
 

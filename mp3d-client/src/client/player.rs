@@ -183,14 +183,6 @@ impl LocalPlayer {
         Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
     }
 
-    pub fn model(&self) -> Mat4 {
-        Mat4::from_scale_rotation_translation(
-            Vec3::new(self.width, self.height, self.width),
-            glam::Quat::from_rotation_y((self.yaw - self.delta_yaw * 2.0).to_radians()),
-            self.position,
-        )
-    }
-
     pub fn view(&self, world: &ClientWorld) -> Mat4 {
         if self.third_person {
             self.third_person_view(world)

@@ -9,7 +9,10 @@ use std::{
 
 use glow::HasContext;
 use image::GenericImageView;
-use mp3d_core::block::{BlockState, block_registry};
+use mp3d_core::{
+    block::{BlockState, block_registry},
+    entity::registration::entity_registry,
+};
 
 use crate::{
     render::{
@@ -19,6 +22,7 @@ use crate::{
     resource::{
         ResourceManager,
         block::{States, TextureAtlas, modelstore::BlockModelLoader},
+        entity::modelstore::EntityModelLoader,
     },
     scenes::options::ClientConfig,
 };
@@ -77,6 +81,7 @@ pub type SceneActionResult = Result<(), SceneActionError>;
 pub struct Assets {
     pub block_textures: TextureAtlas,
     pub block_model_loader: BlockModelLoader,
+    pub entity_model_loader: EntityModelLoader,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
     pub window_icon: crate::abs::Texture,
@@ -137,8 +142,19 @@ impl Assets {
 
         block_model_loader
             .load_all(&resource_manager, &mut block_textures)
-            .map_err(|e| format!("Model parsing error: {e}"))?;
+            .map_err(|e| format!("Block model parsing error: {e}"))?;
         block_textures.upload(gl);
+
+        let mut entity_model_loader = EntityModelLoader::new();
+
+        entity_model_loader.insert(PathBuf::from("entities/models/player.obj"), None);
+        for (entity_def_id, entity) in entity_registry().iter_enumerate() {
+            let model_path = PathBuf::from(format!("entities/models/{}.obj", entity.ident));
+            entity_model_loader.insert(model_path, Some(entity_def_id));
+        }
+        entity_model_loader
+            .load_all(&resource_manager, gl)
+            .map_err(|e| format!("Entity model parsing error: {e}"))?;
 
         if let Err(e) = block_textures
             .take_atlas()
@@ -210,6 +226,7 @@ impl Assets {
         Ok(Self {
             block_textures,
             block_model_loader,
+            entity_model_loader,
             font,
             gui_tex,
             window_icon: window_icon_gpu,

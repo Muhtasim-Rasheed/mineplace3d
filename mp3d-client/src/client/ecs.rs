@@ -31,6 +31,10 @@ impl ClientEcs {
             .iter()
             .filter_map(|(id, details)| Some((*id, Q::fetch(details)?)))
     }
+
+    pub fn entity_details(&self, id: EntityId) -> Option<&EntityDetails> {
+        self.entities.get(&id)
+    }
 }
 
 pub trait ClientQuery {

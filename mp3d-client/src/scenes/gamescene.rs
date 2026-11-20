@@ -9,7 +9,11 @@ use std::{
 use glam::{IVec3, Mat4, UVec2, UVec4, Vec2, Vec3, Vec4};
 use glow::HasContext;
 use mp3d_core::{
-    entity::components::{Hitbox, Position, Rotation},
+    entity::{
+        components::{HasDefId, Position, Rotation},
+        entities,
+        registration::entity_registry,
+    },
     serialize::read::ReadError,
     textcomponent::TextComponent,
     world::chunk::CHUNK_SIZE,
@@ -23,7 +27,7 @@ use crate::{
     },
     render::{
         clouds::CloudRenderer,
-        entities::unit_cube,
+        entities::EntityRenderers,
         meshing::mesh_world,
         particles::ParticleSystem,
         profiler::Profiler,
@@ -33,6 +37,7 @@ use crate::{
             widgets::*,
         },
     },
+    resource::entity::modelstore::EntityModelLoader,
     scenes::{Assets, SceneAction, SceneUpdateContext},
     shader_program,
 };
@@ -74,7 +79,7 @@ struct WorldRenderer {
     postprocess_shader: ShaderProgram,
     chunk_border_shader: ShaderProgram,
 
-    entity_cube: Mesh,
+    entity_renderers: EntityRenderers,
     fullscreen_quad: Mesh,
     cube_wireframe: Mesh,
 
@@ -212,17 +217,13 @@ impl GameScene {
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
 
-        // let image_bytes = [
-        //     255, 0, 255, 255, // Pink
-        //     0, 0, 0, 255, // Black
-        //     0, 0, 0, 255, // Black
-        //     255, 0, 255, 255, // Pink
-        // ];
-        // let pink_black = Texture::new_bytes(gl, 2, 2, image_bytes.to_vec());
-        let pink_black = Texture::new(
-            gl,
-            &::image::load_from_memory(include_bytes!("../assets/glungus.png")).unwrap(),
-        );
+        let image_bytes = [
+            255, 0, 255, 255, // Pink
+            0, 0, 0, 255, // Black
+            0, 0, 0, 255, // Black
+            255, 0, 255, 255, // Pink
+        ];
+        let pink_black = Texture::new_bytes(gl, 2, 2, image_bytes.to_vec());
 
         Self {
             client,
@@ -247,7 +248,7 @@ impl GameScene {
                 entity_shader: shader_program!(entity, gl, ".."),
                 postprocess_shader: shader_program!(postprocess, gl, ".."),
                 chunk_border_shader: shader_program!(chunk_border, gl, ".."),
-                entity_cube: unit_cube(gl),
+                entity_renderers: EntityRenderers::new(gl),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
                 pink_black,
@@ -338,34 +339,56 @@ impl GameScene {
         }
     }
 
-    fn draw_entities(&mut self, view: Mat4, projection: Mat4, player_model_mat: Mat4) {
+    fn draw_entities(&mut self, view: Mat4, projection: Mat4, models: &EntityModelLoader) {
         let _p = self.renderer.profiler.start_scope("draw_entities");
-        self.renderer.entity_shader.use_program();
-        self.renderer
-            .entity_shader
-            .set_uniform("u_model", player_model_mat);
-        self.renderer.entity_shader.set_uniform("u_view", view);
-        self.renderer
-            .entity_shader
-            .set_uniform("u_projection", projection);
-        self.renderer.entity_shader.set_uniform("u_texture", 0);
-        // TODO: use a proper texture atlas for entities.
-        self.renderer.pink_black.bind(0);
+        let entity_shader = &self.renderer.entity_shader;
+        entity_shader.use_program();
+        entity_shader.set_uniform("u_view", view);
+        entity_shader.set_uniform("u_projection", projection);
 
-        self.renderer.entity_cube.draw();
+        self.renderer.entity_renderers.player.draw(
+            self.client.player.position,
+            self.client.player.yaw,
+            self.renderer.pink_black.handle(),
+            models,
+            entity_shader,
+        );
 
-        for (_, (pos, rot, hit)) in self
-            .client
-            .world
-            .ecs
-            .query::<(&Position, &Rotation, &Hitbox)>()
+        for (id, (Position(pos), Rotation { yaw, .. })) in
+            self.client.world.ecs.query::<(&Position, &Rotation)>()
         {
-            let model = Mat4::from_translation(pos.0)
-                * Mat4::from_rotation_y(rot.yaw.to_radians())
-                * Mat4::from_scale(Vec3::new(hit.width, hit.height, hit.width));
-
-            self.renderer.entity_shader.set_uniform("u_model", model);
-            self.renderer.entity_cube.draw();
+            let det = self.client.world.ecs.entity_details(id).unwrap();
+            match det.get::<HasDefId>() {
+                Some(HasDefId(id)) if id == *entities::CAT => {
+                    self.renderer.entity_renderers.cat.draw(
+                        pos,
+                        yaw,
+                        self.renderer.pink_black.handle(),
+                        models,
+                        entity_shader,
+                    )
+                }
+                Some(HasDefId(id)) if id == *entities::ITEM => {
+                    self.renderer.entity_renderers.item.draw(
+                        pos,
+                        yaw,
+                        self.renderer.pink_black.handle(),
+                        models,
+                        entity_shader,
+                    )
+                }
+                None => self.renderer.entity_renderers.player.draw(
+                    pos,
+                    yaw,
+                    self.renderer.pink_black.handle(),
+                    models,
+                    entity_shader,
+                ),
+                Some(HasDefId(id)) => {
+                    let ident = entity_registry().get(id).ident;
+                    log::error!("unknown entity with def id {ident}");
+                }
+            }
         }
     }
 
@@ -718,7 +741,6 @@ impl super::Scene for GameScene {
             assets,
         };
 
-        let player_model_mat = self.client.player.model();
         let view = self.client.player.view(&self.client.world);
         let projection = self
             .client
@@ -750,9 +772,9 @@ impl super::Scene for GameScene {
 
                 self.draw_chunks(gl, assets, view, projection);
 
-                // PLAYER
+                // ENTITIES
 
-                self.draw_entities(view, projection, player_model_mat);
+                self.draw_entities(view, projection, &assets.entity_model_loader);
 
                 // PARTICLES
 

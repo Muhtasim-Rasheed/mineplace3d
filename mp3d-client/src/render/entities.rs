@@ -2,10 +2,14 @@
 
 use std::sync::Arc;
 
-use glam::{Vec2, Vec3, vec2, vec3};
+use glam::{Mat4, Vec2, Vec3};
 use glow::HasContext;
+use mp3d_core::entity::entities;
 
-use crate::abs::{Mesh, Vertex};
+use crate::{
+    abs::{ShaderProgram, TextureHandle, Vertex},
+    resource::entity::modelstore::EntityModelLoader,
+};
 
 #[repr(C)]
 pub struct EntityVertex {
@@ -48,47 +52,105 @@ impl Vertex for EntityVertex {
     }
 }
 
-pub fn unit_cube(gl: &Arc<glow::Context>) -> Mesh {
-    #[rustfmt::skip]
-    let vertices: Vec<EntityVertex> = vec![
-        // North
-        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  0.0, -1.0) },
-        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  0.0, -1.0) },
-        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  0.0, -1.0) },
-        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  0.0, -1.0) },
-        // South
-        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  0.0,  1.0) },
-        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  0.0,  1.0) },
-        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  0.0,  1.0) },
-        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  0.0,  1.0) },
-        // East
-        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 1.0,  0.0,  0.0) },
-        // West
-        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3(-1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3(-1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3(-1.0,  0.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3(-1.0,  0.0,  0.0) },
-        // Up
-        EntityVertex { position: vec3( 0.5, 1.0, -0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0,  1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 1.0, -0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0,  1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 1.0,  0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0,  1.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 1.0,  0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0,  1.0,  0.0) },
-        // Down    
-        EntityVertex { position: vec3( 0.5, 0.0,  0.5), uv: vec2(1.0, 0.0), normal: vec3( 0.0, -1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0,  0.5), uv: vec2(0.0, 0.0), normal: vec3( 0.0, -1.0,  0.0) },
-        EntityVertex { position: vec3(-0.5, 0.0, -0.5), uv: vec2(0.0, 1.0), normal: vec3( 0.0, -1.0,  0.0) },
-        EntityVertex { position: vec3( 0.5, 0.0, -0.5), uv: vec2(1.0, 1.0), normal: vec3( 0.0, -1.0,  0.0) },
-    ];
+pub struct EntityRenderers {
+    pub player: PlayerRenderer,
+    pub cat: CatRenderer,
+    pub item: ItemRenderer,
+}
 
-    let mut indices: Vec<u32> = Vec::new();
+impl EntityRenderers {
+    pub fn new(gl: &Arc<glow::Context>) -> Self {
+        Self {
+            player: PlayerRenderer::new(gl),
+            cat: CatRenderer::new(gl),
+            item: ItemRenderer::new(gl),
+        }
+    }
+}
 
-    for i in 0..6 {
-        let base = i * 4;
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+pub struct PlayerRenderer {
+    gl: Arc<glow::Context>,
+}
+
+impl PlayerRenderer {
+    fn new(gl: &Arc<glow::Context>) -> Self {
+        Self { gl: Arc::clone(gl) }
     }
 
-    Mesh::new(gl, &vertices, &indices, glow::TRIANGLES)
+    pub fn draw(
+        &self,
+        pos: Vec3,
+        yaw: f32,
+        tex: TextureHandle,
+        models: &EntityModelLoader,
+        entity_shader: &ShaderProgram,
+    ) {
+        let model_mat = Mat4::from_translation(pos) * Mat4::from_rotation_y(yaw.to_radians());
+        let Some(model) = models.get(None) else {
+            log::error!("Player model is not loaded!");
+            return;
+        };
+        entity_shader.use_program();
+        entity_shader.set_uniform("u_model", model_mat);
+        tex.bind(&self.gl, 0);
+        model.draw();
+    }
+}
+
+pub struct CatRenderer {
+    gl: Arc<glow::Context>,
+}
+
+impl CatRenderer {
+    fn new(gl: &Arc<glow::Context>) -> Self {
+        Self { gl: Arc::clone(gl) }
+    }
+
+    pub fn draw(
+        &self,
+        pos: Vec3,
+        yaw: f32,
+        tex: TextureHandle,
+        models: &EntityModelLoader,
+        entity_shader: &ShaderProgram,
+    ) {
+        let model_mat = Mat4::from_translation(pos) * Mat4::from_rotation_y(yaw.to_radians());
+        let Some(model) = models.get(Some(*entities::CAT)) else {
+            log::error!("Cat model is not loaded!");
+            return;
+        };
+        entity_shader.use_program();
+        entity_shader.set_uniform("u_model", model_mat);
+        tex.bind(&self.gl, 0);
+        model.draw();
+    }
+}
+
+pub struct ItemRenderer {
+    gl: Arc<glow::Context>,
+}
+
+impl ItemRenderer {
+    fn new(gl: &Arc<glow::Context>) -> Self {
+        Self { gl: Arc::clone(gl) }
+    }
+
+    pub fn draw(
+        &self,
+        pos: Vec3,
+        yaw: f32,
+        tex: TextureHandle,
+        models: &EntityModelLoader,
+        entity_shader: &ShaderProgram,
+    ) {
+        let model_mat = Mat4::from_translation(pos) * Mat4::from_rotation_y(yaw.to_radians());
+        let Some(model) = models.get(Some(*entities::ITEM)) else {
+            log::error!("Item model is not loaded!");
+            return;
+        };
+        entity_shader.use_program();
+        entity_shader.set_uniform("u_model", model_mat);
+        tex.bind(&self.gl, 0);
+        model.draw();
+    }
 }
