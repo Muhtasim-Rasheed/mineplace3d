@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use glam::{Mat4, Vec2, Vec3};
 use glow::HasContext;
-use mp3d_core::{entity::entities, item::ItemStack};
+use mp3d_core::entity::entities;
 
 use crate::{
     abs::{ShaderProgram, Vertex},

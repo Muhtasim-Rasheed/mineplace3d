@@ -40,6 +40,9 @@ define_items!(
     BRICK_VSLAB => { ident: "brick_vslab", block: blocks::BRICK_VSLAB },
     GOLD_BLOCK => { ident: "gold_block", block: blocks::GOLD },
     DIAMOND_BLOCK => { ident: "diamond_block", block: blocks::DIAMOND },
+    URANIUM_BLOCK => { ident: "uranium_block", block: blocks::URANIUM_BLOCK },
+    URANIUM_GLASS => { ident: "uranium_glass", block: blocks::URANIUM_GLASS },
+    URANIUM_ORE => { ident: "uranium_ore", block: blocks::URANIUM_ORE },
 );
 
 /// A struct representing a stack of items, containing a the item and the count of how many of

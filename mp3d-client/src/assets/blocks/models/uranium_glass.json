@@ -1,0 +1,6 @@
+{
+	"parent": "cube/all_transparent",
+	"textures": {
+		"$a": "uranium_glass"
+	}
+}

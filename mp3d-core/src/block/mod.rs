@@ -150,6 +150,9 @@ define_blocks! {
     },
     GOLD => { ident: "gold" },
     DIAMOND => { ident: "diamond" },
+    URANIUM_BLOCK => { ident: "uranium_block" },
+    URANIUM_GLASS => { ident: "uranium_glass" },
+    URANIUM_ORE => { ident: "uranium_ore" },
 }
 
 /// Collision shape used for collision detection.
