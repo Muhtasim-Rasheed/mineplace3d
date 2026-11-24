@@ -5,7 +5,11 @@ use glam::Vec3;
 use mp3d_core::entity::registration::EntityDefId;
 use obj::{Obj, TexturedVertex, load_obj};
 
-use crate::{abs::Mesh, render::entities::EntityVertex, resource::ResourceManager};
+use crate::{
+    abs::{Mesh, Texture},
+    render::entities::EntityVertex,
+    resource::ResourceManager,
+};
 
 impl From<TexturedVertex> for EntityVertex {
     fn from(v: TexturedVertex) -> Self {
@@ -17,9 +21,14 @@ impl From<TexturedVertex> for EntityVertex {
     }
 }
 
+pub struct EntityModel {
+    pub mesh: Mesh,
+    pub tex: Option<Texture>,
+}
+
 pub struct EntityModelLoader {
-    map: FxHashMap<Option<EntityDefId>, Mesh>,
-    paths: FxHashMap<PathBuf, Option<EntityDefId>>,
+    map: FxHashMap<Option<EntityDefId>, EntityModel>,
+    paths: FxHashMap<(PathBuf, PathBuf), Option<EntityDefId>>,
     finished: bool,
 }
 
@@ -32,8 +41,8 @@ impl EntityModelLoader {
         }
     }
 
-    pub fn insert(&mut self, path: PathBuf, kind: Option<EntityDefId>) {
-        self.paths.insert(path, kind);
+    pub fn insert(&mut self, mesh: PathBuf, tex: PathBuf, kind: Option<EntityDefId>) {
+        self.paths.insert((mesh, tex), kind);
     }
 
     pub fn load_all(
@@ -45,21 +54,28 @@ impl EntityModelLoader {
             return Ok(false);
         }
 
-        for (p, k) in std::mem::take(&mut self.paths) {
-            let Some(content) = resource_manager.read(&p) else {
-                return Err(format!("File '{}' doesn't exist", p.display()));
+        for ((mesh_p, tex_p), k) in std::mem::take(&mut self.paths) {
+            let Some(content) = resource_manager.read(&mesh_p) else {
+                return Err(format!("File '{}' doesn't exist", mesh_p.display()));
             };
             let obj: Obj<TexturedVertex, u32> =
                 load_obj(Cursor::new(content)).map_err(|e| e.to_string())?;
             let vertices: Vec<_> = obj.vertices.into_iter().map(EntityVertex::from).collect();
-            let m = Mesh::new(gl, &vertices, &obj.indices, glow::TRIANGLES);
-            self.map.insert(k, m);
+            let mesh = Mesh::new(gl, &vertices, &obj.indices, glow::TRIANGLES);
+            let tex = resource_manager
+                .read(&tex_p)
+                .map(|content| {
+                    let img = image::load_from_memory(&content).map_err(|e| e.to_string())?;
+                    Ok::<Texture, String>(Texture::new(gl, &img))
+                })
+                .transpose()?;
+            self.map.insert(k, EntityModel { mesh, tex });
         }
 
         Ok(true)
     }
 
-    pub fn get(&self, kind: Option<EntityDefId>) -> Option<&Mesh> {
+    pub fn get(&self, kind: Option<EntityDefId>) -> Option<&EntityModel> {
         self.map.get(&kind)
     }
 }

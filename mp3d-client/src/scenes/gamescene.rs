@@ -20,7 +20,7 @@ use mp3d_core::{
 };
 
 use crate::{
-    abs::{Mesh, ShaderProgram, Texture, framebuffer::Framebuffer},
+    abs::{Mesh, ShaderProgram, framebuffer::Framebuffer},
     client::{
         Client, Connection, CurrentGUI, cast_ray, connectionkind::ConnectionKind,
         localconnection::LocalConnection, tcpconnection::TcpConnection,
@@ -37,7 +37,6 @@ use crate::{
             widgets::*,
         },
     },
-    resource::entity::modelstore::EntityModelLoader,
     scenes::{Assets, SceneAction, SceneUpdateContext},
     shader_program,
 };
@@ -82,8 +81,6 @@ struct WorldRenderer {
     entity_renderers: EntityRenderers,
     fullscreen_quad: Mesh,
     cube_wireframe: Mesh,
-
-    pink_black: Texture,
 
     profiler: Profiler,
 }
@@ -217,14 +214,6 @@ impl GameScene {
         let cloud_renderer = CloudRenderer::new(gl);
         let particle_system = ParticleSystem::new(gl);
 
-        let image_bytes = [
-            255, 0, 255, 255, // Pink
-            0, 0, 0, 255, // Black
-            0, 0, 0, 255, // Black
-            255, 0, 255, 255, // Pink
-        ];
-        let pink_black = Texture::new_bytes(gl, 2, 2, image_bytes.to_vec());
-
         Self {
             client,
             renderer: WorldRenderer {
@@ -248,10 +237,9 @@ impl GameScene {
                 entity_shader: shader_program!(entity, gl, ".."),
                 postprocess_shader: shader_program!(postprocess, gl, ".."),
                 chunk_border_shader: shader_program!(chunk_border, gl, ".."),
-                entity_renderers: EntityRenderers::new(gl),
+                entity_renderers: EntityRenderers::new(),
                 fullscreen_quad: fullscreen_quad_ndc(gl),
                 cube_wireframe: cube_wireframe(gl),
-                pink_black,
                 profiler: Profiler::new(),
             },
             screen_size: UVec2::new(window_size.0, window_size.1),
@@ -339,7 +327,7 @@ impl GameScene {
         }
     }
 
-    fn draw_entities(&mut self, view: Mat4, projection: Mat4, models: &EntityModelLoader) {
+    fn draw_entities(&mut self, view: Mat4, projection: Mat4, assets: &Arc<Assets>) {
         let _p = self.renderer.profiler.start_scope("draw_entities");
         let entity_shader = &self.renderer.entity_shader;
         entity_shader.use_program();
@@ -349,8 +337,7 @@ impl GameScene {
         self.renderer.entity_renderers.player.draw(
             self.client.player.position,
             self.client.player.yaw,
-            self.renderer.pink_black.handle(),
-            models,
+            assets,
             entity_shader,
         );
 
@@ -359,31 +346,21 @@ impl GameScene {
         {
             let det = self.client.world.ecs.entity_details(id).unwrap();
             match det.get::<HasDefId>() {
-                Some(HasDefId(id)) if id == *entities::CAT => {
-                    self.renderer.entity_renderers.cat.draw(
-                        pos,
-                        yaw,
-                        self.renderer.pink_black.handle(),
-                        models,
-                        entity_shader,
-                    )
-                }
-                Some(HasDefId(id)) if id == *entities::ITEM => {
-                    self.renderer.entity_renderers.item.draw(
-                        pos,
-                        yaw,
-                        self.renderer.pink_black.handle(),
-                        models,
-                        entity_shader,
-                    )
-                }
-                None => self.renderer.entity_renderers.player.draw(
-                    pos,
-                    yaw,
-                    self.renderer.pink_black.handle(),
-                    models,
-                    entity_shader,
-                ),
+                Some(HasDefId(id)) if id == *entities::CAT => self
+                    .renderer
+                    .entity_renderers
+                    .cat
+                    .draw(pos, yaw, assets, entity_shader),
+                Some(HasDefId(id)) if id == *entities::ITEM => self
+                    .renderer
+                    .entity_renderers
+                    .item
+                    .draw(pos, yaw, assets, entity_shader),
+                None => self
+                    .renderer
+                    .entity_renderers
+                    .player
+                    .draw(pos, yaw, assets, entity_shader),
                 Some(HasDefId(id)) => {
                     let ident = entity_registry().get(id).ident;
                     log::error!("unknown entity with def id {ident}");
@@ -774,7 +751,7 @@ impl super::Scene for GameScene {
 
                 // ENTITIES
 
-                self.draw_entities(view, projection, &assets.entity_model_loader);
+                self.draw_entities(view, projection, assets);
 
                 // PARTICLES
 

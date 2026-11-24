@@ -209,13 +209,12 @@ macro_rules! define_blocks {
                 $(, collision_shape: $collision_shape:expr)?
                 $(, interact_shape: $interact_shape:expr)?
 
-                $(, state_properties: $state_properties:expr)?
+                $(, state_properties: {$($pname:ident: $pval:expr),* $(,)?})?
                 $(, from_legacy_state: $from_legacy_state:expr)?
 
                 $(, on_click: $on_click:expr)?
                 $(, on_place: $on_place:expr)?
                 $(, on_break: $on_break:expr)?
-
                 $(, on_update: $on_update:expr)?
                 $(,)?
             }
@@ -235,7 +234,7 @@ macro_rules! define_blocks {
                             interact_shape: define_blocks!(@interact_shape $( $interact_shape )?),
                             ident: $ident,
 
-                            state_properties: define_blocks!(@state_properties $( $state_properties )?),
+                            state_properties: define_blocks!(@state_properties $( $($pname:$pval),* )?),
                             state_index: ::fxhash::FxHashMap::default(),
                             default_state: 0,
                             from_legacy_state: define_blocks!(@from_legacy_state $( $from_legacy_state )?),
@@ -262,7 +261,9 @@ macro_rules! define_blocks {
     (@interact_shape $interact_shape:expr) => { Some($interact_shape) };
     (@interact_shape) => { None };
 
-    (@state_properties $state_properties:expr) => { $state_properties };
+    (@state_properties $($pname:ident: $pval:expr),*) => {
+        vec![$($crate::block::registration::PropertyDef::new(stringify!($pname), $pval)),*]
+    };
     (@state_properties) => { vec![] };
 
     (@from_legacy_state $from_legacy_state:expr) => { Some($from_legacy_state) };

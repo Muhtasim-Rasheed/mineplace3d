@@ -82,6 +82,7 @@ pub struct Assets {
     pub block_textures: TextureAtlas,
     pub block_model_loader: BlockModelLoader,
     pub entity_model_loader: EntityModelLoader,
+    pub missing: crate::abs::Texture,
     pub font: Font,
     pub gui_tex: crate::abs::Texture,
     pub window_icon: crate::abs::Texture,
@@ -147,10 +148,17 @@ impl Assets {
 
         let mut entity_model_loader = EntityModelLoader::new();
 
-        entity_model_loader.insert(PathBuf::from("entities/models/player.obj"), None);
+        entity_model_loader.insert(
+            PathBuf::from("entities/models/player.obj"),
+            PathBuf::from("entities/textures/player.png"),
+            None,
+        );
         for (entity_def_id, entity) in entity_registry().iter_enumerate() {
-            let model_path = PathBuf::from(format!("entities/models/{}.obj", entity.ident));
-            entity_model_loader.insert(model_path, Some(entity_def_id));
+            entity_model_loader.insert(
+                PathBuf::from(format!("entities/models/{}.obj", entity.ident)),
+                PathBuf::from(format!("entities/textures/{}.png", entity.ident)),
+                Some(entity_def_id),
+            );
         }
         entity_model_loader
             .load_all(&resource_manager, gl)
@@ -174,6 +182,14 @@ impl Assets {
             block_model_loader.len(),
             block_registry().len()
         );
+
+        let missing_bytes = [
+            255, 0, 255, 255, // Pink
+            0, 0, 0, 255, // Black
+            0, 0, 0, 255, // Black
+            255, 0, 255, 255, // Pink
+        ];
+        let missing = crate::abs::Texture::new_bytes(gl, 2, 2, missing_bytes.to_vec());
 
         let font = Font::new(
             crate::abs::Texture::new(
@@ -227,6 +243,7 @@ impl Assets {
             block_textures,
             block_model_loader,
             entity_model_loader,
+            missing,
             font,
             gui_tex,
             window_icon: window_icon_gpu,
