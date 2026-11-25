@@ -1,6 +1,6 @@
 [package]
 name = "mp3d-server"
-version = "0.2.1-beta"
+version = "0.2.2-beta"
 edition = "2024"
 license = "MIT"
 
