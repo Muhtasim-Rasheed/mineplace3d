@@ -1,6 +1,0 @@
-{
-	"parent": "vslab/all",
-	"textures": {
-		"$a": "bricks"
-	}
-}

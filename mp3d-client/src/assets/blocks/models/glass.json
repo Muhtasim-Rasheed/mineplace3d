@@ -1,6 +1,0 @@
-{
-	"parent": "cube/all_transparent",
-	"textures": {
-		"$a": "glass"
-	}
-}
